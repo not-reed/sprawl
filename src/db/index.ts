@@ -11,6 +11,7 @@ import {
   SqliteAdapter,
   SqliteIntrospector,
   SqliteQueryCompiler,
+  createQueryId,
 } from 'kysely'
 
 import type { Database as DatabaseSchema } from './schema.js'
@@ -33,15 +34,15 @@ class NodeSqliteDriver implements Driver {
   }
 
   async beginTransaction(connection: DatabaseConnection): Promise<void> {
-    await connection.executeQuery({ sql: 'BEGIN', parameters: [], query: { kind: 'RawNode' } as any })
+    await connection.executeQuery({ sql: 'BEGIN', parameters: [], query: { kind: 'RawNode' } as any, queryId: createQueryId() })
   }
 
   async commitTransaction(connection: DatabaseConnection): Promise<void> {
-    await connection.executeQuery({ sql: 'COMMIT', parameters: [], query: { kind: 'RawNode' } as any })
+    await connection.executeQuery({ sql: 'COMMIT', parameters: [], query: { kind: 'RawNode' } as any, queryId: createQueryId() })
   }
 
   async rollbackTransaction(connection: DatabaseConnection): Promise<void> {
-    await connection.executeQuery({ sql: 'ROLLBACK', parameters: [], query: { kind: 'RawNode' } as any })
+    await connection.executeQuery({ sql: 'ROLLBACK', parameters: [], query: { kind: 'RawNode' } as any, queryId: createQueryId() })
   }
 
   async releaseConnection(): Promise<void> {}

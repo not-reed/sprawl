@@ -1,5 +1,5 @@
 import { Type, type Static } from '@sinclair/typebox'
-import { toolLog } from '../logger.js'
+import { toolLog } from '../../logger.js'
 
 const WebSearchParams = Type.Object({
   query: Type.String({

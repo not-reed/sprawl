@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { Kysely } from 'kysely'
-import { createDb } from '../../db/index.js'
-import type { Database } from '../../db/schema.js'
+import { createDb } from '../../../db/index.js'
+import type { Database } from '../../../db/schema.js'
 import {
   createScheduleCreateTool,
   createScheduleListTool,
   createScheduleCancelTool,
 } from '../schedule.js'
-import * as migrations from '../../db/migrations/001-initial.js'
+import * as migrations from '../../../db/migrations/001-initial.js'
 
 let db: Kysely<Database>
 const TEST_CHAT_ID = '12345'

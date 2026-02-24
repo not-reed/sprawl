@@ -273,9 +273,35 @@ export async function saveMessage(
       role: message.role,
       content: message.content,
       tool_calls: message.tool_calls ?? null,
+      telegram_message_id: message.telegram_message_id ?? null,
     })
     .execute()
   return id
+}
+
+export async function updateTelegramMessageId(
+  db: DB,
+  internalId: string,
+  telegramMsgId: number,
+) {
+  await db
+    .updateTable('messages')
+    .set({ telegram_message_id: telegramMsgId })
+    .where('id', '=', internalId)
+    .execute()
+}
+
+export async function getMessageByTelegramId(
+  db: DB,
+  conversationId: string,
+  telegramMsgId: number,
+) {
+  return db
+    .selectFrom('messages')
+    .selectAll()
+    .where('conversation_id', '=', conversationId)
+    .where('telegram_message_id', '=', telegramMsgId)
+    .executeTakeFirst()
 }
 
 // --- Schedules ---
@@ -349,6 +375,65 @@ export async function trackUsage(
       source: usage.source,
     })
     .execute()
+}
+
+export interface UsageStats {
+  total_cost: number
+  total_input_tokens: number
+  total_output_tokens: number
+  message_count: number
+  daily: { date: string; cost: number; messages: number }[]
+}
+
+export async function getUsageStats(
+  db: DB,
+  opts?: { days?: number; source?: string },
+): Promise<UsageStats> {
+  const days = opts?.days ?? 30
+  const cutoff = sql<string>`datetime('now', ${`-${days} days`})`
+
+  let totalsQuery = db
+    .selectFrom('ai_usage')
+    .select([
+      sql<number>`coalesce(sum(cost_usd), 0)`.as('total_cost'),
+      sql<number>`coalesce(sum(input_tokens), 0)`.as('total_input_tokens'),
+      sql<number>`coalesce(sum(output_tokens), 0)`.as('total_output_tokens'),
+      sql<number>`count(*)`.as('message_count'),
+    ])
+    .where('created_at', '>=', cutoff)
+
+  let dailyQuery = db
+    .selectFrom('ai_usage')
+    .select([
+      sql<string>`date(created_at)`.as('date'),
+      sql<number>`coalesce(sum(cost_usd), 0)`.as('cost'),
+      sql<number>`count(*)`.as('messages'),
+    ])
+    .where('created_at', '>=', cutoff)
+    .groupBy(sql`date(created_at)`)
+    .orderBy(sql`date(created_at)`, 'desc')
+
+  if (opts?.source) {
+    totalsQuery = totalsQuery.where('source', '=', opts.source)
+    dailyQuery = dailyQuery.where('source', '=', opts.source)
+  }
+
+  const [totals, daily] = await Promise.all([
+    totalsQuery.executeTakeFirstOrThrow(),
+    dailyQuery.execute(),
+  ])
+
+  return {
+    total_cost: Number(totals.total_cost),
+    total_input_tokens: Number(totals.total_input_tokens),
+    total_output_tokens: Number(totals.total_output_tokens),
+    message_count: Number(totals.message_count),
+    daily: daily.map((d) => ({
+      date: d.date,
+      cost: Number(d.cost),
+      messages: Number(d.messages),
+    })),
+  }
 }
 
 // --- Settings ---

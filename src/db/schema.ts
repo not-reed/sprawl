@@ -7,6 +7,7 @@ export interface Database {
   schedules: ScheduleTable
   ai_usage: AiUsageTable
   settings: SettingTable
+  secrets: SecretTable
 }
 
 export interface MemoryTable {
@@ -42,6 +43,7 @@ export interface MessageTable {
   role: string
   content: string
   tool_calls: string | null
+  telegram_message_id: number | null
   created_at: Generated<string>
 }
 
@@ -84,3 +86,13 @@ export interface SettingTable {
 }
 
 export type Setting = Selectable<SettingTable>
+
+export interface SecretTable {
+  key: string
+  value: string
+  source: Generated<string>
+  created_at: Generated<string>
+  updated_at: Generated<string>
+}
+
+export type Secret = Selectable<SecretTable>

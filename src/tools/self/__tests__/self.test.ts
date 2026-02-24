@@ -4,7 +4,7 @@ import { writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { createSelfReadTool } from '../self-read.js'
 import { createSelfEditTool } from '../self-edit.js'
 
-const testRoot = resolve(import.meta.dirname, '../../../.test-project')
+const testRoot = resolve(import.meta.dirname, '../../../../.test-project')
 
 // Set up a fake project structure for self-aware tool tests
 function setupTestProject() {

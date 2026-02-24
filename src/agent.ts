@@ -8,9 +8,10 @@ import type { Static, TSchema } from '@sinclair/typebox'
 import type { Kysely } from 'kysely'
 
 import { env } from './env.js'
-import { SYSTEM_PROMPT, buildContextPreamble } from './system-prompt.js'
+import { getSystemPrompt, buildContextPreamble } from './system-prompt.js'
 import { agentLog, toolLog } from './logger.js'
 import type { Database } from './db/schema.js'
+import type { TelegramContext } from './telegram/types.js'
 import {
   getOrCreateConversation,
   getRecentMessages,
@@ -20,32 +21,8 @@ import {
   trackUsage,
 } from './db/queries.js'
 import { generateEmbedding } from './embeddings.js'
-import {
-  createMemoryStoreTool,
-  createMemoryRecallTool,
-  createMemoryForgetTool,
-  createScheduleCreateTool,
-  createScheduleListTool,
-  createScheduleCancelTool,
-  createSelfReadTool,
-  createSelfEditTool,
-  createSelfTestTool,
-  createSelfLogsTool,
-  createSelfDeployTool,
-  createWebReadTool,
-  createWebSearchTool,
-} from './tools/index.js'
-
-// Internal tool shape (matches Basil's pattern)
-interface InternalTool<T extends TSchema> {
-  name: string
-  description: string
-  parameters: T
-  execute: (
-    toolCallId: string,
-    args: Static<T>,
-  ) => Promise<{ output: string; details?: unknown }>
-}
+import { selectAndCreateTools, type InternalTool } from './tools/packs.js'
+import { selectSkills, getExtensionRegistry, selectAndCreateDynamicTools } from './extensions/index.js'
 
 // Adapt internal tool → pi-agent-core AgentTool
 function createPiTool<T extends TSchema>(
@@ -85,36 +62,19 @@ export interface AgentResponse {
   text: string
   toolCalls: Array<{ name: string; args: unknown; result: string }>
   usage?: { input: number; output: number; cost: number }
+  messageId?: string
 }
 
 export interface ProcessMessageOpts {
   source: 'telegram' | 'cli'
   externalId: string | null
   chatId?: string
+  telegram?: TelegramContext
+  replyContext?: string
+  incomingTelegramMessageId?: number
 }
 
-export function createAllTools(db: Kysely<Database>, chatId: string) {
-  const apiKey = env.OPENROUTER_API_KEY
-  return [
-    // Memory — pass API key for embedding generation
-    createPiTool(createMemoryStoreTool(db, apiKey)),
-    createPiTool(createMemoryRecallTool(db, apiKey)),
-    createPiTool(createMemoryForgetTool(db)),
-    // Scheduler — chatId auto-injected so LLM doesn't need to guess it
-    createPiTool(createScheduleCreateTool(db, chatId)),
-    createPiTool(createScheduleListTool(db)),
-    createPiTool(createScheduleCancelTool(db)),
-    // Web
-    createPiTool(createWebReadTool()),
-    ...(env.TAVILY_API_KEY ? [createPiTool(createWebSearchTool(env.TAVILY_API_KEY))] : []),
-    // Self-aware
-    createPiTool(createSelfReadTool(env.PROJECT_ROOT)),
-    createPiTool(createSelfEditTool(env.PROJECT_ROOT)),
-    createPiTool(createSelfTestTool(env.PROJECT_ROOT)),
-    createPiTool(createSelfLogsTool()),
-    createPiTool(createSelfDeployTool(env.PROJECT_ROOT)),
-  ]
-}
+export const isDev = env.NODE_ENV === 'development'
 
 export async function processMessage(
   db: Kysely<Database>,
@@ -138,9 +98,11 @@ export async function processMessage(
   const recentMemories = await getRecentMemories(db, 10)
 
   // Try to find semantically relevant memories for this specific message
+  // queryEmbedding is also reused for tool pack selection below
+  let queryEmbedding: number[] | undefined
   let relevantMemories: Array<{ content: string; category: string; score?: number }> = []
   try {
-    const queryEmbedding = await generateEmbedding(env.OPENROUTER_API_KEY, message)
+    queryEmbedding = await generateEmbedding(env.OPENROUTER_API_KEY, message)
     const results = await recallMemories(db, message, {
       limit: 5,
       queryEmbedding,
@@ -153,45 +115,72 @@ export async function processMessage(
       .map((m) => ({ content: m.content, category: m.category, score: m.score }))
   } catch {
     // Embedding call failed — no relevant memories, that's fine
+    // queryEmbedding stays undefined → all tool packs will load (graceful fallback)
   }
 
   agentLog.debug`Context: ${recentMemories.length} recent memories, ${relevantMemories.length} relevant memories`
 
-  // 4. Build context preamble (dynamic, prepended to user message)
+  // 4. Select relevant skills based on query embedding
+  const selectedSkills = selectSkills(queryEmbedding)
+  if (selectedSkills.length > 0) {
+    agentLog.debug`Selected skills: ${selectedSkills.map((s) => s.name).join(', ')}`
+  }
+
+  // 5. Build context preamble (dynamic, prepended to user message)
   const preamble = buildContextPreamble({
     timezone: env.TIMEZONE,
     source: opts.source,
+    dev: isDev,
     recentMemories: recentMemories.map((m) => ({
       content: m.content,
       category: m.category,
       created_at: m.created_at,
     })),
     relevantMemories,
+    skills: selectedSkills,
+    replyContext: opts.replyContext,
   })
 
-  // 4. Create agent with static system prompt (cacheable)
+  // 6. Create agent with system prompt (base + identity files)
+  const { identity } = getExtensionRegistry()
   const model = getModel('openrouter', env.OPENROUTER_MODEL as Parameters<typeof getModel>[1])
   const agent = new Agent({
     initialState: {
-      systemPrompt: SYSTEM_PROMPT,
+      systemPrompt: getSystemPrompt(identity),
       model,
     },
   })
 
   agent.setModel(model)
 
-  // Use chatId from opts, fall back to externalId for Telegram
+  // 7. Select tool packs based on message embedding and create tools
   const chatId = opts.chatId ?? opts.externalId ?? 'unknown'
-  agent.setTools(createAllTools(db, chatId))
+  const toolCtx = {
+    db,
+    chatId,
+    apiKey: env.OPENROUTER_API_KEY,
+    projectRoot: env.PROJECT_ROOT,
+    dbPath: env.DATABASE_URL,
+    tavilyApiKey: env.TAVILY_API_KEY,
+    logFile: env.LOG_FILE,
+    isDev,
+    extensionsDir: env.EXTENSIONS_DIR,
+    telegram: opts.telegram,
+  }
+  const builtinTools = selectAndCreateTools(queryEmbedding, toolCtx)
+  const dynamicTools = selectAndCreateDynamicTools(queryEmbedding, toolCtx)
+  const tools = [...builtinTools, ...dynamicTools]
+  agent.setTools(tools.map((t) => createPiTool(t)))
 
-  // 5. Replay conversation history so the agent has multi-turn context
+  // 7. Replay conversation history so the agent has multi-turn context
   for (const msg of recentMessages) {
+    const tgPrefix = msg.telegram_message_id ? `[tg:${msg.telegram_message_id}] ` : ''
     if (msg.role === 'user') {
-      agent.appendMessage({ role: 'user', content: msg.content, timestamp: Date.now() })
+      agent.appendMessage({ role: 'user', content: tgPrefix + msg.content, timestamp: Date.now() })
     } else if (msg.role === 'assistant') {
       agent.appendMessage({
         role: 'assistant',
-        content: [{ type: 'text', text: msg.content }],
+        content: [{ type: 'text', text: tgPrefix + msg.content }],
         api: 'openrouter' as any,
         provider: 'openrouter' as any,
         model: env.OPENROUTER_MODEL,
@@ -202,7 +191,7 @@ export async function processMessage(
     }
   }
 
-  // 6. Track tool calls, response text, and usage
+  // 8. Track tool calls, response text, and usage
   let responseText = ''
   const toolCalls: AgentResponse['toolCalls'] = []
   let lastUsage: Usage | undefined
@@ -228,28 +217,29 @@ export async function processMessage(
     }
   })
 
-  // 7. Save user message
+  // 9. Save user message
   await saveMessage(db, {
     conversation_id: conversationId,
     role: 'user',
     content: message,
+    telegram_message_id: opts.incomingTelegramMessageId ?? null,
   })
 
-  // 8. Run agent — prepend context preamble to first message
+  // 10. Run agent — prepend context preamble to first message
   agentLog.debug`Prompting agent`
   await agent.prompt(preamble + message)
   await agent.waitForIdle()
   agentLog.info`Agent finished. Response length: ${responseText.length}, tool calls: ${toolCalls.length}`
 
-  // 9. Save assistant response
-  await saveMessage(db, {
+  // 11. Save assistant response
+  const assistantMessageId = await saveMessage(db, {
     conversation_id: conversationId,
     role: 'assistant',
     content: responseText,
     tool_calls: toolCalls.length > 0 ? JSON.stringify(toolCalls) : null,
   })
 
-  // 10. Track usage
+  // 12. Track usage
   if (lastUsage) {
     agentLog.info`Usage: ${lastUsage.input} in / ${lastUsage.output} out / $${lastUsage.cost.total.toFixed(4)}`
     await trackUsage(db, {
@@ -265,5 +255,5 @@ export async function processMessage(
     ? { input: lastUsage.input, output: lastUsage.output, cost: lastUsage.cost.total }
     : undefined
 
-  return { text: responseText, toolCalls, usage }
+  return { text: responseText, toolCalls, usage, messageId: assistantMessageId }
 }

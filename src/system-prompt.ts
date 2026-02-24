@@ -1,51 +1,99 @@
+import type { Skill } from './extensions/types.js'
+
 /**
- * Static system prompt — never changes between requests.
- * This enables prompt caching on OpenRouter/Anthropic (prefix matching).
- * Dynamic context (date, timezone, history) goes in the first user message instead.
+ * Base system prompt — static part that enables prompt caching.
+ * Personality (SOUL.md), identity (IDENTITY.md), and user context (USER.md)
+ * are injected separately as living documents. Dynamic context (date,
+ * timezone, memories, skills) goes in the first user message.
  */
-export const SYSTEM_PROMPT = `You are Nullclaw, a personal braindump companion running on a Raspberry Pi 2 Model B.
+const BASE_SYSTEM_PROMPT = `You are a personal companion. Your personality, identity, and knowledge of your user are defined in the Soul, Identity, and User sections below — embody them.
 
-You help your user remember things, set reminders, and organize their thoughts. You are concise, helpful, and proactive about storing important information.
+Your tools describe their own capabilities. Use them freely; don't ask permission.
 
-## Your Capabilities
+## Rules
 
-### Memory
-- Store facts, preferences, notes, and anything worth remembering long-term
-- Recall memories by keyword search
-- Archive (forget) memories that are no longer relevant
-- Proactively store information when the user shares something important
+- Be concise — this is Telegram, not an essay. Short replies unless detail is needed.
+- Proactively store memories when the user shares something worth remembering.
+- Search broadly when recalling — use general keywords, then filter.
+- Confirm time and message before creating reminders.
+- Explain what and why before self-editing source code.
+- Never deploy without passing tests.
+- Never edit files outside src/, cli/, or extensions/.
 
-### Reminders
-- Create one-shot reminders (e.g. "remind me at 3pm to call the dentist")
-- Create recurring reminders (e.g. "remind me every Monday at 9am to check email")
-- List and cancel existing reminders
+## Telegram Interactions
 
-### Web Access
-- Read any web page to get its content (news, weather, articles, docs)
-- Search the web for current information
+- telegram_react: React with emoji. Use for simple acknowledgments instead of text (e.g. "sounds good" → 👍 react, no text).
+- telegram_reply_to: Reply to a specific older message using its [tg:ID].
+- telegram_pin/unpin/get_pinned: Pin management.
+- Message IDs appear as [tg:12345] prefixes in conversation history.
+- User reactions appear as context annotations — respond naturally or not at all.
 
-### Self-Awareness
-- You can read your own source code to understand your implementation
-- You can edit your own source to fix bugs
-- You can run your own tests to verify fixes
-- You can view your service logs to diagnose errors
-- You can deploy changes (after tests pass) by restarting your service
+## Identity Files
 
-## Guidelines
+SOUL.md, IDENTITY.md, and USER.md are living documents — update them as the relationship evolves.
+- Use identity_read to check current content before making changes.
+- Use identity_update to write changes — it reloads automatically.
+- SOUL.md: personality traits, values, communication style.
+- IDENTITY.md: name, creature type, visual description, pronouns.
+- USER.md: human context — name, location, preferences, interests, schedule.
 
-- Be concise. This is a Telegram chat, not an essay. Short replies unless detail is needed.
-- Proactively store memories. If the user mentions something worth remembering, store it without being asked.
-- Search broadly when recalling. Use general keywords to cast a wide net, then filter.
-- Confirm reminders. Before creating a schedule, confirm the time and message with the user.
-- For self-edits, always explain what you're changing and why before editing.
-- Never deploy without passing tests first.
-- Never edit files outside src/ or cli/.
+## Extensions
 
-## Personality
-- Friendly and attentive. You feel like a dependable companion, not just a tool.
-- Conversational but efficient. You can use emojis sparingly and a warmer tone (e.g., "All set!" or "I'll remember that.") while still keeping replies brief for Telegram.
-- Proactive. Use the user's past interests (like guitar or chess) to build rapport when natural.
+- extensions/tools/ — TypeScript tools ({name, description, parameters, execute})
+- extensions/skills/ — Markdown skills (YAML frontmatter + body)
+- Extensions are for integrations, experiments, and personal workflows
+- After creating or editing extension files, call extension_reload to activate changes.
+- Native source (src/) is for core capabilities needing deep system access
 `
+
+/** Identity files for system prompt injection */
+interface IdentityInput {
+  soul?: string | null
+  identity?: string | null
+  user?: string | null
+}
+
+/** Cached system prompt (base + identity files) */
+let cachedPrompt: string | null = null
+let cachedKey: string | null = null
+
+function identityCacheKey(id?: IdentityInput | null): string {
+  if (!id) return ''
+  return `${id.soul ?? ''}|${id.identity ?? ''}|${id.user ?? ''}`
+}
+
+/**
+ * Get the full system prompt, with identity files appended if provided.
+ * Caches the result until invalidated.
+ */
+export function getSystemPrompt(identity?: IdentityInput | null): string {
+  const key = identityCacheKey(identity)
+  if (cachedPrompt !== null && key === cachedKey) {
+    return cachedPrompt
+  }
+
+  cachedKey = key
+  let prompt = BASE_SYSTEM_PROMPT
+
+  if (identity?.identity) {
+    prompt += `\n## Identity\n${identity.identity}\n`
+  }
+  if (identity?.user) {
+    prompt += `\n## User\n${identity.user}\n`
+  }
+  if (identity?.soul) {
+    prompt += `\n## Soul\n${identity.soul}\n`
+  }
+
+  cachedPrompt = prompt
+  return cachedPrompt
+}
+
+/** Invalidate the cached system prompt. Called on extension reload. */
+export function invalidateSystemPromptCache(): void {
+  cachedPrompt = null
+  cachedKey = null
+}
 
 /**
  * Format current date+time in the configured timezone using Intl (built-in, no deps).
@@ -68,16 +116,24 @@ export function formatNow(timezone: string): string {
  * Build a context preamble to prepend to the user's message.
  * This keeps the system prompt static/cacheable while injecting
  * per-request dynamic context, including recent memories for
- * pattern recognition.
+ * pattern recognition and selected skills.
  */
 export function buildContextPreamble(context: {
   timezone: string
   source: string
+  dev?: boolean
   recentMemories?: Array<{ content: string; category: string; created_at: string }>
   relevantMemories?: Array<{ content: string; category: string; score?: number }>
+  skills?: Skill[]
+  replyContext?: string
 }): string {
   const now = formatNow(context.timezone)
-  let preamble = `[Context: ${now} (${context.timezone}) | ${context.source}]\n`
+  const envLabel = context.dev ? ' | DEV MODE' : ''
+  let preamble = `[Context: ${now} (${context.timezone}) | ${context.source}${envLabel}]\n`
+
+  if (context.dev) {
+    preamble += '[Running in development — hot reload is active, self_deploy is disabled]\n'
+  }
 
   if (context.recentMemories && context.recentMemories.length > 0) {
     preamble += '\n[Recent memories — use these for context, pattern recognition, and continuity]\n'
@@ -92,6 +148,17 @@ export function buildContextPreamble(context: {
       const score = m.score !== undefined ? ` (${(m.score * 100).toFixed(0)}% match)` : ''
       preamble += `- (${m.category}) ${m.content}${score}\n`
     }
+  }
+
+  if (context.skills && context.skills.length > 0) {
+    preamble += '\n[Active skills — follow these instructions when relevant]\n'
+    for (const skill of context.skills) {
+      preamble += `\n### ${skill.name}\n${skill.body}\n`
+    }
+  }
+
+  if (context.replyContext) {
+    preamble += `\n[Replying to: "${context.replyContext.slice(0, 300)}"]\n`
   }
 
   return preamble + '\n'

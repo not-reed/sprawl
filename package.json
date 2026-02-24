@@ -1,36 +1,39 @@
 {
-  "name": "nullclaw",
+  "name": "construct",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/main.ts",
-    "start": "tsx src/main.ts",
-    "cli": "tsx cli/index.ts",
-    "telegram": "tsx src/telegram/index.ts",
-    "db:migrate": "tsx src/db/migrate.ts",
+    "dev": "NODE_ENV=development node --env-file=.env --import=tsx --watch-path=src --watch-path=cli src/main.ts",
+    "start": "node --env-file=.env --import=tsx src/main.ts",
+    "cli": "node --env-file=.env --import=tsx cli/index.ts",
+    "telegram": "node --env-file=.env --import=tsx src/telegram/index.ts",
+    "db:migrate": "node --env-file=.env --import=tsx src/db/migrate.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mariozechner/pi-agent-core": "^0.52.8",
-    "@mariozechner/pi-ai": "^0.52.8",
+    "@logtape/logtape": "^2.0.2",
+    "@mariozechner/pi-agent-core": "^0.54.2",
+    "@mariozechner/pi-ai": "^0.54.2",
     "@sinclair/typebox": "^0.34.48",
-    "chalk": "^5.3.0",
-    "citty": "^0.1.6",
-    "consola": "^3.2.3",
-    "croner": "^9.0.0",
+    "chalk": "^5.6.2",
+    "citty": "^0.2.1",
+    "consola": "^3.4.2",
+    "croner": "^10.0.1",
     "date-fns": "^4.1.0",
-    "grammy": "^1.30.0",
-    "kysely": "^0.27.4",
-    "nanoid": "^5.0.8",
-    "zod": "^4.1.11"
+    "grammy": "^1.40.0",
+    "jiti": "^2.6.1",
+    "kysely": "^0.28.11",
+    "nanoid": "^5.1.6",
+    "yaml": "^2.8.2",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
-    "tsx": "^4.19.0",
-    "typescript": "^5.7.2",
-    "vitest": "^3.0.5"
+    "@types/node": "^25.3.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
   }
 }

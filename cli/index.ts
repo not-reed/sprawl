@@ -3,12 +3,13 @@ import { createInterface } from 'node:readline'
 import { createDb } from '../src/db/index.js'
 import { runMigrations } from '../src/db/migrate.js'
 import { env } from '../src/env.js'
-import { processMessage, createAllTools } from '../src/agent.js'
+import { processMessage, isDev } from '../src/agent.js'
+import { selectAndCreateTools } from '../src/tools/packs.js'
 
 const main = defineCommand({
   meta: {
-    name: 'nullclaw',
-    description: 'Nullclaw CLI — personal braindump companion',
+    name: 'construct',
+    description: 'Construct CLI — personal braindump companion',
   },
   args: {
     message: {
@@ -49,7 +50,7 @@ const main = defineCommand({
     }
 
     // Interactive REPL mode
-    console.log('Nullclaw interactive mode. Type "exit" or Ctrl+C to quit.\n')
+    console.log('Construct interactive mode. Type "exit" or Ctrl+C to quit.\n')
 
     const rl = createInterface({
       input: process.stdin,
@@ -69,7 +70,7 @@ const main = defineCommand({
             source: 'cli',
             externalId: 'cli',
           })
-          console.log(`\nnullclaw> ${response.text}\n`)
+          console.log(`\nconstruct> ${response.text}\n`)
         } catch (err) {
           console.error('Error:', err)
         }
@@ -87,7 +88,17 @@ async function runTool(
   toolName: string,
   argsJson?: string,
 ) {
-  const tools = createAllTools(db, 'cli')
+  // Load all tools (no query embedding → all packs selected)
+  const tools = selectAndCreateTools(undefined, {
+    db,
+    chatId: 'cli',
+    apiKey: env.OPENROUTER_API_KEY,
+    projectRoot: env.PROJECT_ROOT,
+    dbPath: env.DATABASE_URL,
+    tavilyApiKey: env.TAVILY_API_KEY,
+    logFile: env.LOG_FILE,
+    isDev,
+  })
   const tool = tools.find((t) => t.name === toolName)
 
   if (!tool) {
@@ -103,12 +114,7 @@ async function runTool(
   console.log(`Args: ${JSON.stringify(parsedArgs, null, 2)}\n`)
 
   const result = await tool.execute(`cli-${Date.now()}`, parsedArgs)
-  const text = result.content
-    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n')
-
-  console.log(text)
+  console.log(result.output)
 }
 
 runMain(main)

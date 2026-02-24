@@ -1,9 +1,9 @@
 import { Type, type Static } from '@sinclair/typebox'
 import type { Kysely } from 'kysely'
-import { recallMemories } from '../db/queries.js'
-import type { Database } from '../db/schema.js'
-import { generateEmbedding } from '../embeddings.js'
-import { toolLog } from '../logger.js'
+import { recallMemories } from '../../db/queries.js'
+import type { Database } from '../../db/schema.js'
+import { generateEmbedding } from '../../embeddings.js'
+import { toolLog } from '../../logger.js'
 
 const MemoryRecallParams = Type.Object({
   query: Type.String({

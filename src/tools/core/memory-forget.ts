@@ -1,7 +1,7 @@
 import { Type, type Static } from '@sinclair/typebox'
 import type { Kysely } from 'kysely'
-import { forgetMemory, searchMemoriesForForget } from '../db/queries.js'
-import type { Database } from '../db/schema.js'
+import { forgetMemory, searchMemoriesForForget } from '../../db/queries.js'
+import type { Database } from '../../db/schema.js'
 
 const MemoryForgetParams = Type.Object({
   id: Type.Optional(

@@ -5,8 +5,8 @@ import { env } from '../env.js'
 import { createBot } from './bot.js'
 
 async function main() {
-  await setupLogging(env.LOG_LEVEL)
-  log.info`Starting Nullclaw Telegram bot`
+  await setupLogging(env.LOG_LEVEL, env.LOG_FILE)
+  log.info`Starting Construct Telegram bot`
 
   await runMigrations(env.DATABASE_URL)
 
@@ -14,7 +14,7 @@ async function main() {
   const bot = createBot(db)
 
   log.info`Telegram bot is running (long polling)`
-  bot.start()
+  bot.start({ allowed_updates: ['message', 'message_reaction'] })
 }
 
 main().catch((err) => {

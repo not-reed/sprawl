@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { Kysely } from 'kysely'
-import { createDb } from '../../db/index.js'
-import type { Database } from '../../db/schema.js'
+import { createDb } from '../../../db/index.js'
+import type { Database } from '../../../db/schema.js'
 import { createMemoryStoreTool } from '../memory-store.js'
 import { createMemoryRecallTool } from '../memory-recall.js'
 import { createMemoryForgetTool } from '../memory-forget.js'
-import * as migration001 from '../../db/migrations/001-initial.js'
-import * as migration002 from '../../db/migrations/002-fts5-and-embeddings.js'
+import * as migration001 from '../../../db/migrations/001-initial.js'
+import * as migration002 from '../../../db/migrations/002-fts5-and-embeddings.js'
 
 let db: Kysely<Database>
 

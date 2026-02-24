@@ -4,9 +4,9 @@ import {
   createSchedule,
   listSchedules,
   cancelSchedule,
-} from '../db/queries.js'
-import type { Database } from '../db/schema.js'
-import { toolLog } from '../logger.js'
+} from '../../db/queries.js'
+import type { Database } from '../../db/schema.js'
+import { toolLog } from '../../logger.js'
 
 // --- schedule_create ---
 

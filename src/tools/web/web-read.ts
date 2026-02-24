@@ -1,5 +1,5 @@
 import { Type, type Static } from '@sinclair/typebox'
-import { toolLog } from '../logger.js'
+import { toolLog } from '../../logger.js'
 
 const WebReadParams = Type.Object({
   url: Type.String({

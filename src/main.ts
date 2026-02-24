@@ -4,11 +4,14 @@ import { createDb } from './db/index.js'
 import { runMigrations } from './db/migrate.js'
 import { createBot } from './telegram/bot.js'
 import { startScheduler, stopScheduler } from './scheduler/index.js'
+import { initPackEmbeddings } from './tools/packs.js'
+import { syncEnvSecrets } from './extensions/secrets.js'
+import { initExtensions } from './extensions/index.js'
 
 async function main() {
-  await setupLogging(env.LOG_LEVEL)
+  await setupLogging(env.LOG_LEVEL, env.LOG_FILE)
 
-  log.info`Starting Nullclaw`
+  log.info`Starting Construct`
   log.info`Model: ${env.OPENROUTER_MODEL}`
   log.info`Database: ${env.DATABASE_URL}`
   log.info`Timezone: ${env.TIMEZONE}`
@@ -19,6 +22,15 @@ async function main() {
   // Create database connection
   const { db } = createDb(env.DATABASE_URL)
 
+  // Sync EXT_* env vars into secrets table
+  await syncEnvSecrets(db)
+
+  // Initialize extensions (SOUL.md, skills, dynamic tools + their embeddings)
+  await initExtensions(env.EXTENSIONS_DIR, env.OPENROUTER_API_KEY, db)
+
+  // Pre-compute tool pack embeddings for semantic selection
+  await initPackEmbeddings(env.OPENROUTER_API_KEY)
+
   // Create Telegram bot
   const bot = createBot(db)
 
@@ -26,8 +38,8 @@ async function main() {
   await startScheduler(db, bot)
 
   // Start Telegram long polling
-  log.info`Nullclaw is running`
-  bot.start()
+  log.info`Construct is running`
+  bot.start({ allowed_updates: ['message', 'message_reaction'] })
 
   // Graceful shutdown
   const shutdown = async () => {
