@@ -1,0 +1,10 @@
+services:
+  construct:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    volumes:
+      - ~/.construct:/data
+    env_file:
+      - ~/.construct/.env
+    restart: unless-stopped

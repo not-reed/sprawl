@@ -194,7 +194,8 @@ export async function processMessage(
   // 8. Track tool calls, response text, and usage
   let responseText = ''
   const toolCalls: AgentResponse['toolCalls'] = []
-  let lastUsage: Usage | undefined
+  const totalUsage = { input: 0, output: 0, cost: 0 }
+  let hasUsage = false
 
   agent.subscribe((event) => {
     if (event.type === 'message_update') {
@@ -205,7 +206,11 @@ export async function processMessage(
     if (event.type === 'message_end') {
       const msg = event.message
       if ('usage' in msg) {
-        lastUsage = msg.usage as Usage
+        const u = msg.usage as Usage
+        totalUsage.input += u.input
+        totalUsage.output += u.output
+        totalUsage.cost += u.cost.total
+        hasUsage = true
       }
     }
     if (event.type === 'tool_execution_end') {
@@ -240,20 +245,18 @@ export async function processMessage(
   })
 
   // 12. Track usage
-  if (lastUsage) {
-    agentLog.info`Usage: ${lastUsage.input} in / ${lastUsage.output} out / $${lastUsage.cost.total.toFixed(4)}`
+  if (hasUsage) {
+    agentLog.info`Usage: ${totalUsage.input} in / ${totalUsage.output} out / $${totalUsage.cost.toFixed(4)}`
     await trackUsage(db, {
       model: env.OPENROUTER_MODEL,
-      input_tokens: lastUsage.input,
-      output_tokens: lastUsage.output,
-      cost_usd: lastUsage.cost.total,
+      input_tokens: totalUsage.input,
+      output_tokens: totalUsage.output,
+      cost_usd: totalUsage.cost,
       source: opts.source,
     })
   }
 
-  const usage = lastUsage
-    ? { input: lastUsage.input, output: lastUsage.output, cost: lastUsage.cost.total }
-    : undefined
+  const usage = hasUsage ? totalUsage : undefined
 
   return { text: responseText, toolCalls, usage, messageId: assistantMessageId }
 }

@@ -75,7 +75,8 @@ export async function recallMemories(
     const ftsQuery = query
       .split(/\s+/)
       .filter((w) => w.length > 1)
-      .map((w) => `"${w}"`)
+      .map((w) => `"${w.replace(/"/g, '')}"`)
+      .filter((w) => w !== '""')
       .join(' OR ')
 
     if (ftsQuery) {
@@ -148,12 +149,13 @@ export async function recallMemories(
 
       qb = qb.where((eb) =>
         eb.or(
-          keywords.map((kw) =>
-            eb.or([
-              eb('content', 'like', `%${kw}%`),
-              eb('tags', 'like', `%${kw}%`),
-            ]),
-          ),
+          keywords.map((kw) => {
+            const escaped = kw.replace(/[%_]/g, '\\$&')
+            return eb.or([
+              sql<boolean>`${eb.ref('content')} LIKE ${'%' + escaped + '%'} ESCAPE '\\'`,
+              sql<boolean>`${eb.ref('tags')} LIKE ${'%' + escaped + '%'} ESCAPE '\\'`,
+            ])
+          }),
         ),
       )
 

@@ -26,6 +26,14 @@ export function createSelfReadTool(projectRoot: string, extensionsDir?: string) 
         const extRelative = args.path.slice('extensions/'.length)
         resolved = resolve(extensionsDir, extRelative)
         displayPath = args.path
+
+        // Scope check: prevent path traversal out of extensions dir
+        if (!resolved.startsWith(resolve(extensionsDir) + '/') && resolved !== resolve(extensionsDir)) {
+          return {
+            output: `Access denied: "${args.path}" escapes the extensions directory.`,
+            details: { error: 'scope_violation' },
+          }
+        }
       } else {
         resolved = resolve(projectRoot, args.path)
         const rel = relative(projectRoot, resolved)

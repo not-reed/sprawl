@@ -68,7 +68,7 @@ class NodeSqliteConnection implements DatabaseConnection {
     const isSelect =
       trimmed.startsWith('SELECT') ||
       trimmed.startsWith('PRAGMA') ||
-      trimmed.startsWith('WITH')
+      (trimmed.startsWith('WITH') && !trimmed.match(/\b(INSERT|UPDATE|DELETE)\b/))
 
     const params = parameters as SQLInputValue[]
 

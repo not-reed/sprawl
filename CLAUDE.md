@@ -31,7 +31,7 @@ All interactions flow through `processMessage()` in `src/agent.ts`.
 - **Runtime**: Node.js + tsx (ARMv7 compatible)
 - **Agent**: @mariozechner/pi-agent-core
 - **LLM**: OpenRouter (OpenAI-compatible)
-- **Database**: SQLite via better-sqlite3 + Kysely
+- **Database**: SQLite via node:sqlite + Kysely
 - **Telegram**: Grammy (long polling)
 - **CLI**: Citty
 - **Scheduler**: Croner

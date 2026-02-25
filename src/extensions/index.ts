@@ -26,6 +26,7 @@ let registry: ExtensionRegistry = {
 let extensionsDir: string = ''
 let apiKey: string = ''
 let dbRef: Kysely<Database> | null = null
+let reloadLock: Promise<ExtensionRegistry> | null = null
 
 /** Ensure extensions directory and subdirectories exist. */
 async function ensureDirs(dir: string): Promise<void> {
@@ -52,9 +53,23 @@ export async function initExtensions(
 
 /**
  * Reload all extensions from disk. Called on startup and by extension_reload tool.
- * Returns the updated registry.
+ * Returns the updated registry. Serialized via lock to prevent concurrent reloads.
  */
 export async function reloadExtensions(): Promise<ExtensionRegistry> {
+  if (reloadLock) {
+    agentLog.info`Reload already in progress, waiting…`
+    return reloadLock
+  }
+
+  reloadLock = doReload()
+  try {
+    return await reloadLock
+  } finally {
+    reloadLock = null
+  }
+}
+
+async function doReload(): Promise<ExtensionRegistry> {
   if (!extensionsDir || !dbRef) {
     throw new Error('Extensions not initialized — call initExtensions() first')
   }
@@ -72,7 +87,7 @@ export async function reloadExtensions(): Promise<ExtensionRegistry> {
   agentLog.info`Loaded ${skills.length} skill(s)`
 
   // Build secrets map for dynamic tool context
-  const secretsMap = await buildSecretsMap(dbRef)
+  const secretsMap = await buildSecretsMap(dbRef!)
   const availableSecrets = new Set(secretsMap.keys())
 
   // Load dynamic tools

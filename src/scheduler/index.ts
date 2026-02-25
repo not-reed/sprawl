@@ -6,6 +6,7 @@ import { schedulerLog } from '../logger.js'
 import type { Database, Schedule } from '../db/schema.js'
 
 const activeJobs = new Map<string, Cron>()
+let syncInterval: ReturnType<typeof setInterval> | null = null
 
 export async function startScheduler(db: Kysely<Database>, bot: Bot) {
   schedulerLog.info`Starting scheduler`
@@ -18,7 +19,7 @@ export async function startScheduler(db: Kysely<Database>, bot: Bot) {
   schedulerLog.info`Loaded ${schedules.length} active schedules`
 
   // Poll for new schedules every 30 seconds
-  setInterval(async () => {
+  syncInterval = setInterval(async () => {
     await syncSchedules(db, bot)
   }, 30_000)
 }
@@ -93,6 +94,10 @@ async function syncSchedules(db: Kysely<Database>, bot: Bot) {
 }
 
 export function stopScheduler() {
+  if (syncInterval) {
+    clearInterval(syncInterval)
+    syncInterval = null
+  }
   for (const [id, job] of activeJobs) {
     job.stop()
     activeJobs.delete(id)

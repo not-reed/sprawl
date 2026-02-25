@@ -101,7 +101,7 @@ describe('self_view_logs', () => {
   it('returns log lines on success', async () => {
     queueExec({ stdout: 'Jan 01 12:00 construct: booting\nJan 01 12:01 construct: ready' })
 
-    const tool = createSelfLogsTool('construct')
+    const tool = createSelfLogsTool(undefined, 'construct')
     const result = await tool.execute('t1', {})
 
     expect(result.output).toContain('Recent logs (construct)')
@@ -112,7 +112,7 @@ describe('self_view_logs', () => {
   it('forwards custom lines param as -n', async () => {
     queueExec({ stdout: 'line1\nline2' })
 
-    const tool = createSelfLogsTool('construct')
+    const tool = createSelfLogsTool(undefined, 'construct')
     await tool.execute('t1', { lines: 100 })
 
     const call = mockExec.mock.calls[0]
@@ -124,7 +124,7 @@ describe('self_view_logs', () => {
   it('forwards since param as --since', async () => {
     queueExec({ stdout: 'recent log' })
 
-    const tool = createSelfLogsTool('construct')
+    const tool = createSelfLogsTool(undefined, 'construct')
     await tool.execute('t1', { since: '5 minutes ago' })
 
     const call = mockExec.mock.calls[0]
@@ -138,7 +138,7 @@ describe('self_view_logs', () => {
       stdout: 'ERROR: something broke\nINFO: all good\nerror: another one',
     })
 
-    const tool = createSelfLogsTool('construct')
+    const tool = createSelfLogsTool(undefined, 'construct')
     const result = await tool.execute('t1', { grep: 'error' })
 
     expect(result.output).toContain('ERROR: something broke')
@@ -149,7 +149,7 @@ describe('self_view_logs', () => {
   it('returns "No log output found" when empty', async () => {
     queueExec({ stdout: '   \n  ' })
 
-    const tool = createSelfLogsTool('construct')
+    const tool = createSelfLogsTool(undefined, 'construct')
     const result = await tool.execute('t1', {})
 
     expect(result.output).toContain('No log output found')
@@ -159,7 +159,7 @@ describe('self_view_logs', () => {
   it('returns error message on journalctl failure', async () => {
     queueExec(new Error('Failed to get journal: Permission denied'))
 
-    const tool = createSelfLogsTool('construct')
+    const tool = createSelfLogsTool(undefined, 'construct')
     const result = await tool.execute('t1', {})
 
     expect(result.output).toContain('Error reading logs')
@@ -170,7 +170,7 @@ describe('self_view_logs', () => {
     const longOutput = 'x'.repeat(5000)
     queueExec({ stdout: longOutput })
 
-    const tool = createSelfLogsTool('construct')
+    const tool = createSelfLogsTool(undefined, 'construct')
     const result = await tool.execute('t1', {})
 
     const logContent = result.output.replace(/^Recent logs \([^)]+\):\n/, '')

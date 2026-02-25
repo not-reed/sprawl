@@ -1,0 +1,26 @@
+[Unit]
+Description=Construct – personal AI companion
+After=network.target
+
+[Service]
+Type=simple
+User=construct
+WorkingDirectory=/opt/construct
+ExecStart=/usr/bin/node --env-file=%h/.construct/.env --import=tsx src/main.ts
+Restart=on-failure
+RestartSec=5
+
+# Environment
+Environment=NODE_ENV=production
+Environment=DATABASE_URL=%h/.construct/construct.db
+Environment=LOG_FILE=%h/.construct/construct.log
+Environment=EXTENSIONS_DIR=%h/.construct/extensions
+
+# Hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.construct
+
+[Install]
+WantedBy=multi-user.target

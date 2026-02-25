@@ -1,8 +1,11 @@
 import { Type, type Static } from '@sinclair/typebox'
 import { execFile } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { promisify } from 'node:util'
 import { setTimeout } from 'node:timers/promises'
 import { toolLog } from '../../logger.js'
+
+const isDocker = existsSync('/.dockerenv')
 
 const exec = promisify(execFile)
 
@@ -39,13 +42,15 @@ export function createSelfDeployTool(
         }
       }
 
-      // Rate limit check
+      // Rate limit check (prune old entries)
       const now = Date.now()
       const oneHourAgo = now - 60 * 60 * 1000
-      const recentDeploys = deployHistory.filter((t) => t > oneHourAgo)
-      if (recentDeploys.length >= MAX_DEPLOYS_PER_HOUR) {
+      while (deployHistory.length > 0 && deployHistory[0] <= oneHourAgo) {
+        deployHistory.shift()
+      }
+      if (deployHistory.length >= MAX_DEPLOYS_PER_HOUR) {
         return {
-          output: `Deploy rate limited: ${recentDeploys.length}/${MAX_DEPLOYS_PER_HOUR} deploys in the last hour. Wait before trying again.`,
+          output: `Deploy rate limited: ${deployHistory.length}/${MAX_DEPLOYS_PER_HOUR} deploys in the last hour. Wait before trying again.`,
           details: { deployed: false, reason: 'rate_limited' },
         }
       }
@@ -92,7 +97,7 @@ export function createSelfDeployTool(
 
       // 4. Stage and commit
       try {
-        await exec('git', ['add', 'src/', 'cli/'], execOpts)
+        await exec('git', ['add', 'src/', 'cli/', 'extensions/'], execOpts)
         await exec('git', ['commit', '-m', args.commit_message], execOpts)
         toolLog.info`Committed: ${args.commit_message}`
       } catch (err) {
@@ -104,6 +109,18 @@ export function createSelfDeployTool(
       }
 
       // 5. Restart service
+      if (isDocker) {
+        // In Docker: exit the process and let restart policy bring it back
+        deployHistory.push(now)
+        toolLog.info`Docker detected — exiting process for container restart`
+        // Use setImmediate so this tool call returns before the process exits
+        setImmediate(() => process.exit(0))
+        return {
+          output: `Deployed successfully. Committed: "${args.commit_message}". Container will restart automatically.`,
+          details: { deployed: true, tag: backupTag, docker: true },
+        }
+      }
+
       toolLog.info`Restarting service: ${serviceUnit}`
       try {
         await exec('sudo', ['systemctl', 'restart', serviceUnit], {
