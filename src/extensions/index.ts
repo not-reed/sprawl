@@ -25,6 +25,7 @@ let registry: ExtensionRegistry = {
 
 let extensionsDir: string = ''
 let apiKey: string = ''
+let embeddingModel: string | undefined
 let dbRef: Kysely<Database> | null = null
 let reloadLock: Promise<ExtensionRegistry> | null = null
 
@@ -41,9 +42,11 @@ export async function initExtensions(
   dir: string,
   key: string,
   db: Kysely<Database>,
+  model?: string,
 ): Promise<ExtensionRegistry> {
   extensionsDir = dir
   apiKey = key
+  embeddingModel = model
   dbRef = db
 
   await ensureDirs(dir)
@@ -103,8 +106,8 @@ async function doReload(): Promise<ExtensionRegistry> {
 
   // Compute embeddings (non-blocking failures)
   await Promise.all([
-    initSkillEmbeddings(apiKey, skills),
-    initDynamicPackEmbeddings(apiKey, dynamicPacks),
+    initSkillEmbeddings(apiKey, skills, embeddingModel),
+    initDynamicPackEmbeddings(apiKey, dynamicPacks, embeddingModel),
   ])
 
   return registry

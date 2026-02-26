@@ -25,7 +25,7 @@ const MemoryStoreParams = Type.Object({
 
 type MemoryStoreInput = Static<typeof MemoryStoreParams>
 
-export function createMemoryStoreTool(db: Kysely<Database>, apiKey?: string, memoryManager?: MemoryManager) {
+export function createMemoryStoreTool(db: Kysely<Database>, apiKey?: string, memoryManager?: MemoryManager, embeddingModel?: string) {
   return {
     name: 'memory_store',
     description:
@@ -41,7 +41,7 @@ export function createMemoryStoreTool(db: Kysely<Database>, apiKey?: string, mem
 
       // Generate embedding in the background — don't block the response
       if (apiKey) {
-        generateEmbedding(apiKey, args.content)
+        generateEmbedding(apiKey, args.content, embeddingModel)
           .then((embedding) => updateMemoryEmbedding(db, memory.id, embedding))
           .then(() => toolLog.info`Embedding generated for memory [${memory.id}]`)
           .catch((err) => toolLog.error`Failed to generate embedding for [${memory.id}]: ${err}`)

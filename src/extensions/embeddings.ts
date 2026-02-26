@@ -13,6 +13,7 @@ const dynamicPackEmbeddings = new Map<string, number[]>()
 export async function initSkillEmbeddings(
   apiKey: string,
   skills: Skill[],
+  embeddingModel?: string,
 ): Promise<void> {
   skillEmbeddings.clear()
 
@@ -21,7 +22,7 @@ export async function initSkillEmbeddings(
   const results = await Promise.allSettled(
     skills.map(async (skill) => {
       const text = `${skill.name}: ${skill.description}`
-      const embedding = await generateEmbedding(apiKey, text)
+      const embedding = await generateEmbedding(apiKey, text, embeddingModel)
       skillEmbeddings.set(skill.name, embedding)
     }),
   )
@@ -38,6 +39,7 @@ export async function initSkillEmbeddings(
 export async function initDynamicPackEmbeddings(
   apiKey: string,
   packs: ToolPack[],
+  embeddingModel?: string,
 ): Promise<void> {
   dynamicPackEmbeddings.clear()
 
@@ -46,7 +48,7 @@ export async function initDynamicPackEmbeddings(
 
   const results = await Promise.allSettled(
     toEmbed.map(async (pack) => {
-      const embedding = await generateEmbedding(apiKey, pack.description)
+      const embedding = await generateEmbedding(apiKey, pack.description, embeddingModel)
       dynamicPackEmbeddings.set(pack.name, embedding)
     }),
   )

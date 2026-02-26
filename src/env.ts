@@ -32,6 +32,7 @@ const envSchema = z.object({
     .string()
     .default(defaultExtensionsDir())
     .transform((p) => resolve(p)),
+  EMBEDDING_MODEL: z.string().default('openai/text-embedding-3-small'),
   MEMORY_WORKER_MODEL: z.string().optional(),
 })
 

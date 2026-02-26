@@ -24,7 +24,7 @@ const MemoryRecallParams = Type.Object({
 
 type MemoryRecallInput = Static<typeof MemoryRecallParams>
 
-export function createMemoryRecallTool(db: Kysely<Database>, apiKey?: string) {
+export function createMemoryRecallTool(db: Kysely<Database>, apiKey?: string, embeddingModel?: string) {
   return {
     name: 'memory_recall',
     description:
@@ -35,7 +35,7 @@ export function createMemoryRecallTool(db: Kysely<Database>, apiKey?: string) {
       let queryEmbedding: number[] | undefined
       if (apiKey) {
         try {
-          queryEmbedding = await generateEmbedding(apiKey, args.query)
+          queryEmbedding = await generateEmbedding(apiKey, args.query, embeddingModel)
         } catch (err) {
           toolLog.warning`Failed to generate query embedding, falling back to text search: ${err}`
         }

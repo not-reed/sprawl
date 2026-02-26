@@ -26,16 +26,16 @@ async function main() {
   await syncEnvSecrets(db)
 
   // Initialize extensions (SOUL.md, skills, dynamic tools + their embeddings)
-  await initExtensions(env.EXTENSIONS_DIR, env.OPENROUTER_API_KEY, db)
+  await initExtensions(env.EXTENSIONS_DIR, env.OPENROUTER_API_KEY, db, env.EMBEDDING_MODEL)
 
   // Pre-compute tool pack embeddings for semantic selection
-  await initPackEmbeddings(env.OPENROUTER_API_KEY)
+  await initPackEmbeddings(env.OPENROUTER_API_KEY, env.EMBEDDING_MODEL)
 
   // Create Telegram bot
   const bot = createBot(db)
 
   // Start scheduler
-  await startScheduler(db, bot)
+  await startScheduler(db, bot, env.TIMEZONE)
 
   // Start Telegram long polling
   log.info`Construct is running`

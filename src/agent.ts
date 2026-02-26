@@ -122,7 +122,7 @@ export async function processMessage(
   let queryEmbedding: number[] | undefined
   let relevantMemories: Array<{ content: string; category: string; score?: number }> = []
   try {
-    queryEmbedding = await generateEmbedding(env.OPENROUTER_API_KEY, message)
+    queryEmbedding = await generateEmbedding(env.OPENROUTER_API_KEY, message, env.EMBEDDING_MODEL)
     const results = await recallMemories(db, message, {
       limit: 5,
       queryEmbedding,
@@ -189,6 +189,7 @@ export async function processMessage(
     extensionsDir: env.EXTENSIONS_DIR,
     telegram: opts.telegram,
     memoryManager,
+    embeddingModel: env.EMBEDDING_MODEL,
   }
   const builtinTools = selectAndCreateTools(queryEmbedding, toolCtx)
   const dynamicTools = selectAndCreateDynamicTools(queryEmbedding, toolCtx)

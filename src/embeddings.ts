@@ -1,6 +1,6 @@
 import { toolLog } from './logger.js'
 
-const EMBEDDING_MODEL = 'openai/text-embedding-3-small'
+const DEFAULT_EMBEDDING_MODEL = 'openai/text-embedding-3-small'
 
 /**
  * Generate an embedding vector via OpenRouter's OpenAI-compatible endpoint.
@@ -8,6 +8,7 @@ const EMBEDDING_MODEL = 'openai/text-embedding-3-small'
 export async function generateEmbedding(
   apiKey: string,
   text: string,
+  model?: string,
 ): Promise<number[]> {
   const response = await fetch('https://openrouter.ai/api/v1/embeddings', {
     method: 'POST',
@@ -16,7 +17,7 @@ export async function generateEmbedding(
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: EMBEDDING_MODEL,
+      model: model ?? DEFAULT_EMBEDDING_MODEL,
       input: text,
     }),
   })

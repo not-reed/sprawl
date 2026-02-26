@@ -55,6 +55,7 @@ export interface ToolContext {
   extensionsDir?: string
   telegram?: TelegramContext
   memoryManager?: MemoryManager
+  embeddingModel?: string
 }
 
 export type ToolFactory = (ctx: ToolContext) => InternalTool<TSchema> | null
@@ -74,8 +75,8 @@ export const TOOL_PACKS: ToolPack[] = [
     description: 'Long-term memory storage and recall, scheduled reminders and recurring tasks',
     alwaysLoad: true,
     factories: [
-      (ctx) => createMemoryStoreTool(ctx.db, ctx.apiKey, ctx.memoryManager) as InternalTool<TSchema>,
-      (ctx) => createMemoryRecallTool(ctx.db, ctx.apiKey) as InternalTool<TSchema>,
+      (ctx) => createMemoryStoreTool(ctx.db, ctx.apiKey, ctx.memoryManager, ctx.embeddingModel) as InternalTool<TSchema>,
+      (ctx) => createMemoryRecallTool(ctx.db, ctx.apiKey, ctx.embeddingModel) as InternalTool<TSchema>,
       (ctx) => createMemoryForgetTool(ctx.db) as InternalTool<TSchema>,
       (ctx) => createMemoryGraphTool(ctx.db) as InternalTool<TSchema>,
       (ctx) => createScheduleCreateTool(ctx.db, ctx.chatId, ctx.timezone) as InternalTool<TSchema>,
@@ -135,12 +136,12 @@ const packEmbeddings = new Map<string, number[]>()
  * Called once at startup. Failures are non-fatal — packs with missing
  * embeddings fall back to always loading.
  */
-export async function initPackEmbeddings(apiKey: string): Promise<void> {
+export async function initPackEmbeddings(apiKey: string, embeddingModel?: string): Promise<void> {
   const packsToEmbed = TOOL_PACKS.filter((p) => !p.alwaysLoad)
 
   const results = await Promise.allSettled(
     packsToEmbed.map(async (pack) => {
-      const embedding = await generateEmbedding(apiKey, pack.description)
+      const embedding = await generateEmbedding(apiKey, pack.description, embeddingModel)
       packEmbeddings.set(pack.name, embedding)
     }),
   )
