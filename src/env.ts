@@ -15,7 +15,7 @@ const envSchema = z.object({
   // Optional
   NODE_ENV: z.string().default('production'),
   TAVILY_API_KEY: z.string().optional(),
-  OPENROUTER_MODEL: z.string().default('anthropic/claude-sonnet-4'),
+  OPENROUTER_MODEL: z.string().default('google/gemini-3-flash-preview'),
   DATABASE_URL: z.string().default('./data/construct.db'),
   ALLOWED_TELEGRAM_IDS: z
     .string()
@@ -32,6 +32,7 @@ const envSchema = z.object({
     .string()
     .default(defaultExtensionsDir())
     .transform((p) => resolve(p)),
+  MEMORY_WORKER_MODEL: z.string().optional(),
 })
 
 export const env = envSchema.parse(process.env)

@@ -2,12 +2,14 @@ import type { TSchema } from '@sinclair/typebox'
 import type { Kysely } from 'kysely'
 import type { Database } from '../db/schema.js'
 import type { TelegramContext } from '../telegram/types.js'
+import type { MemoryManager } from '../memory/index.js'
 import { generateEmbedding, cosineSimilarity } from '../embeddings.js'
 import { agentLog } from '../logger.js'
 
 import { createMemoryStoreTool } from './core/memory-store.js'
 import { createMemoryRecallTool } from './core/memory-recall.js'
 import { createMemoryForgetTool } from './core/memory-forget.js'
+import { createMemoryGraphTool } from './core/memory-graph.js'
 import { createScheduleCreateTool, createScheduleListTool, createScheduleCancelTool } from './core/schedule.js'
 import { createWebReadTool } from './web/web-read.js'
 import { createWebSearchTool } from './web/web-search.js'
@@ -46,11 +48,13 @@ export interface ToolContext {
   apiKey: string
   projectRoot: string
   dbPath: string
+  timezone: string
   tavilyApiKey?: string
   logFile?: string
   isDev: boolean
   extensionsDir?: string
   telegram?: TelegramContext
+  memoryManager?: MemoryManager
 }
 
 export type ToolFactory = (ctx: ToolContext) => InternalTool<TSchema> | null
@@ -70,11 +74,12 @@ export const TOOL_PACKS: ToolPack[] = [
     description: 'Long-term memory storage and recall, scheduled reminders and recurring tasks',
     alwaysLoad: true,
     factories: [
-      (ctx) => createMemoryStoreTool(ctx.db, ctx.apiKey) as InternalTool<TSchema>,
+      (ctx) => createMemoryStoreTool(ctx.db, ctx.apiKey, ctx.memoryManager) as InternalTool<TSchema>,
       (ctx) => createMemoryRecallTool(ctx.db, ctx.apiKey) as InternalTool<TSchema>,
       (ctx) => createMemoryForgetTool(ctx.db) as InternalTool<TSchema>,
-      (ctx) => createScheduleCreateTool(ctx.db, ctx.chatId) as InternalTool<TSchema>,
-      (ctx) => createScheduleListTool(ctx.db) as InternalTool<TSchema>,
+      (ctx) => createMemoryGraphTool(ctx.db) as InternalTool<TSchema>,
+      (ctx) => createScheduleCreateTool(ctx.db, ctx.chatId, ctx.timezone) as InternalTool<TSchema>,
+      (ctx) => createScheduleListTool(ctx.db, ctx.timezone) as InternalTool<TSchema>,
       (ctx) => createScheduleCancelTool(ctx.db) as InternalTool<TSchema>,
       (ctx) => createSecretStoreTool(ctx.db) as InternalTool<TSchema>,
       (ctx) => createSecretListTool(ctx.db) as InternalTool<TSchema>,

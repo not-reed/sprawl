@@ -23,6 +23,7 @@ import {
 import { generateEmbedding } from './embeddings.js'
 import { selectAndCreateTools, type InternalTool } from './tools/packs.js'
 import { selectSkills, getExtensionRegistry, selectAndCreateDynamicTools } from './extensions/index.js'
+import { MemoryManager, type WorkerModelConfig } from './memory/index.js'
 
 // Adapt internal tool → pi-agent-core AgentTool
 function createPiTool<T extends TSchema>(
@@ -155,17 +156,23 @@ export async function processMessage(
 
   // 7. Select tool packs based on message embedding and create tools
   const chatId = opts.chatId ?? opts.externalId ?? 'unknown'
+  const workerConfig: WorkerModelConfig | null = env.MEMORY_WORKER_MODEL
+    ? { apiKey: env.OPENROUTER_API_KEY, model: env.MEMORY_WORKER_MODEL }
+    : null
+  const memoryManager = new MemoryManager(db, workerConfig)
   const toolCtx = {
     db,
     chatId,
     apiKey: env.OPENROUTER_API_KEY,
     projectRoot: env.PROJECT_ROOT,
     dbPath: env.DATABASE_URL,
+    timezone: env.TIMEZONE,
     tavilyApiKey: env.TAVILY_API_KEY,
     logFile: env.LOG_FILE,
     isDev,
     extensionsDir: env.EXTENSIONS_DIR,
     telegram: opts.telegram,
+    memoryManager,
   }
   const builtinTools = selectAndCreateTools(queryEmbedding, toolCtx)
   const dynamicTools = selectAndCreateDynamicTools(queryEmbedding, toolCtx)
@@ -235,6 +242,9 @@ export async function processMessage(
   await agent.prompt(preamble + message)
   await agent.waitForIdle()
   agentLog.info`Agent finished. Response length: ${responseText.length}, tool calls: ${toolCalls.length}`
+
+  // Strip leaked [tg:ID] prefixes from response (LLM sometimes echoes them from history)
+  responseText = responseText.replace(/\[tg:\d+\]\s*/g, '')
 
   // 11. Save assistant response
   const assistantMessageId = await saveMessage(db, {

@@ -4,6 +4,7 @@ import { storeMemory, updateMemoryEmbedding } from '../../db/queries.js'
 import type { Database } from '../../db/schema.js'
 import { generateEmbedding } from '../../embeddings.js'
 import { toolLog } from '../../logger.js'
+import type { MemoryManager } from '../../memory/index.js'
 
 const MemoryStoreParams = Type.Object({
   content: Type.String({
@@ -24,7 +25,7 @@ const MemoryStoreParams = Type.Object({
 
 type MemoryStoreInput = Static<typeof MemoryStoreParams>
 
-export function createMemoryStoreTool(db: Kysely<Database>, apiKey?: string) {
+export function createMemoryStoreTool(db: Kysely<Database>, apiKey?: string, memoryManager?: MemoryManager) {
   return {
     name: 'memory_store',
     description:
@@ -44,6 +45,12 @@ export function createMemoryStoreTool(db: Kysely<Database>, apiKey?: string) {
           .then((embedding) => updateMemoryEmbedding(db, memory.id, embedding))
           .then(() => toolLog.info`Embedding generated for memory [${memory.id}]`)
           .catch((err) => toolLog.error`Failed to generate embedding for [${memory.id}]: ${err}`)
+      }
+
+      // Extract entities/relationships for graph memory — async, non-blocking
+      if (memoryManager) {
+        memoryManager.processStoredMemory(memory.id, args.content)
+          .catch((err) => toolLog.error`Graph extraction failed for [${memory.id}]: ${err}`)
       }
 
       return {
