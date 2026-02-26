@@ -8,6 +8,9 @@ export interface Database {
   ai_usage: AiUsageTable
   settings: SettingTable
   secrets: SecretTable
+  graph_nodes: GraphNodeTable
+  graph_edges: GraphEdgeTable
+  observations: ObservationTable
 }
 
 export interface MemoryTable {
@@ -30,6 +33,8 @@ export interface ConversationTable {
   id: string
   source: string
   external_id: string | null
+  observed_up_to_message_id: string | null
+  observation_token_count: Generated<number>
   created_at: Generated<string>
   updated_at: Generated<string>
 }
@@ -96,3 +101,48 @@ export interface SecretTable {
 }
 
 export type Secret = Selectable<SecretTable>
+
+export interface GraphNodeTable {
+  id: string
+  name: string
+  display_name: string
+  node_type: Generated<string>
+  description: string | null
+  embedding: string | null
+  created_at: Generated<string>
+  updated_at: Generated<string>
+}
+
+export type GraphNode = Selectable<GraphNodeTable>
+export type NewGraphNode = Insertable<GraphNodeTable>
+
+export interface GraphEdgeTable {
+  id: string
+  source_id: string
+  target_id: string
+  relation: string
+  weight: Generated<number>
+  properties: string | null
+  memory_id: string | null
+  created_at: Generated<string>
+  updated_at: Generated<string>
+}
+
+export type GraphEdge = Selectable<GraphEdgeTable>
+export type NewGraphEdge = Insertable<GraphEdgeTable>
+
+export interface ObservationTable {
+  id: string
+  conversation_id: string
+  content: string
+  priority: Generated<string>
+  observation_date: string
+  source_message_ids: string | null
+  token_count: number | null
+  generation: Generated<number>
+  superseded_at: string | null
+  created_at: Generated<string>
+}
+
+export type Observation = Selectable<ObservationTable>
+export type NewObservation = Insertable<ObservationTable>
