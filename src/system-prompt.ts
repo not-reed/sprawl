@@ -126,6 +126,7 @@ export function buildContextPreamble(context: {
   timezone: string
   source: string
   dev?: boolean
+  observations?: string
   recentMemories?: Array<{ content: string; category: string; created_at: string }>
   relevantMemories?: Array<{ content: string; category: string; score?: number }>
   skills?: Skill[]
@@ -137,6 +138,11 @@ export function buildContextPreamble(context: {
 
   if (context.dev) {
     preamble += '[Running in development — hot reload is active, self_deploy is disabled]\n'
+  }
+
+  if (context.observations) {
+    preamble += '\n[Conversation observations — compressed context from earlier in this conversation]\n'
+    preamble += context.observations + '\n'
   }
 
   if (context.recentMemories && context.recentMemories.length > 0) {

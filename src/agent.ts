@@ -91,11 +91,30 @@ export async function processMessage(
     opts.externalId,
   )
 
-  // 2. Load recent history
-  const recentMessages = await getRecentMessages(db, conversationId, 20)
-  agentLog.debug`Loaded ${recentMessages.length} history messages`
+  // 2. Create MemoryManager for this conversation
+  const workerConfig: WorkerModelConfig | null = env.MEMORY_WORKER_MODEL
+    ? { apiKey: env.OPENROUTER_API_KEY, model: env.MEMORY_WORKER_MODEL }
+    : null
+  const memoryManager = new MemoryManager(db, workerConfig)
 
-  // 3. Load memories for context injection
+  // 3. Load context: observations (stable prefix) + un-observed messages (active suffix)
+  // Falls back to last 20 messages if no observations exist yet
+  const { observationsText, activeMessages, hasObservations } =
+    await memoryManager.buildContext(conversationId)
+
+  let historyMessages: Array<{ role: string; content: string; telegram_message_id: number | null }>
+  if (hasObservations) {
+    // Use only un-observed messages — observations cover the rest
+    historyMessages = activeMessages
+    agentLog.debug`Context: ${observationsText.split('\n').length} observations, ${activeMessages.length} active messages`
+  } else {
+    // No observations yet — fall back to recent messages (current behavior)
+    const recentMessages = await getRecentMessages(db, conversationId, 20)
+    historyMessages = recentMessages
+    agentLog.debug`Loaded ${recentMessages.length} history messages (no observations)`
+  }
+
+  // 4. Load memories for context injection
   const recentMemories = await getRecentMemories(db, 10)
 
   // Try to find semantically relevant memories for this specific message
@@ -121,17 +140,18 @@ export async function processMessage(
 
   agentLog.debug`Context: ${recentMemories.length} recent memories, ${relevantMemories.length} relevant memories`
 
-  // 4. Select relevant skills based on query embedding
+  // 5. Select relevant skills based on query embedding
   const selectedSkills = selectSkills(queryEmbedding)
   if (selectedSkills.length > 0) {
     agentLog.debug`Selected skills: ${selectedSkills.map((s) => s.name).join(', ')}`
   }
 
-  // 5. Build context preamble (dynamic, prepended to user message)
+  // 6. Build context preamble (dynamic, prepended to user message)
   const preamble = buildContextPreamble({
     timezone: env.TIMEZONE,
     source: opts.source,
     dev: isDev,
+    observations: observationsText || undefined,
     recentMemories: recentMemories.map((m) => ({
       content: m.content,
       category: m.category,
@@ -142,7 +162,7 @@ export async function processMessage(
     replyContext: opts.replyContext,
   })
 
-  // 6. Create agent with system prompt (base + identity files)
+  // 7. Create agent with system prompt (base + identity files)
   const { identity } = getExtensionRegistry()
   const model = getModel('openrouter', env.OPENROUTER_MODEL as Parameters<typeof getModel>[1])
   const agent = new Agent({
@@ -154,12 +174,8 @@ export async function processMessage(
 
   agent.setModel(model)
 
-  // 7. Select tool packs based on message embedding and create tools
+  // 8. Select tool packs based on message embedding and create tools
   const chatId = opts.chatId ?? opts.externalId ?? 'unknown'
-  const workerConfig: WorkerModelConfig | null = env.MEMORY_WORKER_MODEL
-    ? { apiKey: env.OPENROUTER_API_KEY, model: env.MEMORY_WORKER_MODEL }
-    : null
-  const memoryManager = new MemoryManager(db, workerConfig)
   const toolCtx = {
     db,
     chatId,
@@ -179,8 +195,8 @@ export async function processMessage(
   const tools = [...builtinTools, ...dynamicTools]
   agent.setTools(tools.map((t) => createPiTool(t)))
 
-  // 7. Replay conversation history so the agent has multi-turn context
-  for (const msg of recentMessages) {
+  // 9. Replay conversation history so the agent has multi-turn context
+  for (const msg of historyMessages) {
     const tgPrefix = msg.telegram_message_id ? `[tg:${msg.telegram_message_id}] ` : ''
     if (msg.role === 'user') {
       agent.appendMessage({ role: 'user', content: tgPrefix + msg.content, timestamp: Date.now() })
@@ -198,7 +214,7 @@ export async function processMessage(
     }
   }
 
-  // 8. Track tool calls, response text, and usage
+  // 10. Track tool calls, response text, and usage
   let responseText = ''
   const toolCalls: AgentResponse['toolCalls'] = []
   const totalUsage = { input: 0, output: 0, cost: 0 }
@@ -229,7 +245,7 @@ export async function processMessage(
     }
   })
 
-  // 9. Save user message
+  // 11. Save user message
   await saveMessage(db, {
     conversation_id: conversationId,
     role: 'user',
@@ -237,7 +253,7 @@ export async function processMessage(
     telegram_message_id: opts.incomingTelegramMessageId ?? null,
   })
 
-  // 10. Run agent — prepend context preamble to first message
+  // 12. Run agent — prepend context preamble to first message
   agentLog.debug`Prompting agent`
   await agent.prompt(preamble + message)
   await agent.waitForIdle()
@@ -246,7 +262,7 @@ export async function processMessage(
   // Strip leaked [tg:ID] prefixes from response (LLM sometimes echoes them from history)
   responseText = responseText.replace(/\[tg:\d+\]\s*/g, '')
 
-  // 11. Save assistant response
+  // 13. Save assistant response
   const assistantMessageId = await saveMessage(db, {
     conversation_id: conversationId,
     role: 'assistant',
@@ -254,7 +270,7 @@ export async function processMessage(
     tool_calls: toolCalls.length > 0 ? JSON.stringify(toolCalls) : null,
   })
 
-  // 12. Track usage
+  // 14. Track usage
   if (hasUsage) {
     agentLog.info`Usage: ${totalUsage.input} in / ${totalUsage.output} out / $${totalUsage.cost.toFixed(4)}`
     await trackUsage(db, {
@@ -265,6 +281,18 @@ export async function processMessage(
       source: opts.source,
     })
   }
+
+  // 15. Run observer async after response (next turn benefits)
+  // Non-blocking — fires and forgets. Observer only runs if un-observed
+  // messages exceed the token threshold.
+  memoryManager.runObserver(conversationId)
+    .then((ran) => {
+      if (ran) {
+        // If observer ran, check if reflector should condense
+        return memoryManager.runReflector(conversationId)
+      }
+    })
+    .catch((err) => agentLog.error`Post-response observation failed: ${err}`)
 
   const usage = hasUsage ? totalUsage : undefined
 
