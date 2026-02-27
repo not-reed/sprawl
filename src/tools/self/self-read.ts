@@ -72,7 +72,6 @@ export function createSelfReadTool(projectRoot: string, extensionsDir?: string) 
 
         const content = await readFile(resolved, 'utf-8')
         const lines = content.split('\n')
-
         return {
           output: `${displayPath} (${lines.length} lines):\n${content}`,
           details: { type: 'file', path: displayPath, lines: lines.length },

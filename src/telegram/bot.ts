@@ -124,11 +124,12 @@ export function createBot(db: Kysely<Database>) {
     telegramLog.info`Message from user ${userId} (chat ${chatId}): ${ctx.message.text.slice(0, 100)}`
 
     // Show typing indicator, refreshing every 4s (Telegram expires it after ~5s)
-    const typingInterval = setInterval(
-      () => void ctx.replyWithChatAction('typing'),
-      4000,
-    )
-    await ctx.replyWithChatAction('typing')
+    const sendTyping = () =>
+      ctx.replyWithChatAction('typing').catch((err) => {
+        telegramLog.error`Typing indicator failed: ${err}`
+      })
+    const typingInterval = setInterval(sendTyping, 4000)
+    await sendTyping()
 
     try {
       // Build telegram context with mutable side-effects
