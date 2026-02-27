@@ -99,14 +99,14 @@ export async function processMessage(
 
   // 3. Load context: observations (stable prefix) + un-observed messages (active suffix)
   // Falls back to last 20 messages if no observations exist yet
-  const { observationsText, activeMessages, hasObservations } =
+  const { observationsText, activeMessages, hasObservations, evictedObservations } =
     await memoryManager.buildContext(conversationId)
 
   let historyMessages: Array<{ role: string; content: string; telegram_message_id: number | null }>
   if (hasObservations) {
     // Use only un-observed messages — observations cover the rest
     historyMessages = activeMessages
-    agentLog.debug`Context: ${observationsText.split('\n').length} observations, ${activeMessages.length} active messages`
+    agentLog.debug`Context: ${observationsText.split('\n').length} observations, ${activeMessages.length} active messages${evictedObservations > 0 ? `, ${evictedObservations} evicted` : ''}`
   } else {
     // No observations yet — fall back to recent messages (current behavior)
     const recentMessages = await getRecentMessages(db, conversationId, 20)
@@ -287,9 +287,11 @@ export async function processMessage(
   // Non-blocking — fires and forgets. Observer only runs if un-observed
   // messages exceed the token threshold.
   memoryManager.runObserver(conversationId)
-    .then((ran) => {
+    .then(async (ran) => {
       if (ran) {
-        // If observer ran, check if reflector should condense
+        // Promote novel observations to searchable memories before reflector condenses them
+        await memoryManager.promoteObservations(conversationId)
+        // Then check if reflector should condense
         return memoryManager.runReflector(conversationId)
       }
     })

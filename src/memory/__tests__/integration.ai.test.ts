@@ -1,9 +1,9 @@
 /**
- * Integration tests for the memory system.
+ * Integration tests for the memory system (requires LLM API access).
  * Uses google/gemini-2.5-flash-lite via OpenRouter for cheap real LLM calls.
  * Skips gracefully when OPENROUTER_API_KEY is not set.
  *
- * Run: OPENROUTER_API_KEY=<key> npx vitest run src/memory/__tests__/integration.test.ts
+ * Run: OPENROUTER_API_KEY=<key> npm run test:ai
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'

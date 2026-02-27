@@ -141,6 +141,7 @@ export interface ObservationTable {
   token_count: number | null
   generation: Generated<number>
   superseded_at: string | null
+  promoted_at: string | null
   created_at: Generated<string>
 }
 

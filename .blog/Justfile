@@ -11,6 +11,7 @@ publish:
 promote FILE:
     mkdir -p {{published}}
     sed '/^draft: true$/d' {{drafts}}/{{FILE}} > {{published}}/{{FILE}}
+    rm {{drafts}}/{{FILE}}
     rsync -rv {{published}}/ prose.sh:/
 
 # Upload a single draft to prose.sh (visible by direct URL but unlisted)

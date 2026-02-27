@@ -1,4 +1,4 @@
-import { configDefaults, defineConfig } from 'vitest/config'
+import { defineConfig } from 'vitest/config'
 import { loadEnv } from 'vite'
 
 export default defineConfig({
@@ -11,6 +11,6 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     env: loadEnv('test', process.cwd(), ''),
-    exclude: [...configDefaults.exclude, '**/*.ai.test.ts'],
+    include: ['src/**/*.ai.test.ts'],
   },
 })

@@ -166,7 +166,7 @@ In non-Docker environments, the tool runs `sudo systemctl restart <service>`, wa
 To update Construct after pulling new changes:
 
 ```bash
-cd /path/to/nullclaw-ts
+cd /path/to/construct
 git pull
 docker compose -f deploy/docker-compose.yml up -d --build
 ```

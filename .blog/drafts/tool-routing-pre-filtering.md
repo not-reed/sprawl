@@ -7,17 +7,17 @@ description: "How Construct uses a single embedding call to pre-filter tools bef
 
 # Pre-Filtering vs. Retrieval: How Construct Routes Tools Before the Model Sees Them
 
-Using embeddings to decide which tools a language model should see is not a new idea. Anthropic has a cookbook recipe for it. LlamaIndex has `QueryEngineTool` with embedding-based retrieval as a core abstraction. Academic work on tool routing — "ToolScope," "Tool-to-Agent Retrieval" (arXiv:2511.01854), "Dynamic System Instructions and Tool Exposure" (arXiv:2602.17046) — has been building up for a couple of years. The general paradigm even has a name in the literature: ToolScale.
+Using embeddings to decide which tools a language model should see is not a new idea. Anthropic has a cookbook recipe for it. LlamaIndex has `QueryEngineTool` with embedding-based retrieval as a core abstraction. Academic work on tool routing (ToolScope, Tool-to-Agent Retrieval [arXiv:2511.01854], Dynamic System Instructions and Tool Exposure [arXiv:2602.17046]) has been building up for a couple of years. The general paradigm even has a name in the literature: ToolScale.
 
 So when I say Construct uses embeddings to select tools, that's not the interesting part. What's interesting is the specific shape of the implementation: where in the pipeline the selection happens, how failures propagate, what the routing granularity is, and what else rides on the same embedding call.
 
 ## Pre-Filtering, Not Retrieval
 
-The dominant pattern in the literature is **retrieval**: the model encounters a query, determines it needs a tool, and then calls a search function to find the right one. This is how Claude's Tool Search Tool works — when Claude has hundreds of MCP servers loaded, it can invoke a search with BM25 or embeddings to locate the specific tool it needs on-demand.
+The dominant pattern in the literature is **retrieval**: the model encounters a query, determines it needs a tool, and then calls a search function to find the right one. This is how Claude's Tool Search Tool works: when Claude has hundreds of MCP servers loaded, it can invoke a search with BM25 or embeddings to locate the specific tool it needs on-demand.
 
 Construct does something different: **pre-filtering**. Before the model ever sees the user's message, the system decides which tool packs to load into context. The model operates on a reduced tool list with no awareness that other tools exist. It can't ask for excluded tools because they're invisible to it.
 
-This is closer to the "Dynamic System Instructions" paper (arXiv:2602.17046), which specifically addresses the problem of re-ingesting large tool catalogs every turn. The tradeoffs are different from retrieval: pre-filtering is simpler and doesn't require the model to reason about what tools might exist, but it means a routing mistake is invisible to the model — it can't recover by searching for what it needs.
+This is closer to the "Dynamic System Instructions" paper (arXiv:2602.17046), which specifically addresses the problem of re-ingesting large tool catalogs every turn. The tradeoffs are different from retrieval: pre-filtering is simpler and doesn't require the model to reason about what tools might exist, but it means a routing mistake is invisible to the model. It can't recover by searching for what it needs.
 
 ## The Pack Abstraction
 
@@ -54,7 +54,7 @@ export const TOOL_PACKS: ToolPack[] = [
 ]
 ```
 
-Most approaches in the literature embed individual tools. Construct embeds one description per group. This is coarser — a pack description has to describe the query space for all the tools it contains — but it's simpler, and for a personal assistant with a handful of packs, the loss of precision doesn't matter much.
+Most approaches in the literature embed individual tools. Construct embeds one description per group. This is coarser (a pack description has to cover the query space for all the tools it contains), but it's simpler, and for a personal assistant with a handful of packs, the loss of precision doesn't matter much.
 
 At startup, every non-`alwaysLoad` pack gets its description embedded and stored:
 
@@ -116,7 +116,7 @@ Before cosine similarity is ever computed, three rules have already decided some
 
 Every failure path in this function defaults to loading more tools, not fewer. The system errs toward an overpowered model rather than a crippled one. This is a deliberate design position: a false positive (loading the web pack for a message that didn't need it) costs tokens; a false negative (not loading the self pack when the user asks to edit a file) costs the agent its ability to do the job.
 
-The 0.3 threshold reflects the same position. It's permissive enough that short or ambiguous messages tend to trigger multiple packs. There's no feedback loop — the system doesn't observe which packs actually got used and raise the threshold for ones that consistently load but rarely exercise their tools.
+The 0.3 threshold reflects the same position. It's permissive enough that short or ambiguous messages tend to trigger multiple packs. There's no feedback loop. The system doesn't observe which packs actually got used and adjust the threshold for ones that consistently load but rarely exercise their tools.
 
 Because `selectPacks` is a pure function that accepts the embedding map as a parameter, the test suite can verify routing logic with synthetic three-dimensional vectors instead of real API calls:
 
@@ -173,7 +173,7 @@ One API call drives memory retrieval, tool pack selection, and skill selection. 
 
 ## Tools and Skills Fail Differently
 
-Skills are Markdown instruction documents — not code, but contextual guidance injected into the prompt when the message matches their description. Each skill has a YAML frontmatter block:
+Skills are Markdown instruction documents, not code, but contextual guidance injected into the prompt when the message matches their description. Each skill has a YAML frontmatter block:
 
 ```yaml
 ---
@@ -212,7 +212,7 @@ export function selectSkills(
 
 Compare this to `selectPacks`: when there's no query embedding, tools load everything; skills load nothing. When a pack has no cached embedding, it loads anyway; a skill with no cached embedding scores 0 and is excluded.
 
-The asymmetry is intentional. Tools are capabilities — if the self pack doesn't load when the user asks to edit a file, the agent is broken. Skills are refinements — if a standup skill doesn't inject when the user says "let's do standup," the agent produces a slightly less structured response. The cost of a missing tool is an agent that can't do its job. The cost of a missing skill is an agent that does its job without a specific style guide.
+The asymmetry is intentional. Tools are capabilities. If the self pack doesn't load when the user asks to edit a file, the agent is broken. Skills are refinements. If a standup skill doesn't inject when the user says "let's do standup," the agent produces a slightly less structured response. The cost of a missing tool is an agent that can't do its job. The cost of a missing skill is an agent that does its job without a specific style guide.
 
 ## Extension Tools Are First-Class in the Router
 
@@ -240,7 +240,7 @@ Built-in packs have no advantage over extension packs in the router. The descrip
 
 ## What the Threshold Doesn't Do
 
-The 0.3 threshold is hardcoded and applies uniformly. There's no per-pack tuning, no way to mark one pack as higher priority than another, no adjustment based on observed usage. A pack with an ambiguous description — something that could be described as "journal entries" or "daily logs" or "notes" — might miss messages it should catch, or catch messages it shouldn't.
+The 0.3 threshold is hardcoded and applies uniformly. There's no per-pack tuning, no way to mark one pack as higher priority than another, no adjustment based on observed usage. A pack with an ambiguous description (something that could be described as "journal entries" or "daily logs" or "notes") might miss messages it should catch, or catch messages it shouldn't.
 
 Short messages are a particular weak point. "What's up?" has weak semantic signal, and the cosine similarities end up close enough that multiple packs load based on noise rather than genuine relevance. A fallback to a smaller static set for very-short messages would help, but the system doesn't do this.
 
@@ -248,12 +248,12 @@ The routing also adds latency. The embedding call has to complete before tool se
 
 ## The Decisions Worth Keeping
 
-The interesting parts of this design aren't the use of embeddings for tool routing — that's table stakes. The decisions worth examining are:
+The interesting parts of this design aren't the use of embeddings for tool routing. That's table stakes. The decisions worth examining are:
 
 **Pre-filtering vs. retrieval.** Hiding excluded tools from the model entirely changes what the model can do. It can't ask for a tool it doesn't know exists, which means routing mistakes are silent. Whether that's acceptable depends on your trust in the router's precision.
 
-**Fail open.** Every failure path in the tools system defaults to loading more, not less. This is a position, not a default. Failing closed (load nothing) would be safer in a different sense — the model won't have access to tools it shouldn't — but for a personal assistant where the primary concern is usefulness, failing open is the right call.
+**Fail open.** Every failure path in the tools system defaults to loading more, not less. This is a position, not a default. Failing closed (load nothing) would be safer in a different sense, since the model won't have access to tools it shouldn't. But for a personal assistant where the primary concern is usefulness, failing open is the right call.
 
-**Asymmetric failure modes for tools vs. instruction injection.** If you have two kinds of context additions — capabilities and guidance — the consequences of missing each are different, and the failure semantics should reflect that difference.
+**Asymmetric failure modes for tools vs. instruction injection.** If you have two kinds of context additions (capabilities and guidance), the consequences of missing each are different, and the failure semantics should reflect that difference.
 
 **Pure selection logic.** Keeping `selectPacks` free of side effects means the routing geometry is directly testable. You don't need a working embedding API to verify that a query pointing at web coordinates correctly excludes the self pack.

@@ -47,6 +47,8 @@ The function opens with three quick lookups that establish who is talking and wh
 
 **Steps 2–3** invoke `MemoryManager.buildContext()`, which returns the conversation's observational context. If enough previous messages have been compressed into observations, those become the stable "prefix" context; the uncompressed recent messages become the "active suffix". If no observations exist yet, the function falls back to the last 20 raw messages. This is the graduated memory system: no behavioral difference until the conversation gets long enough to warrant compression.
 
+`buildContext()` also applies a token budget (8,000 tokens) to observation rendering. If total observation tokens fit, the fast path skips any sorting overhead. If they exceed the budget, priority-based eviction kicks in and the debug log includes the eviction count alongside the observation and active message counts. The evicted observations aren't lost; they're still reachable through `memory_recall`.
+
 ## Steps 4–6: The Embedding That Drives Everything
 
 Step 4 generates an embedding for the incoming message:
@@ -227,4 +229,4 @@ The boundary between "before the prompt" and "after the return" is also a design
 
 ---
 
-Relevant files: `/home/reed/Code/0xreed/nullclaw-ts/src/agent.ts`, `/home/reed/Code/0xreed/nullclaw-ts/src/system-prompt.ts`, `/home/reed/Code/0xreed/nullclaw-ts/src/tools/packs.ts`, `/home/reed/Code/0xreed/nullclaw-ts/src/telegram/bot.ts`, `/home/reed/Code/0xreed/nullclaw-ts/cli/index.ts`, `/home/reed/Code/0xreed/nullclaw-ts/src/extensions/index.ts`, `/home/reed/Code/0xreed/nullclaw-ts/src/scheduler/index.ts`
+Relevant files: `src/agent.ts`, `src/system-prompt.ts`, `src/tools/packs.ts`, `src/telegram/bot.ts`, `cli/index.ts`, `src/extensions/index.ts`, `src/scheduler/index.ts`

@@ -11,15 +11,17 @@ import type { WorkerModelConfig, Observation } from './types.js'
 import { processMemoryForGraph } from './graph/index.js'
 import { observe } from './observer.js'
 import { reflect } from './reflector.js'
-import { renderObservations } from './context.js'
+import { renderObservations, renderObservationsWithBudget, OBSERVATION_BUDGET } from './context.js'
 import { estimateTokens, estimateMessageTokens } from './tokens.js'
 import { toolLog } from '../logger.js'
-import { trackUsage } from '../db/queries.js'
+import { storeMemory, trackUsage } from '../db/queries.js'
+import { generateEmbedding, cosineSimilarity } from '../embeddings.js'
 
 export type { WorkerModelConfig } from './types.js'
 export type { ExtractionResult } from './types.js'
 export type { Observation } from './types.js'
-export { renderObservations } from './context.js'
+export { renderObservations, renderObservationsWithBudget, OBSERVATION_BUDGET } from './context.js'
+export type { BudgetedObservations } from './context.js'
 
 /** Token thresholds for triggering observer/reflector */
 export const OBSERVER_THRESHOLD = 3000
@@ -340,6 +342,102 @@ export class MemoryManager {
   }
 
   /**
+   * Promote novel medium/high-priority observations into the memories table.
+   * Uses embedding-based dedup against existing memories (threshold: 0.85).
+   * Only observations that pass dedup get graph extraction (cost savings).
+   * All candidates are marked promoted_at regardless of outcome.
+   * Returns count of promoted observations.
+   */
+  async promoteObservations(conversationId: string): Promise<number> {
+    if (!this.workerConfig) return 0
+
+    // 1. Get unpromoted medium/high observations
+    const candidates = await this.db
+      .selectFrom('observations')
+      .selectAll()
+      .where('conversation_id', '=', conversationId)
+      .where('superseded_at', 'is', null)
+      .where('promoted_at', 'is', null)
+      .where('priority', 'in', ['medium', 'high'])
+      .orderBy('created_at', 'asc')
+      .execute()
+
+    if (candidates.length === 0) return 0
+
+    // 2. Load all existing memory embeddings for dedup
+    const allMemories = await this.db
+      .selectFrom('memories')
+      .select(['id', 'embedding'])
+      .where('archived_at', 'is', null)
+      .where('embedding', 'is not', null)
+      .execute()
+
+    const existingEmbeddings: number[][] = allMemories
+      .map((m) => JSON.parse(m.embedding!) as number[])
+
+    // Track new embeddings for intra-batch dedup
+    const batchEmbeddings: number[][] = []
+    let promoted = 0
+
+    for (const obs of candidates) {
+      try {
+        const embedding = await generateEmbedding(
+          this.workerConfig.apiKey,
+          obs.content,
+          this.embeddingModel,
+        )
+
+        // Check against existing + batch embeddings
+        const allToCheck = [...existingEmbeddings, ...batchEmbeddings]
+        let maxSim = 0
+        for (const other of allToCheck) {
+          const sim = cosineSimilarity(embedding, other)
+          if (sim > maxSim) maxSim = sim
+        }
+
+        if (maxSim < 0.85) {
+          // Novel — store as memory
+          const memory = await storeMemory(this.db, {
+            content: obs.content,
+            category: 'observation',
+            source: 'observer',
+            embedding: JSON.stringify(embedding),
+            tags: null,
+          })
+          batchEmbeddings.push(embedding)
+          existingEmbeddings.push(embedding)
+          promoted++
+
+          // Fire graph extraction async
+          this.processStoredMemory(memory.id, memory.content).catch((err) =>
+            toolLog.error`Graph extraction failed for promoted observation: ${err}`,
+          )
+
+          toolLog.info`Promoted observation → memory [${memory.id}]: ${obs.content.slice(0, 80)}`
+        } else {
+          toolLog.debug`Skipped duplicate observation (sim=${maxSim.toFixed(3)}): ${obs.content.slice(0, 60)}`
+        }
+      } catch (err) {
+        toolLog.error`Failed to promote observation [${obs.id}]: ${err}`
+      }
+    }
+
+    // 3. Mark all candidates as promoted (regardless of outcome)
+    const candidateIds = candidates.map((c) => c.id)
+    await this.db
+      .updateTable('observations')
+      .set({ promoted_at: sql<string>`datetime('now')` })
+      .where('id', 'in', candidateIds)
+      .execute()
+
+    if (promoted > 0) {
+      toolLog.info`Promoted ${promoted}/${candidates.length} observations to memories`
+    }
+
+    return promoted
+  }
+
+  /**
    * Build the context for a conversation:
    * 1. Get active observations (stable prefix)
    * 2. Get un-observed messages (active suffix)
@@ -355,14 +453,29 @@ export class MemoryManager {
       telegram_message_id: number | null
     }>
     hasObservations: boolean
+    evictedObservations: number
   }> {
     const observations = await this.getActiveObservations(conversationId)
     const activeMessages = await this.getUnobservedMessages(conversationId)
 
+    // Fast path: if total tokens fit in budget, no sorting overhead needed
+    const totalTokens = observations.reduce((sum, o) => sum + o.token_count, 0)
+    if (totalTokens <= OBSERVATION_BUDGET) {
+      return {
+        observationsText: renderObservations(observations),
+        activeMessages,
+        hasObservations: observations.length > 0,
+        evictedObservations: 0,
+      }
+    }
+
+    // Over budget: use budgeted rendering with priority-based eviction
+    const budgeted = renderObservationsWithBudget(observations)
     return {
-      observationsText: renderObservations(observations),
+      observationsText: budgeted.text,
       activeMessages,
       hasObservations: observations.length > 0,
+      evictedObservations: budgeted.evicted,
     }
   }
 }

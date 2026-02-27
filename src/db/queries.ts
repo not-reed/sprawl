@@ -53,7 +53,7 @@ export async function updateMemoryEmbedding(
 }
 
 /**
- * Hybrid memory recall: FTS5 → embeddings → LIKE fallback.
+ * Hybrid memory recall: FTS5 → embeddings.
  * Results are merged and deduplicated by memory ID.
  */
 export async function recallMemories(
@@ -99,7 +99,7 @@ export async function recallMemories(
       }
     }
   } catch {
-    // FTS5 table might not exist yet — fall through to LIKE
+    // FTS5 table might not exist yet — fall through to embeddings
   }
 
   // 2. Embedding cosine similarity search
@@ -126,49 +126,6 @@ export async function recallMemories(
       if (!seen.has(m.id) && results.length < limit) {
         seen.add(m.id)
         results.push(m)
-      }
-    }
-  }
-
-  // 3. LIKE fallback if we still have room
-  if (results.length < limit) {
-    const keywords = query
-      .toLowerCase()
-      .split(/\s+/)
-      .filter((w) => w.length > 2)
-
-    if (keywords.length > 0) {
-      let qb = db
-        .selectFrom('memories')
-        .selectAll()
-        .where('archived_at', 'is', null)
-
-      if (opts?.category) {
-        qb = qb.where('category', '=', opts.category)
-      }
-
-      qb = qb.where((eb) =>
-        eb.or(
-          keywords.map((kw) => {
-            const escaped = kw.replace(/[%_]/g, '\\$&')
-            return eb.or([
-              sql<boolean>`${eb.ref('content')} LIKE ${'%' + escaped + '%'} ESCAPE '\\'`,
-              sql<boolean>`${eb.ref('tags')} LIKE ${'%' + escaped + '%'} ESCAPE '\\'`,
-            ])
-          }),
-        ),
-      )
-
-      const likeResults = await qb
-        .orderBy('created_at', 'desc')
-        .limit(limit)
-        .execute()
-
-      for (const m of likeResults) {
-        if (!seen.has(m.id) && results.length < limit) {
-          seen.add(m.id)
-          results.push({ ...m, matchType: 'keyword' })
-        }
       }
     }
   }

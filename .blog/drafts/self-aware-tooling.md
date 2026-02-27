@@ -208,7 +208,7 @@ This means the agent can write an entirely new capability, pick it up without re
 
 The same cycle works for skills. If the agent observes that it's repeatedly asked to run standups in a specific format, it can write `extensions/skills/standup.md` with the instructions formalized in frontmatter, reload, and the skill will activate automatically on future standup requests via the embedding router.
 
-Nothing in this cycle touches the main source tree. The extensions directory is a separate containment zone with its own boundary check — paths that would traverse out of it are denied independently of the `src/` and `cli/` checks. An agent authoring a weather extension cannot accidentally write to `src/agent.ts`.
+Nothing in this cycle touches the main source tree. The extensions directory is a separate containment zone with its own boundary check. Paths that would traverse out of it are denied independently of the `src/` and `cli/` checks. An agent authoring a weather extension cannot accidentally write to `src/agent.ts`.
 
 The cycle closes entirely within a conversation: write → reload → use. No pull request, no restart, no human in the loop for the extension step (though the deploy gate still guards main codebase changes).
 

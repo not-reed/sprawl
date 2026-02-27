@@ -7,6 +7,7 @@ import * as migration004 from '../../db/migrations/004-telegram-message-ids.js'
 import * as migration006 from '../../db/migrations/006-observational-memory.js'
 import { MemoryManager } from '../index.js'
 import { saveMessage, getOrCreateConversation } from '../../db/queries.js'
+import { isDegenerateRaw, sanitizeObservations } from '../observer.js'
 
 let db: Kysely<Database>
 
@@ -126,5 +127,105 @@ describe('MemoryManager observations', () => {
     expect(ctx.observationsText).toContain('TypeScript')
     expect(ctx.activeMessages).toHaveLength(1)
     expect(ctx.activeMessages[0].content).toBe('new msg')
+  })
+})
+
+describe('isDegenerateRaw', () => {
+  it('returns true for text over 50KB', () => {
+    const text = 'x'.repeat(50_001)
+    expect(isDegenerateRaw(text)).toBe(true)
+  })
+
+  it('returns true for repeated 100-char blocks', () => {
+    const block = 'a'.repeat(100)
+    // 3 repetitions at 100-char intervals triggers detection
+    const text = block + block + block
+    expect(isDegenerateRaw(text)).toBe(true)
+  })
+
+  it('returns false for normal JSON text', () => {
+    const text = JSON.stringify({
+      observations: [
+        { content: 'User likes TypeScript', priority: 'medium', observation_date: '2025-01-15' },
+        { content: 'User moved to Portland', priority: 'high', observation_date: '2025-01-15' },
+      ],
+    })
+    expect(isDegenerateRaw(text)).toBe(false)
+  })
+
+  it('returns false for short text', () => {
+    expect(isDegenerateRaw('hello')).toBe(false)
+  })
+
+  it('returns false for text exactly at 50KB', () => {
+    const text = 'x'.repeat(50_000)
+    // All blocks are identical but text is exactly at the limit, not over
+    // However, repeated blocks will still trigger
+    expect(isDegenerateRaw(text)).toBe(true)
+  })
+
+  it('returns false for varied text under 50KB', () => {
+    // Build text where every 100-char block is unique
+    let text = ''
+    for (let i = 0; i < 100; i++) {
+      text += String(i).padStart(4, '0') + 'y'.repeat(96)
+    }
+    expect(isDegenerateRaw(text)).toBe(false)
+  })
+})
+
+describe('sanitizeObservations', () => {
+  const obs = (content: string, priority: 'low' | 'medium' | 'high' = 'medium') => ({
+    content,
+    priority,
+    observation_date: '2025-01-15',
+  })
+
+  it('truncates content over 2000 chars', () => {
+    const longContent = 'a'.repeat(2500)
+    const result = sanitizeObservations([obs(longContent)], 10)
+    expect(result[0].content).toHaveLength(2003) // 2000 + '...'
+    expect(result[0].content.endsWith('...')).toBe(true)
+  })
+
+  it('does not truncate content at exactly 2000 chars', () => {
+    const content = 'a'.repeat(2000)
+    const result = sanitizeObservations([obs(content)], 10)
+    expect(result[0].content).toHaveLength(2000)
+  })
+
+  it('caps observation count at inputMessages * 3', () => {
+    const observations = Array.from({ length: 20 }, (_, i) => obs(`fact ${i}`))
+    const result = sanitizeObservations(observations, 5) // cap = max(15, 50) = 50
+    expect(result).toHaveLength(20) // 20 < 50, all kept
+  })
+
+  it('caps observation count with floor of 50', () => {
+    const observations = Array.from({ length: 60 }, (_, i) => obs(`fact ${i}`))
+    const result = sanitizeObservations(observations, 10) // cap = max(30, 50) = 50
+    expect(result).toHaveLength(50)
+  })
+
+  it('caps when inputMessages * 3 exceeds 50', () => {
+    const observations = Array.from({ length: 100 }, (_, i) => obs(`fact ${i}`))
+    const result = sanitizeObservations(observations, 20) // cap = max(60, 50) = 60
+    expect(result).toHaveLength(60)
+  })
+
+  it('deduplicates identical content', () => {
+    const result = sanitizeObservations(
+      [obs('User likes cats'), obs('User likes dogs'), obs('User likes cats')],
+      10,
+    )
+    expect(result).toHaveLength(2)
+    expect(result.map((o) => o.content)).toEqual(['User likes cats', 'User likes dogs'])
+  })
+
+  it('preserves order after deduplication', () => {
+    const result = sanitizeObservations(
+      [obs('first'), obs('second'), obs('first'), obs('third')],
+      10,
+    )
+    expect(result.map((o) => o.content)).toEqual(['first', 'second', 'third'])
   })
 })

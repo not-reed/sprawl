@@ -1,5 +1,4 @@
 ---
-draft: true
 title: "Construct's Memory System: An Architecture Overview"
 date: 2026-02-26
 tags: [memory, architecture, sqlite, observational-memory]
@@ -28,7 +27,7 @@ The upside is simplicity: memory is human-readable, editable, and backed up with
 
 The retrieval side has a similar gap. OpenClaw pulls relevant memory files back into active context during conversations, but the mechanism is straightforward text search over markdown. If the user asks about "restaurants" but the relevant memory says "Alice introduced me to Nightshade" without the word "restaurant" anywhere in the file, that connection is invisible to a keyword-based search.
 
-Construct's memory retrieval addresses this with a three-layer pipeline: FTS5 full-text search for exact keyword matches, cosine similarity over vector embeddings for semantic associations (catching "restaurants" → "Nightshade" even without shared vocabulary), and knowledge graph traversal for relational connections (walking edges like `Alice —[introduced to]→ Nightshade —[is a]→ restaurant`). Each layer covers gaps the others miss.
+Construct's memory retrieval addresses this with a three-layer pipeline: FTS5 full-text search for exact keyword matches, cosine similarity over vector embeddings for semantic associations (catching "restaurants" → "Nightshade" even without shared vocabulary), and knowledge graph traversal for relational connections (walking edges like `Alice -> [introduced to] -> Nightshade -> [is a] -> restaurant`). Each layer covers gaps the others miss.
 
 On the writing side, Construct stores every raw message permanently in the database. Nothing is ever discarded. The observational memory pipeline doesn't replace stored messages; it replaces them *in the context window*. Once a chunk of conversation has been compressed into observations, the agent sees the condensed observations plus only the recent unobserved messages, rather than replaying the entire transcript. But the full history remains in SQLite, searchable and intact. The observations are a compression layer for context assembly, not a lossy replacement for storage.
 
@@ -42,7 +41,7 @@ The system manages several layers of memory, each serving a different purpose:
 
 **Curated memories** are things the agent stores via the `memory_store` tool, tagged with a category and embedded for semantic search. These are higher-signal than raw messages: the agent (or user) decided this fact was worth keeping as a standalone record. They get their own embeddings and feed into the knowledge graph.
 
-**Observations** are automatically derived from conversation history. A background process watches each conversation and compresses accumulating messages into structured, prioritized notes. When observations pile up, a second process (the reflector) condenses them further. Observations don't replace the stored messages; they replace them in the context window, so the agent gets a compressed view of older conversation without losing access to the raw data.
+**Observations** are automatically derived from conversation history. A background process watches each conversation and compresses accumulating messages into structured, prioritized notes. When observations pile up, a second process (the reflector) condenses them further. Observations don't replace the stored messages; they replace them in the context window, so the agent gets a compressed view of older conversation without losing access to the raw data. Even this compressed view is capped at 8,000 tokens: when observations exceed the budget, lower-priority and older entries are evicted from the working set, with the retrieval pipeline (FTS5, embeddings, graph) serving as the escape hatch for anything that drops out.
 
 **Identity files** (SOUL.md, IDENTITY.md, USER.md) live in the extensions directory and are injected directly into the system prompt. These define the agent's personality, metadata, and user context. They're the most static layer, edited by hand or by the agent's self-edit tools.
 

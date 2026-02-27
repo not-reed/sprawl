@@ -30,7 +30,7 @@ setup_install_dir() {
     info "Install directory already exists at $INSTALL_DIR"
   else
     info "Cloning repository to $INSTALL_DIR"
-    git clone https://github.com/0xreed/nullclaw-ts.git "$INSTALL_DIR"
+    git clone https://github.com/0xreed/construct.git "$INSTALL_DIR"
   fi
 
   chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"

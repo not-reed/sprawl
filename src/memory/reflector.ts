@@ -1,31 +1,77 @@
 import type { WorkerModelConfig, ReflectorInput, ReflectorOutput } from './types.js'
 import { toolLog } from '../logger.js'
+import { isDegenerateRaw, sanitizeObservations } from './observer.js'
 
-const REFLECTOR_PROMPT = `You are an observation condenser. Your job is to take a set of observations and produce a tighter, more organized set.
+const REFLECTOR_PROMPT = `You reorganize and condense observations. Your output replaces the input — any information you drop is permanently lost. Treat this as the sole memory of the conversation.
 
-Rules:
-- Combine related observations into single, richer observations
-- Remove observations that have been superseded by newer information
-- Preserve high-priority items (decisions, commitments, important facts)
-- Low-priority items can be dropped if they add no lasting value
-- Keep observations self-contained — each should make sense alone
-- Use present tense for ongoing states, past tense for events
-- Assign accurate priority: "high", "medium", or "low"
-- Return the IDs of observations that are now superseded (replaced or dropped)
+## What You Receive
 
-Return a JSON object with:
+A list of dated observations, each with an ID, priority, and date. Some may overlap, contradict, or be stale.
+
+## Merge Rules
+
+Combine observations that describe the same topic into one richer observation. Keep each merged observation self-contained — it must make sense without the others.
+Do not merge unrelated facts just because they share a date. "User lives in Portland" and "User has a dentist appointment" stay separate.
+When merging, keep the most recent observation_date of the group.
+Prefer specifics over generalities: "User uses Neovim with LazyVim" beats "User uses a code editor."
+
+## Supersession
+
+When a newer observation contradicts or updates an older one, emit only the newer version and list the old ID in superseded_ids.
+Corrections are authoritative: if the user said "I moved to Portland" after earlier saying "I live in Seattle", supersede the Seattle observation.
+Only supersede observations whose IDs appear in the input. Never invent IDs.
+
+## Temporal Handling
+
+Preserve observation_date on every output observation.
+Recent observations (last few days) should retain full detail. Older observations can be compressed more aggressively, but do not drop high-priority facts regardless of age.
+When merging observations from different dates, use the most recent date.
+
+## Observation Quality
+
+One fact per observation. If a merge would produce a multi-topic sentence, split it back out.
+Present tense for ongoing states ("User lives in Portland"), past tense for completed events ("User visited Tokyo in December 2024").
+Use precise action verbs: "subscribed to", "purchased", "scheduled" — not "got", "did", "is getting".
+Keep each observation under ~200 characters when possible; go longer only to preserve essential detail.
+
+## Priority
+
+- high: decisions, commitments, scheduled events, personal facts, state changes, corrections
+- medium: preferences, interests, opinions, general context
+- low: acknowledgments, minor details, ambient conversation
+
+Drop low-priority observations that add no lasting value. Never drop high-priority observations unless superseded by a newer correction.
+
+## Output Format
+
+Return a JSON object with this exact shape:
 {
   "observations": [
     {
-      "content": "User works as a software engineer, prefers TypeScript, and is building a personal AI companion",
+      "content": "User works as a software engineer and is building a personal AI companion in TypeScript",
       "priority": "high",
-      "observation_date": "2024-01-15"
+      "observation_date": "2025-01-15"
     }
   ],
-  "superseded_ids": ["obs-id-1", "obs-id-2"]
+  "superseded_ids": ["id-of-old-seattle-obs", "id-of-redundant-obs"]
 }
 
-Respond ONLY with the JSON object, no markdown fences or explanation.`
+superseded_ids must only contain IDs from the input. If nothing is superseded, return an empty array.
+
+Respond ONLY with JSON, no fences.`
+
+/**
+ * Filter superseded IDs to only those present in the input set.
+ * Prevents hallucinated IDs from propagating.
+ */
+export function validateSupersededIds(
+  supersededIds: unknown[],
+  inputIds: Set<string>,
+): string[] {
+  return supersededIds.filter(
+    (id): id is string => typeof id === 'string' && inputIds.has(id),
+  )
+}
 
 /**
  * Condense a set of observations into a tighter set using an LLM.
@@ -71,13 +117,19 @@ export async function reflect(
     throw new Error('Empty response from reflector model')
   }
 
+  // Check for degenerate output before parsing
+  if (isDegenerateRaw(text)) {
+    toolLog.warning`Degenerate reflector response detected (length=${String(text.length)}), discarding`
+    return { observations: [], superseded_ids: [] }
+  }
+
   const cleaned = text.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')
 
   let parsed: unknown
   try {
     parsed = JSON.parse(cleaned)
   } catch {
-    toolLog.warning`Failed to parse reflector response: ${text.slice(0, 200)}`
+    toolLog.warning`Failed to parse reflector response (length=${String(text.length)}): ${text.slice(0, 150)}…${text.slice(-100)}`
     return { observations: [], superseded_ids: [] }
   }
 
@@ -94,11 +146,12 @@ export async function reflect(
       validPriorities.has(o.priority),
   )
 
+  // Sanitize: truncate, cap, deduplicate
+  result.observations = sanitizeObservations(result.observations, input.observations.length)
+
   // Validate superseded IDs — only allow IDs that were in the input
   const inputIds = new Set(input.observations.map((o) => o.id))
-  result.superseded_ids = result.superseded_ids.filter(
-    (id) => typeof id === 'string' && inputIds.has(id),
-  )
+  result.superseded_ids = validateSupersededIds(result.superseded_ids, inputIds)
 
   return {
     observations: result.observations,

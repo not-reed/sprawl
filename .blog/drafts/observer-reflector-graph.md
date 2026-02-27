@@ -1,4 +1,5 @@
 ---
+draft: true
 title: "Observer and Reflector: How a Personal AI Compresses Conversation Into Memory"
 date: 2026-02-26
 tags: [memory, observer, reflector, mastra]
@@ -15,7 +16,7 @@ When you talk to a friend over months, they don't remember your last twenty sent
 
 A rolling message window doesn't behave this way. It loses old context abruptly. The conversation from two weeks ago simply vanishes when the window fills. Worse, the raw messages are noisy: full of pleasantries, corrections, tangents, and meta-discussion that adds little to a long-term model of the user.
 
-Mastra's observational memory pattern offers a good alternative: instead of storing raw messages, compress them into structured observations that capture what matters. We took this idea and built a two-stage pipeline on top of it. Messages get compressed into **observations**. Observations, once there are too many of them, get compressed again by a **reflector**.
+Mastra's observational memory pattern addresses this directly. Instead of storing raw messages, compress them into structured observations that capture what matters. Construct borrows the idea of their two-stage pipeline, running an **observer** that compresses raw messages and a **reflector** that compresses accumulated observations. On top of that sits a knowledge graph layer extracted from explicitly curated memories and high-priority observations.
 
 ## Stage 1: The Observer
 
@@ -46,22 +47,7 @@ async runObserver(conversationId: string): Promise<boolean> {
   // ...
 ```
 
-The "unobserved messages" are those after the **watermark**, the ID of the last message that's been compressed into observations. This watermark is stored on the conversation row. Finding messages after it uses a rowid comparison rather than timestamp, which handles the edge case of multiple messages inserted within the same second:
-
-```typescript
-// src/memory/index.ts
-const rows = await sql<...>`
-  SELECT id, role, content, created_at, telegram_message_id
-  FROM messages
-  WHERE conversation_id = ${conversationId}
-    AND rowid > (SELECT rowid FROM messages WHERE id = ${watermarkId})
-  ORDER BY rowid ASC
-`.execute(this.db)
-```
-
-SQLite rowids are monotonically increasing insertion-order identifiers. They don't lie about sequence even when timestamps repeat.
-
-When the threshold is crossed, those raw messages get sent to a worker LLM with this prompt:
+The "unobserved messages" are those after the last observation watermark, a stored pointer to the most recently compressed message. When the threshold is crossed, those raw messages get sent to a worker LLM. The prompt is longer than what's shown here, but the core instructions boil down to:
 
 ```
 You are an observation extractor. Extract the key information as
@@ -104,7 +90,7 @@ produce a tighter, more organized set.
 - Low-priority items can be dropped if they add no lasting value
 ```
 
-The reflector receives observations with their IDs, and returns both new condensed observations and a list of IDs to mark superseded. The safety check matters:
+The reflector receives observations with their IDs, and returns both new condensed observations and a list of IDs to mark superseded.
 
 ```typescript
 // src/memory/reflector.ts
@@ -158,6 +144,8 @@ Which produces something like:
 
 This block gets injected into the context preamble, prepended to the user message, not the system prompt. The system prompt stays static (and prompt-cacheable). The observations are dynamic per conversation, but they're deterministic enough to be stable across turns until the next observation cycle.
 
+In practice, the raw `renderObservations` output passes through a budget gate before it reaches the preamble. `renderObservationsWithBudget()` caps the rendered observations at 8,000 tokens. When observations exceed the budget, the function sorts by priority (high first) and recency (newest first within the same priority tier), greedily packs from the top, then re-sorts the survivors chronologically for coherent reading. This is safe because observations that fall off the window are still reachable through FTS5, embeddings, and graph retrieval. The observation window is a working set, not the only copy.
+
 ## What This Looks Like in Practice
 
 Over a long conversation, the observer/reflector pipeline produces a layered context structure:
@@ -167,21 +155,19 @@ Over a long conversation, the observer/reflector pipeline produces a layered con
 
 Each layer is progressively more compressed and longer-lived. Raw messages are kept in the database permanently but rotate out of the context window as observations take over. Observations get refined repeatedly.
 
-The knowledge graph (covered in the companion retrieval article) is a separate system that extracts entities and relationships from curated memories stored via `memory_store`, not from observations.
+The knowledge graph (covered in the companion retrieval article) extracts entities and relationships from curated memories stored via `memory_store`. High-priority observations are also promoted into the memory store after deduplication, so they feed into the graph passively too.
 
 ## Tradeoffs
 
-**Cost**: Every observation cycle costs an LLM call. The worker model is configurable (`MEMORY_WORKER_MODEL` env var), so you can use a cheap fast model rather than the main reasoning model. But it's still not free.
+**Cost**: Every observation cycle costs an LLM call. The worker model is configurable (`MEMORY_WORKER_MODEL` env var), so you can use a cheap fast model rather than the main reasoning model. On the other hand, observations dramatically shrink the working context compared to stuffing raw message history into every request. Whether the extra worker call costs more than the token savings on the main model is genuinely unclear.
 
 **Accuracy**: Compression loses information. The observer has to decide what's worth keeping. Its prompt instructs it to "omit pleasantries, filler, and meta-discussion," but "meta-discussion" is a judgment call. A conversation that's mostly about the AI's own behavior might be poorly summarized.
 
 **Latency**: None. Observation runs post-response, asynchronously. The user gets their reply first, and the memory pipeline catches up in the background.
 
-**The rowid trick**: It works today. SQLite rowids are guaranteed monotonically increasing for standard inserts. But if you ever use `WITHOUT ROWID` tables or other exotic configurations, that assumption breaks. It's a reasonable choice with documented assumptions.
-
 ## Summary
 
-The observer/reflector pattern, inspired by Mastra's observational memory work, answers a question that most production LLM apps ignore: what do you do when conversation history grows beyond what fits in a context window? Rolling truncation is fast but lossy. RAG with vector search is powerful but adds infrastructure complexity and retrieval latency.
+Mastra's observer/reflector pattern answers a question that most production LLM apps ignore: what do you do when conversation history grows beyond what fits in a context window? Rolling truncation is fast but lossy. RAG with vector search is powerful but adds infrastructure complexity and retrieval latency.
 
 Observation-based compression sits in between: it uses an LLM to do intelligent compression, but produces a deterministic, structured artifact (typed observations with priorities and dates) rather than a fuzzy embedding. The result is predictable, auditable, and cheap to re-render.
 

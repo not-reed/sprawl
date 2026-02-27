@@ -37,7 +37,7 @@ try {
     .filter((m) => !recentIds.has(m.id))
     .map((m) => ({ content: m.content, category: m.category, score: m.score }))
 } catch {
-  // Embedding call failed -no relevant memories, that's fine
+  // Embedding call failed, no relevant memories, that's fine
 }
 ```
 
@@ -46,7 +46,7 @@ These memories get injected via the context preamble (not the system prompt, mor
 ```typescript
 // src/system-prompt.ts
 if (context.recentMemories && context.recentMemories.length > 0) {
-  preamble += '\n[Recent memories -use these for context, pattern recognition, and continuity]\n'
+  preamble += '\n[Recent memories: use these for context, pattern recognition, and continuity]\n'
   for (const m of context.recentMemories) {
     preamble += `- (${m.category}) ${m.content}\n`
   }
@@ -65,11 +65,15 @@ The agent doesn't need to invoke any tool for this. It just arrives already know
 
 **Active retrieval** happens when the agent decides it needs to dig deeper. The `memory_recall` tool lets the agent search explicitly by keyword or topic. This is where the full retrieval stack comes into play.
 
-## The FTS5 → Embedding → LIKE Waterfall
+## The FTS5 → Embedding Waterfall
 
-The `recallMemories` function in `src/db/queries.ts` is the core of both passive and active retrieval. It runs three passes in sequence, merging and deduplicating results as it goes:
+The `recallMemories` function in `src/db/queries.ts` runs two passes in sequence, merging and deduplicating results as it goes:
 
 ```typescript
+/**
+ * Hybrid memory recall: FTS5 → embeddings.
+ * Results are merged and deduplicated by memory ID.
+ */
 export async function recallMemories(
   db: DB,
   query: string,
@@ -82,11 +86,10 @@ export async function recallMemories(
 ): Promise<(Memory & { score?: number; matchType?: string })[]> {
   const limit = opts?.limit ?? 10
   const seen = new Set<string>()
-  const results = []
+  const results: (Memory & { score?: number; matchType?: string })[] = []
 
   // 1. FTS5 full-text search
   // 2. Embedding cosine similarity
-  // 3. LIKE fallback
 }
 ```
 
@@ -97,17 +100,27 @@ const ftsQuery = query
   .split(/\s+/)
   .filter((w) => w.length > 1)
   .map((w) => `"${w.replace(/"/g, '')}"`)
+  .filter((w) => w !== '""')
   .join(' OR ')
 
-const ftsResults = await sql<Memory & { rank: number }>`
-  SELECT m.*, fts.rank
-  FROM memories_fts fts
-  JOIN memories m ON m.id = fts.id
-  WHERE memories_fts MATCH ${ftsQuery}
-    AND m.archived_at IS NULL
-  ORDER BY fts.rank
-  LIMIT ${limit}
-`.execute(db)
+if (ftsQuery) {
+  const ftsResults = await sql<Memory & { rank: number }>`
+    SELECT m.*, fts.rank
+    FROM memories_fts fts
+    JOIN memories m ON m.id = fts.id
+    WHERE memories_fts MATCH ${ftsQuery}
+      AND m.archived_at IS NULL
+    ORDER BY fts.rank
+    LIMIT ${limit}
+  `.execute(db)
+
+  for (const row of ftsResults.rows) {
+    if (!seen.has(row.id)) {
+      seen.add(row.id)
+      results.push({ ...row, matchType: 'fts5' })
+    }
+  }
+}
 ```
 
 FTS5 is fast, runs entirely in SQLite with no external dependencies, and handles stemming and ranking well for short queries. The `memories_fts` virtual table is kept synchronized via three database triggers created in migration 002: an AFTER INSERT, AFTER DELETE, and AFTER UPDATE that maintain the FTS index in lockstep with the main `memories` table.
@@ -128,7 +141,7 @@ if (opts?.queryEmbedding && results.length < limit) {
     .map((m) => ({
       ...m,
       score: cosineSimilarity(opts.queryEmbedding!, JSON.parse(m.embedding!)),
-      matchType: 'embedding',
+      matchType: 'embedding' as const,
     }))
     .filter((m) => m.score >= threshold)
     .sort((a, b) => b.score - a.score)
@@ -147,6 +160,7 @@ The cosine similarity is a straightforward implementation with no SIMD optimizat
 ```typescript
 // src/embeddings.ts
 export function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length) return 0
   let dotProduct = 0
   let normA = 0
   let normB = 0
@@ -163,33 +177,9 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 
 Embeddings are generated via OpenRouter using `qwen/qwen3-embedding-4b` (configurable via `EMBEDDING_MODEL` env var) and stored as JSON-serialized float arrays in a `TEXT` column. The embedding is generated asynchronously and stored after the memory is saved, so for the first few milliseconds after storing a memory, it's not yet semantically searchable. That's an acceptable tradeoff for a personal AI where memories accumulate slowly.
 
-**Pass 3: LIKE fallback.** If the result set still isn't full, or if embeddings aren't configured, a simple LIKE search runs over content and tags:
-
-```typescript
-if (results.length < limit) {
-  const keywords = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2)
-
-  qb = qb.where((eb) =>
-    eb.or(
-      keywords.map((kw) => {
-        const escaped = kw.replace(/[%_]/g, '\\$&')
-        return eb.or([
-          sql<boolean>`${eb.ref('content')} LIKE ${'%' + escaped + '%'} ESCAPE '\\'`,
-          sql<boolean>`${eb.ref('tags')} LIKE ${'%' + escaped + '%'} ESCAPE '\\'`,
-        ])
-      }),
-    ),
-  )
-}
-```
-
-This is the fallback path: works on any SQLite installation, no extensions required, no API keys needed. It catches cases where FTS5 might miss things (exact substring matches that FTS tokenization would split differently) and ensures the system has some recall even if embeddings are disabled.
-
-Each result carries a `matchType` field (`'fts5'`, `'embedding'`, or `'keyword'`) which the `memory_recall` tool surfaces to the agent. The agent can reason about how confident the match is.
-
 ## The Graph Expansion Layer
 
-Active memory recall goes one step further. After the FTS5/embedding/LIKE waterfall, `memory_recall` performs a graph expansion pass using the knowledge graph:
+Active memory recall goes one step further. After the FTS5/embedding waterfall, `memory_recall` performs a graph expansion pass using the knowledge graph:
 
 ```typescript
 // src/tools/core/memory-recall.ts
@@ -248,7 +238,7 @@ WITH RECURSIVE traverse(node_id, depth, via_relation, visited) AS (
 
 The cycle prevention is done by tracking visited node IDs in a comma-delimited string that gets passed down through the recursion, a SQLite-native approach since there's no array type. It's not elegant, but it works.
 
-What this enables: suppose the agent stored a memory "Alice introduced me to the restaurant Nightshade." When the user later asks "do I know any good restaurants?", the text search might not connect "restaurant" to "Nightshade" if those words don't co-occur in the memory. But the graph has edges like `Alice —[introduced to]→ Nightshade` and `Nightshade —[is a]→ restaurant`. The graph expansion traverses those edges and surfaces the Nightshade memory even without a keyword match.
+What this enables: suppose the agent stored a memory "Alice introduced me to the restaurant Nightshade." When the user later asks "do I know any good restaurants?", the text search might not connect "restaurant" to "Nightshade" if those words don't co-occur in the memory. But the graph has edges like `Alice -> [introduced to] -> Nightshade` and `Nightshade -> [is a] -> restaurant`. The graph expansion traverses those edges and surfaces the Nightshade memory even without a keyword match.
 
 Graph expansion results are tagged with `matchType: 'graph'` so the agent knows these are indirect associations rather than direct matches.
 
@@ -272,7 +262,7 @@ For every message, the agent receives something like this prepended to the user'
 ```
 [Context: Thursday, February 26, 2026 at 2:15 PM (America/New_York) | telegram]
 
-[Recent memories -use these for context, pattern recognition, and continuity]
+[Recent memories: use these for context, pattern recognition, and continuity]
 - (preference) User prefers dark-roast coffee in the morning
 - (fact) User's partner is named Jordan
 - (note) User is learning Portuguese via Duolingo
@@ -286,7 +276,7 @@ If the agent then invokes `memory_recall` for more depth, the results come back 
 
 ```
 Found 5 memories:
-[abc123] (fact) User visited Lisbon in 2023 -tags: travel, portugal [fts5]
+[abc123] (fact) User visited Lisbon in 2023 | tags: travel, portugal [fts5]
 [def456] (preference) User enjoys fado music [embedding] (71%)
 [ghi789] (fact) User met a Portuguese speaker at work last month [graph]
 ```
@@ -295,13 +285,14 @@ The distinction between `fts5`, `embedding`, and `graph` matches gives the agent
 
 ## Tradeoffs
 
-**The embedding scan is O(n).** The current implementation fetches all memories with embeddings and computes similarity in a JavaScript loop. For a personal AI with hundreds of memories this is fine -probably milliseconds. At thousands of memories it starts to matter. A production system would use a proper vector index (sqlite-vec, pgvector, etc.). The comment in the code acknowledges this tradeoff implicitly -it only runs the embedding pass when `apiKey` is present and there's room in the result set.
+**The embedding scan is O(n).** The current implementation fetches all memories with embeddings and computes similarity in a JavaScript loop. For a personal AI with hundreds of memories this is fine, probably milliseconds. At thousands of memories it starts to matter. A production system would use a proper vector index (sqlite-vec, pgvector, etc.). The implementation only runs the embedding pass when `queryEmbedding` is present and there's still room in the result set, so it degrades gracefully if embeddings aren't configured.
 
-**FTS5 and embeddings can disagree.** A query like "gym routine" might get a strong FTS5 hit on "I started a new gym routine" but a stronger embedding match on "I've been doing weights three times a week." The waterfall takes FTS5 results first, then fills the remaining slots with embedding results. There's no cross-rank fusion -FTS5 results are just given priority by position in the waterfall. Reciprocal Rank Fusion or similar would be a more principled approach, but adds implementation complexity for a personal AI where the user can always ask again.
+**FTS5 and embeddings can disagree.** A query like "gym routine" might get a strong FTS5 hit on "I started a new gym routine" but a stronger embedding match on "I've been doing weights three times a week." The waterfall takes FTS5 results first, then fills the remaining slots with embedding results. There's no cross-rank fusion; FTS5 results are given priority by position in the waterfall. Reciprocal Rank Fusion or similar would be a more principled approach, but adds implementation complexity for a personal AI where the user can always ask again.
 
-**Graph node search uses LIKE + embeddings.** The graph expansion's `searchNodes` runs a LIKE match on node names and, when a query embedding is available, also computes cosine similarity against node embeddings. Embedding matches go first, then LIKE results fill remaining slots, deduplicated:
+**Graph node search uses both embeddings and LIKE.** The graph expansion's `searchNodes` runs a LIKE match on node names and, when a query embedding is available, computes cosine similarity against node embeddings. Embedding matches go first, then LIKE results fill remaining slots, deduplicated:
 
 ```typescript
+// src/memory/graph/queries.ts
 export async function searchNodes(db, query, limit = 10, queryEmbedding?) {
   const pattern = `%${query.toLowerCase().trim()}%`
   const likeResults = await db
@@ -334,14 +325,14 @@ export async function searchNodes(db, query, limit = 10, queryEmbedding?) {
 }
 ```
 
-Node embeddings are generated during graph extraction in `processMemoryForGraph`. After upserting each entity, the system generates an embedding from `"{name}: {description}"` (or just the name if there's no description) and writes it to the node's `embedding` column. This runs in parallel via `Promise.allSettled` so a single failed API call doesn't break the extraction pipeline.
+This LIKE search is over graph nodes (entities like people, places, concepts), not memories themselves. It's the entry point into the graph: find the relevant nodes, then traverse the edge structure to surface connected memories. Node embeddings are generated during graph extraction after upserting each entity, from a string like `"{name}: {description}"`. This runs in parallel via `Promise.allSettled` so a single failed API call doesn't break the extraction pipeline.
 
-The result: if the user asks about "my dentist" and the graph has a node named "dr. martinez" with description "Reed's dentist," the embedding similarity catches the semantic connection that a LIKE match on the name would miss. The same `queryEmbedding` generated for memory retrieval gets reused here, so there's no extra API call.
+The result: if the user asks about "my dentist" and the graph has a node named "dr. martinez" with description "Reed's dentist," the embedding similarity catches the semantic connection that a LIKE match on the name alone would miss. The same `queryEmbedding` generated for memory retrieval gets reused here, so there's no extra API call.
 
 ## Summary
 
 Most memory systems for LLM applications choose one retrieval strategy and call it done. FTS if you want something simple. Vector search if you want semantic matching. Graph traversal if you're feeling ambitious. Construct uses all three in a layered pipeline, not out of complexity for its own sake, but because each covers gaps the others leave.
 
-FTS5 is fast and reliable for exact keyword matches. Embeddings catch semantic associations that don't share vocabulary. Graph traversal finds memories connected by relationship chains that neither keyword nor embedding search would surface. Each result carries its `matchType`, so the agent (and anyone debugging the system) can understand both what was retrieved and why.
+FTS5 is fast and reliable for exact keyword matches. Embeddings catch semantic associations that don't share vocabulary. Graph traversal finds memories connected by relationship chains that neither keyword nor embedding search would surface. Each result carries its `matchType` (`'fts5'`, `'embedding'`, or `'graph'`), so the agent (and anyone debugging the system) can understand both what was retrieved and why.
 
 The `queryEmbedding` generated for memory retrieval gets reused in three places: memory similarity search, graph node search, and tool pack selection. One API call, multiple consumers.
