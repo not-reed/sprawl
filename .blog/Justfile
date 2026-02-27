@@ -1,0 +1,34 @@
+# prose.sh blog publishing
+
+drafts := "drafts"
+published := "published"
+
+# Push all published posts to prose.sh
+publish:
+    rsync -rv {{published}}/ prose.sh:/
+
+# Promote a draft to published and push to prose.sh
+promote FILE:
+    mkdir -p {{published}}
+    sed '/^draft: true$/d' {{drafts}}/{{FILE}} > {{published}}/{{FILE}}
+    rsync -rv {{published}}/ prose.sh:/
+
+# Upload a single draft to prose.sh (visible by direct URL but unlisted)
+draft FILE:
+    #!/usr/bin/env bash
+    if ! grep -q '^draft: true$' {{drafts}}/{{FILE}}; then
+        sed -i '2i draft: true' {{drafts}}/{{FILE}}
+    fi
+    rsync -v {{drafts}}/{{FILE}} prose.sh:/{{FILE}}
+
+# Remove a post from prose.sh
+unpublish FILE:
+    ssh prose.sh rm {{FILE}}
+
+# Show what's in drafts/ vs published/
+list:
+    @echo "=== Drafts ==="
+    @ls -1 {{drafts}}/*.md 2>/dev/null || echo "  (none)"
+    @echo ""
+    @echo "=== Published ==="
+    @ls -1 {{published}}/*.md 2>/dev/null || echo "  (none)"
