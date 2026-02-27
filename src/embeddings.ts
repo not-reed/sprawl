@@ -1,6 +1,6 @@
 import { toolLog } from './logger.js'
 
-const DEFAULT_EMBEDDING_MODEL = 'openai/text-embedding-3-small'
+const DEFAULT_EMBEDDING_MODEL = 'qwen/qwen3-embedding-4b'
 
 /**
  * Generate an embedding vector via OpenRouter's OpenAI-compatible endpoint.
