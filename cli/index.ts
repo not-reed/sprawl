@@ -5,6 +5,9 @@ import { runMigrations } from '../src/db/migrate.js'
 import { env } from '../src/env.js'
 import { processMessage, isDev } from '../src/agent.js'
 import { selectAndCreateTools } from '../src/tools/packs.js'
+import { generateEmbedding } from '../src/embeddings.js'
+import { MemoryManager } from '../src/memory/index.js'
+import { processMemoryForGraph } from '../src/memory/graph/index.js'
 
 const main = defineCommand({
   meta: {
@@ -26,12 +29,32 @@ const main = defineCommand({
       alias: 'a',
       description: 'JSON arguments for --tool',
     },
+    reembed: {
+      type: 'boolean',
+      description: 'Re-embed all memories using the current EMBEDDING_MODEL',
+    },
+    backfill: {
+      type: 'boolean',
+      description: 'Backfill graph memory, embeddings, observer, and reflector for all existing data',
+    },
   },
   async run({ args }) {
     // Run migrations
     await runMigrations(env.DATABASE_URL)
 
     const { db } = createDb(env.DATABASE_URL)
+
+    // Re-embed all memories
+    if (args.reembed) {
+      await reembedMemories(db)
+      process.exit(0)
+    }
+
+    // Backfill graph memory, observer, reflector
+    if (args.backfill) {
+      await backfillAll(db)
+      process.exit(0)
+    }
 
     // Direct tool invocation mode
     if (args.tool) {
@@ -95,6 +118,7 @@ async function runTool(
     apiKey: env.OPENROUTER_API_KEY,
     projectRoot: env.PROJECT_ROOT,
     dbPath: env.DATABASE_URL,
+    timezone: env.TIMEZONE,
     tavilyApiKey: env.TAVILY_API_KEY,
     logFile: env.LOG_FILE,
     isDev,
@@ -115,6 +139,209 @@ async function runTool(
 
   const result = await tool.execute(`cli-${Date.now()}`, parsedArgs)
   console.log(result.output)
+}
+
+async function reembedMemories(db: ReturnType<typeof createDb>['db']) {
+  const model = env.EMBEDDING_MODEL
+  console.log(`Re-embedding all memories using model: ${model}\n`)
+
+  // Fetch all memories with content
+  const memories = await db
+    .selectFrom('memories')
+    .select(['id', 'content'])
+    .where('archived_at', 'is', null)
+    .execute()
+
+  console.log(`Found ${memories.length} memories to re-embed`)
+
+  let success = 0
+  let failed = 0
+
+  for (const memory of memories) {
+    try {
+      const embedding = await generateEmbedding(env.OPENROUTER_API_KEY, memory.content, model)
+      await db
+        .updateTable('memories')
+        .set({ embedding: JSON.stringify(embedding) })
+        .where('id', '=', memory.id)
+        .execute()
+      success++
+      process.stdout.write(`\r  ${success + failed}/${memories.length} (${failed} failed)`)
+    } catch (err) {
+      failed++
+      process.stdout.write(`\r  ${success + failed}/${memories.length} (${failed} failed)`)
+      console.error(`\n  Failed to embed memory ${memory.id}: ${err instanceof Error ? err.message : err}`)
+    }
+  }
+
+  console.log(`\n\nDone: ${success} re-embedded, ${failed} failed`)
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 2, delayMs = 2000): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      if (attempt >= retries) throw err
+      await sleep(delayMs)
+    }
+  }
+}
+
+/** Run async tasks with bounded concurrency. Calls onProgress after each completion. */
+async function pooled<T>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<void>,
+): Promise<void> {
+  let i = 0
+  async function next(): Promise<void> {
+    while (i < items.length) {
+      const idx = i++
+      await fn(items[idx])
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => next()))
+}
+
+async function backfillAll(db: ReturnType<typeof createDb>['db']) {
+  if (!env.MEMORY_WORKER_MODEL) {
+    console.error('Error: MEMORY_WORKER_MODEL must be set for backfill')
+    process.exit(1)
+  }
+
+  const workerConfig = { apiKey: env.OPENROUTER_API_KEY, model: env.MEMORY_WORKER_MODEL }
+  const embeddingOpts = { apiKey: env.OPENROUTER_API_KEY, embeddingModel: env.EMBEDDING_MODEL }
+  const mm = new MemoryManager(db, workerConfig, env.EMBEDDING_MODEL)
+
+  // Phase 1 — Graph extraction for memories with no edges
+  console.log('\n=== Phase 1: Graph extraction ===')
+
+  const memoriesWithoutEdges = await db
+    .selectFrom('memories')
+    .select(['id', 'content'])
+    .where('archived_at', 'is', null)
+    .where(({ not, exists, selectFrom }) =>
+      not(exists(
+        selectFrom('graph_edges')
+          .select('id')
+          .whereRef('graph_edges.memory_id', '=', 'memories.id'),
+      )),
+    )
+    .execute()
+
+  console.log(`Found ${memoriesWithoutEdges.length} memories without graph edges`)
+
+  let p1Success = 0
+  let p1Failed = 0
+
+  await pooled(memoriesWithoutEdges, 5, async (mem) => {
+    try {
+      await withRetry(() => processMemoryForGraph(db, workerConfig, mem.id, mem.content, embeddingOpts))
+      p1Success++
+    } catch (err) {
+      p1Failed++
+      console.error(`\n  Failed memory ${mem.id}: ${err instanceof Error ? err.message : err}`)
+    }
+    process.stdout.write(`\r  ${p1Success + p1Failed}/${memoriesWithoutEdges.length} (${p1Failed} failed)`)
+  })
+
+  if (memoriesWithoutEdges.length > 0) console.log()
+  console.log(`Done: ${p1Success} extracted, ${p1Failed} failed`)
+
+  // Phase 2 — Graph node embeddings
+  console.log('\n=== Phase 2: Graph node embeddings ===')
+
+  const nodesWithoutEmbeddings = await db
+    .selectFrom('graph_nodes')
+    .select(['id', 'display_name', 'description'])
+    .where('embedding', 'is', null)
+    .execute()
+
+  console.log(`Found ${nodesWithoutEmbeddings.length} nodes without embeddings`)
+
+  let p2Success = 0
+  let p2Failed = 0
+
+  await pooled(nodesWithoutEmbeddings, 10, async (node) => {
+    try {
+      const text = node.description
+        ? `${node.display_name}: ${node.description}`
+        : node.display_name
+      const embedding = await generateEmbedding(env.OPENROUTER_API_KEY, text, env.EMBEDDING_MODEL)
+      await db
+        .updateTable('graph_nodes')
+        .set({ embedding: JSON.stringify(embedding) })
+        .where('id', '=', node.id)
+        .execute()
+      p2Success++
+    } catch (err) {
+      p2Failed++
+      console.error(`\n  Failed node ${node.id}: ${err instanceof Error ? err.message : err}`)
+    }
+    process.stdout.write(`\r  ${p2Success + p2Failed}/${nodesWithoutEmbeddings.length} (${p2Failed} failed)`)
+  })
+
+  if (nodesWithoutEmbeddings.length > 0) console.log()
+  console.log(`Done: ${p2Success} embedded, ${p2Failed} failed`)
+
+  // Phase 3 — Observer
+  console.log('\n=== Phase 3: Observer ===')
+
+  const conversations = await db
+    .selectFrom('conversations')
+    .select('id')
+    .execute()
+
+  console.log(`Found ${conversations.length} conversations`)
+
+  let p3Triggered = 0
+  let p3Skipped = 0
+  let p3Failed = 0
+
+  for (let i = 0; i < conversations.length; i++) {
+    try {
+      const ran = await mm.runObserver(conversations[i].id)
+      if (ran) p3Triggered++
+      else p3Skipped++
+      process.stdout.write(`\r  ${i + 1}/${conversations.length} (${p3Triggered} triggered, ${p3Skipped} skipped, ${p3Failed} failed)`)
+    } catch (err) {
+      p3Failed++
+      process.stdout.write(`\r  ${i + 1}/${conversations.length} (${p3Triggered} triggered, ${p3Skipped} skipped, ${p3Failed} failed)`)
+      console.error(`\n  Failed conversation ${conversations[i].id}: ${err instanceof Error ? err.message : err}`)
+    }
+  }
+
+  if (conversations.length > 0) console.log()
+  console.log(`Done: ${p3Triggered} triggered, ${p3Skipped} below threshold, ${p3Failed} failed`)
+
+  // Phase 4 — Reflector
+  console.log('\n=== Phase 4: Reflector ===')
+  console.log(`Processing ${conversations.length} conversations`)
+
+  let p4Triggered = 0
+  let p4Skipped = 0
+  let p4Failed = 0
+
+  for (let i = 0; i < conversations.length; i++) {
+    try {
+      const ran = await mm.runReflector(conversations[i].id)
+      if (ran) p4Triggered++
+      else p4Skipped++
+      process.stdout.write(`\r  ${i + 1}/${conversations.length} (${p4Triggered} triggered, ${p4Skipped} skipped, ${p4Failed} failed)`)
+    } catch (err) {
+      p4Failed++
+      process.stdout.write(`\r  ${i + 1}/${conversations.length} (${p4Triggered} triggered, ${p4Skipped} skipped, ${p4Failed} failed)`)
+      console.error(`\n  Failed conversation ${conversations[i].id}: ${err instanceof Error ? err.message : err}`)
+    }
+  }
+
+  if (conversations.length > 0) console.log()
+  console.log(`Done: ${p4Triggered} triggered, ${p4Skipped} below threshold, ${p4Failed} failed`)
+
+  console.log('\n=== Backfill complete ===')
 }
 
 runMain(main)
