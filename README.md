@@ -70,7 +70,7 @@ OPENROUTER_API_KEY=sk-or-...
 TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
 
 # Optional (sensible defaults)
-OPENROUTER_MODEL=anthropic/claude-sonnet-4
+OPENROUTER_MODEL=google/gemini-3-flash-preview
 ALLOWED_TELEGRAM_IDS=123456         # Your Telegram user ID
 TIMEZONE=America/New_York
 DATABASE_URL=./data/construct.db

@@ -57,7 +57,7 @@ OPENROUTER_API_KEY=
 TELEGRAM_BOT_TOKEN=
 
 # Optional
-# OPENROUTER_MODEL=anthropic/claude-sonnet-4
+# OPENROUTER_MODEL=google/gemini-3-flash-preview
 # ALLOWED_TELEGRAM_IDS=
 # TAVILY_API_KEY=
 # TIMEZONE=UTC
