@@ -8,19 +8,19 @@ import type { Database, Schedule } from '../db/schema.js'
 const activeJobs = new Map<string, Cron>()
 let syncInterval: ReturnType<typeof setInterval> | null = null
 
-export async function startScheduler(db: Kysely<Database>, bot: Bot) {
-  schedulerLog.info`Starting scheduler`
+export async function startScheduler(db: Kysely<Database>, bot: Bot, timezone: string) {
+  schedulerLog.info`Starting scheduler (timezone: ${timezone})`
 
   const schedules = await listSchedules(db, true)
   for (const schedule of schedules) {
-    registerJob(db, bot, schedule)
+    registerJob(db, bot, schedule, timezone)
   }
 
   schedulerLog.info`Loaded ${schedules.length} active schedules`
 
   // Poll for new schedules every 30 seconds
   syncInterval = setInterval(async () => {
-    await syncSchedules(db, bot)
+    await syncSchedules(db, bot, timezone)
   }, 30_000)
 }
 
@@ -28,20 +28,27 @@ export function registerJob(
   db: Kysely<Database>,
   bot: Bot,
   schedule: Schedule,
+  timezone: string,
 ) {
   if (activeJobs.has(schedule.id)) return
 
   if (schedule.cron_expression) {
-    schedulerLog.info`Registering cron job [${schedule.id}]: ${schedule.description} (${schedule.cron_expression})`
-    const job = new Cron(schedule.cron_expression, async () => {
+    schedulerLog.info`Registering cron job [${schedule.id}]: ${schedule.description} (${schedule.cron_expression}) [${timezone}]`
+    const job = new Cron(schedule.cron_expression, { timezone }, async () => {
       await fireSchedule(db, bot, schedule)
     })
     activeJobs.set(schedule.id, job)
   } else if (schedule.run_at) {
-    const runAt = new Date(schedule.run_at)
-    const now = new Date()
+    schedulerLog.info`Registering one-shot job [${schedule.id}]: ${schedule.description} at ${schedule.run_at} [${timezone}]`
+    const job = new Cron(schedule.run_at, { timezone }, async () => {
+      await fireSchedule(db, bot, schedule)
+      await cancelSchedule(db, schedule.id)
+      activeJobs.delete(schedule.id)
+    })
 
-    if (runAt <= now) {
+    // If nextRun is null, the time is in the past — fire immediately
+    if (job.nextRun() === null) {
+      job.stop()
       schedulerLog.info`Schedule [${schedule.id}] is past due, firing immediately`
       fireSchedule(db, bot, schedule).then(() =>
         cancelSchedule(db, schedule.id),
@@ -49,12 +56,6 @@ export function registerJob(
       return
     }
 
-    schedulerLog.info`Registering one-shot job [${schedule.id}]: ${schedule.description} at ${schedule.run_at}`
-    const job = new Cron(runAt, async () => {
-      await fireSchedule(db, bot, schedule)
-      await cancelSchedule(db, schedule.id)
-      activeJobs.delete(schedule.id)
-    })
     activeJobs.set(schedule.id, job)
   }
 }
@@ -74,13 +75,13 @@ async function fireSchedule(
   }
 }
 
-async function syncSchedules(db: Kysely<Database>, bot: Bot) {
+async function syncSchedules(db: Kysely<Database>, bot: Bot, timezone: string) {
   const schedules = await listSchedules(db, true)
   const activeIds = new Set(schedules.map((s) => s.id))
 
   for (const schedule of schedules) {
     if (!activeJobs.has(schedule.id)) {
-      registerJob(db, bot, schedule)
+      registerJob(db, bot, schedule, timezone)
     }
   }
 

@@ -135,6 +135,7 @@ describe('selectAndCreateTools', () => {
       apiKey: 'test-key',
       projectRoot: '/tmp/test-project',
       dbPath: ':memory:',
+      timezone: 'UTC',
       tavilyApiKey: 'tavily-key',
       isDev: false,
       ...overrides,

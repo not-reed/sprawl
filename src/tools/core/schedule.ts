@@ -8,6 +8,49 @@ import {
 import type { Database } from '../../db/schema.js'
 import { toolLog } from '../../logger.js'
 
+// --- helpers ---
+
+/** Strip trailing Z or ±HH:MM offset from a datetime string so it's treated as local. */
+function stripTimezoneOffset(datetime: string): string {
+  return datetime.replace(/[Zz]$|[+-]\d{2}:\d{2}$/, '')
+}
+
+/** Normalize a string for dedup: lowercase, strip non-alphanumeric. */
+function normalizeForDedup(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+/** Levenshtein distance between two strings. */
+function levenshtein(a: string, b: string): number {
+  const m = a.length
+  const n = b.length
+  const dp: number[] = Array.from({ length: n + 1 }, (_, i) => i)
+
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0]
+    dp[0] = i
+    for (let j = 1; j <= n; j++) {
+      const tmp = dp[j]
+      dp[j] = a[i - 1] === b[j - 1]
+        ? prev
+        : 1 + Math.min(prev, dp[j], dp[j - 1])
+      prev = tmp
+    }
+  }
+
+  return dp[n]
+}
+
+/** Check if two messages are similar enough to be considered duplicates. */
+function isSimilarMessage(a: string, b: string, threshold = 0.75): boolean {
+  const na = normalizeForDedup(a)
+  const nb = normalizeForDedup(b)
+  if (na === nb) return true
+  const maxLen = Math.max(na.length, nb.length)
+  if (maxLen === 0) return true
+  return 1 - levenshtein(na, nb) / maxLen >= threshold
+}
+
 // --- schedule_create ---
 
 const ScheduleCreateParams = Type.Object({
@@ -25,7 +68,8 @@ const ScheduleCreateParams = Type.Object({
   ),
   run_at: Type.Optional(
     Type.String({
-      description: 'ISO timestamp for one-shot schedules (e.g. "2025-03-05T09:00:00Z")',
+      description:
+        "Datetime in user's local timezone, without Z or offset (e.g. '2025-03-05T09:00:00')",
     }),
   ),
 })
@@ -35,7 +79,7 @@ type ScheduleCreateInput = Static<typeof ScheduleCreateParams>
 /**
  * chatId is auto-injected from conversation context — the LLM never needs to know it.
  */
-export function createScheduleCreateTool(db: Kysely<Database>, chatId: string) {
+export function createScheduleCreateTool(db: Kysely<Database>, chatId: string, timezone: string) {
   return {
     name: 'schedule_create',
     description:
@@ -50,6 +94,29 @@ export function createScheduleCreateTool(db: Kysely<Database>, chatId: string) {
         }
       }
 
+      // Normalize run_at: strip any Z or offset the LLM may have added
+      const normalizedRunAt = args.run_at ? stripTimezoneOffset(args.run_at) : null
+
+      // Dedup: check for existing active schedule with same chat_id + matching time + message
+      const existing = await listSchedules(db, true)
+      const duplicate = existing.find((s) => {
+        if (s.chat_id !== chatId) return false
+        if (!isSimilarMessage(s.message, args.message)) return false
+        if (args.cron_expression && s.cron_expression === args.cron_expression) return true
+        if (normalizedRunAt && s.run_at === normalizedRunAt) return true
+        return false
+      })
+
+      if (duplicate) {
+        const type = duplicate.cron_expression ? 'recurring' : 'one-shot'
+        const when = duplicate.cron_expression ?? duplicate.run_at
+        toolLog.info`Dedup: returning existing schedule [${duplicate.id}] instead of creating duplicate`
+        return {
+          output: `Schedule already exists — ${type} [${duplicate.id}]: "${duplicate.description}" — ${when} (${timezone})`,
+          details: { schedule: duplicate, deduplicated: true },
+        }
+      }
+
       toolLog.info`Creating schedule: ${args.description} for chat ${chatId}`
 
       const schedule = await createSchedule(db, {
@@ -57,7 +124,7 @@ export function createScheduleCreateTool(db: Kysely<Database>, chatId: string) {
         message: args.message,
         chat_id: chatId,
         cron_expression: args.cron_expression ?? null,
-        run_at: args.run_at ?? null,
+        run_at: normalizedRunAt,
       })
 
       const type = schedule.cron_expression ? 'recurring' : 'one-shot'
@@ -66,7 +133,7 @@ export function createScheduleCreateTool(db: Kysely<Database>, chatId: string) {
       toolLog.info`Created ${type} schedule [${schedule.id}]: ${args.description} — ${when}`
 
       return {
-        output: `Created ${type} schedule [${schedule.id}]: "${schedule.description}" — ${when}`,
+        output: `Created ${type} schedule [${schedule.id}]: "${schedule.description}" — ${when} (${timezone})`,
         details: { schedule },
       }
     },
@@ -83,7 +150,7 @@ const ScheduleListParams = Type.Object({
 
 type ScheduleListInput = Static<typeof ScheduleListParams>
 
-export function createScheduleListTool(db: Kysely<Database>) {
+export function createScheduleListTool(db: Kysely<Database>, timezone: string) {
   return {
     name: 'schedule_list',
     description: 'List all scheduled reminders.',
@@ -99,7 +166,9 @@ export function createScheduleListTool(db: Kysely<Database>) {
       }
 
       const lines = schedules.map((s) => {
-        const type = s.cron_expression ? `cron: ${s.cron_expression}` : `at: ${s.run_at}`
+        const type = s.cron_expression
+          ? `cron: ${s.cron_expression}`
+          : `at: ${s.run_at} (${timezone})`
         const status = s.active ? 'active' : 'inactive'
         return `[${s.id}] (${status}) ${s.description} — ${type}`
       })
