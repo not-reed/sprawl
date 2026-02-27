@@ -1,5 +1,6 @@
 {
-  "include": ["src/**/*.ts", "cli/**/*.ts"],
+  "include": ["src/**/*.ts", "cli/**/*.ts", "explorer/**/*.ts"],
+  "exclude": ["explorer/web/**"],
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
