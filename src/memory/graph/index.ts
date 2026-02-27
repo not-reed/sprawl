@@ -12,6 +12,7 @@ import {
   getRelatedMemoryIds,
   getMemoryNodes,
 } from './queries.js'
+import { generateEmbedding } from '../../embeddings.js'
 import { toolLog } from '../../logger.js'
 
 export { findNodeByName, searchNodes, traverseGraph, getNodeEdges, getRelatedMemoryIds, getMemoryNodes }
@@ -26,6 +27,7 @@ export async function processMemoryForGraph(
   config: WorkerModelConfig,
   memoryId: string,
   content: string,
+  embeddingOpts?: { apiKey?: string; embeddingModel?: string },
 ): Promise<ExtractionResult> {
   const result = await extractEntities(config, content)
 
@@ -43,6 +45,36 @@ export async function processMemoryForGraph(
       description: entity.description,
     })
     nodeMap.set(entity.name.toLowerCase().trim(), node.id)
+  }
+
+  // Generate embeddings for all upserted nodes in parallel
+  if (embeddingOpts?.apiKey) {
+    const nodeEntries = [...nodeMap.entries()]
+    const embeddingResults = await Promise.allSettled(
+      nodeEntries.map(async ([nameKey, nodeId]) => {
+        const entity = result.entities.find(
+          (e) => e.name.toLowerCase().trim() === nameKey,
+        )
+        const text = entity?.description
+          ? `${entity.name}: ${entity.description}`
+          : entity?.name ?? nameKey
+        const embedding = await generateEmbedding(
+          embeddingOpts.apiKey!,
+          text,
+          embeddingOpts.embeddingModel,
+        )
+        await db
+          .updateTable('graph_nodes')
+          .set({ embedding: JSON.stringify(embedding) })
+          .where('id', '=', nodeId)
+          .execute()
+      }),
+    )
+
+    const failed = embeddingResults.filter((r) => r.status === 'rejected')
+    if (failed.length > 0) {
+      toolLog.warning`Failed to generate embeddings for ${failed.length}/${nodeEntries.length} nodes`
+    }
   }
 
   // Upsert relationships as edges

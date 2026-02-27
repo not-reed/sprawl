@@ -2,6 +2,7 @@ import type { Kysely } from 'kysely'
 import { sql } from 'kysely'
 import { nanoid } from 'nanoid'
 import type { Database, GraphNode, GraphEdge } from '../../db/schema.js'
+import { cosineSimilarity } from '../../embeddings.js'
 
 type DB = Kysely<Database>
 
@@ -18,6 +19,7 @@ export async function upsertNode(
     name: string
     type: string
     description?: string | null
+    embedding?: string | null
   },
 ): Promise<GraphNode> {
   const canonicalName = node.name.toLowerCase().trim()
@@ -38,12 +40,13 @@ export async function upsertNode(
         .updateTable('graph_nodes')
         .set({
           description: node.description,
+          ...(node.embedding != null ? { embedding: node.embedding } : {}),
           updated_at: sql<string>`datetime('now')`,
         })
         .where('id', '=', existing.id)
         .execute()
 
-      return { ...existing, description: node.description }
+      return { ...existing, description: node.description, embedding: node.embedding ?? existing.embedding }
     }
     return existing
   }
@@ -58,7 +61,7 @@ export async function upsertNode(
       display_name: displayName,
       node_type: node.type,
       description: node.description ?? null,
-      embedding: null,
+      embedding: node.embedding ?? null,
     })
     .execute()
 
@@ -90,21 +93,56 @@ export async function findNodeByName(
 }
 
 /**
- * Search nodes by name prefix (for autocomplete/exploration).
+ * Search nodes by name prefix and/or embedding similarity.
+ * When queryEmbedding is provided, embedding matches (above threshold) are
+ * merged with LIKE results, with embedding matches first.
  */
 export async function searchNodes(
   db: DB,
   query: string,
   limit = 10,
+  queryEmbedding?: number[],
 ): Promise<GraphNode[]> {
   const pattern = `%${query.toLowerCase().trim()}%`
-  return db
+  const likeResults = await db
     .selectFrom('graph_nodes')
     .selectAll()
     .where('name', 'like', pattern)
     .orderBy('updated_at', 'desc')
     .limit(limit)
     .execute()
+
+  if (!queryEmbedding) return likeResults
+
+  // Embedding similarity search
+  const threshold = 0.3
+  const allWithEmbeddings = await db
+    .selectFrom('graph_nodes')
+    .selectAll()
+    .where('embedding', 'is not', null)
+    .execute()
+
+  const embeddingMatches = allWithEmbeddings
+    .map((n) => ({
+      ...n,
+      score: cosineSimilarity(queryEmbedding, JSON.parse(n.embedding!)),
+    }))
+    .filter((n) => n.score >= threshold)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+
+  // Merge: embedding matches first, then LIKE results, deduplicated
+  const seen = new Set<string>()
+  const merged: GraphNode[] = []
+  for (const node of [...embeddingMatches, ...likeResults]) {
+    if (!seen.has(node.id) && merged.length < limit) {
+      seen.add(node.id)
+      const { score, ...graphNode } = node as GraphNode & { score?: number }
+      merged.push(graphNode)
+    }
+  }
+
+  return merged
 }
 
 // --- Edges ---

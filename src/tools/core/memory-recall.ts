@@ -51,7 +51,7 @@ export function createMemoryRecallTool(db: Kysely<Database>, apiKey?: string, em
       let graphMemories: (Memory & { matchType: string })[] = []
       try {
         const seen = new Set(memories.map((m) => m.id))
-        const graphNodes = await searchNodes(db, args.query, 5)
+        const graphNodes = await searchNodes(db, args.query, 5, queryEmbedding)
 
         if (graphNodes.length > 0) {
           // Traverse 1-2 hops from matching nodes

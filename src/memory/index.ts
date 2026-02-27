@@ -25,10 +25,14 @@ export { renderObservations } from './context.js'
 export const OBSERVER_THRESHOLD = 3000
 export const REFLECTOR_THRESHOLD = 4000
 
+/** Max tokens per observer batch — prevents the worker model from choking on huge payloads */
+export const OBSERVER_MAX_BATCH_TOKENS = 16_000
+
 export class MemoryManager {
   constructor(
     private db: Kysely<Database>,
     private workerConfig: WorkerModelConfig | null,
+    private embeddingModel?: string,
   ) {}
 
   // --- Graph Memory ---
@@ -50,6 +54,7 @@ export class MemoryManager {
         this.workerConfig,
         memoryId,
         content,
+        { apiKey: this.workerConfig.apiKey, embeddingModel: this.embeddingModel },
       )
 
       if (result.usage) {
@@ -64,6 +69,41 @@ export class MemoryManager {
     } catch (err) {
       toolLog.error`Graph extraction failed for memory [${memoryId}]: ${err}`
     }
+  }
+
+  // --- Batching ---
+
+  /**
+   * Split messages into batches that each fit under the token ceiling.
+   * Messages are never split mid-message — a single message that exceeds
+   * the ceiling gets its own batch.
+   */
+  batchMessages(
+    messages: Array<{ id: string; role: string; content: string; created_at: string; telegram_message_id: number | null }>,
+    maxTokens: number,
+  ): Array<Array<{ id: string; role: string; content: string; created_at: string; telegram_message_id: number | null }>> {
+    const batches: typeof messages[] = []
+    let current: typeof messages = []
+    let currentTokens = 0
+
+    for (const msg of messages) {
+      const msgTokens = 4 + estimateTokens(msg.content)
+
+      if (current.length > 0 && currentTokens + msgTokens > maxTokens) {
+        batches.push(current)
+        current = []
+        currentTokens = 0
+      }
+
+      current.push(msg)
+      currentTokens += msgTokens
+    }
+
+    if (current.length > 0) {
+      batches.push(current)
+    }
+
+    return batches
   }
 
   // --- Observational Memory ---
@@ -133,7 +173,9 @@ export class MemoryManager {
   /**
    * Run the observer to compress un-observed messages into observations.
    * Only runs if un-observed messages exceed the token threshold.
-   * Returns true if observations were created.
+   * Splits large message sets into batches to avoid choking the worker model.
+   * Watermark advances per-batch so partial progress is preserved on failure.
+   * Returns true if any observations were created.
    */
   async runObserver(conversationId: string): Promise<boolean> {
     if (!this.workerConfig) return false
@@ -144,81 +186,83 @@ export class MemoryManager {
     const tokenCount = estimateMessageTokens(unobserved)
     if (tokenCount < OBSERVER_THRESHOLD) return false
 
-    toolLog.info`Observer triggered: ${unobserved.length} messages, ~${tokenCount} tokens`
+    const batches = this.batchMessages(unobserved, OBSERVER_MAX_BATCH_TOKENS)
+    toolLog.info`Observer triggered: ${unobserved.length} messages, ~${tokenCount} tokens, ${batches.length} batch(es)`
 
-    try {
-      const result = await observe(this.workerConfig, {
-        messages: unobserved.map((m) => ({
-          role: m.role,
-          content: m.content,
-          created_at: m.created_at,
-          telegram_message_id: m.telegram_message_id,
-        })),
-      })
+    let anyCreated = false
 
-      if (result.observations.length === 0) return false
+    for (const batch of batches) {
+      try {
+        const result = await observe(this.workerConfig, {
+          messages: batch.map((m) => ({
+            role: m.role,
+            content: m.content,
+            created_at: m.created_at,
+            telegram_message_id: m.telegram_message_id,
+          })),
+        })
 
-      // Store observations
-      const messageIds = unobserved.map((m) => m.id)
-      const lastMessageId = messageIds[messageIds.length - 1]
+        const messageIds = batch.map((m) => m.id)
+        const lastMessageId = messageIds[messageIds.length - 1]
 
-      for (const obs of result.observations) {
-        const tokenCount = estimateTokens(obs.content)
+        // Store observations from this batch
+        for (const obs of result.observations) {
+          const obsTokens = estimateTokens(obs.content)
+          await this.db
+            .insertInto('observations')
+            .values({
+              id: nanoid(),
+              conversation_id: conversationId,
+              content: obs.content,
+              priority: obs.priority,
+              observation_date: obs.observation_date,
+              source_message_ids: JSON.stringify(messageIds),
+              token_count: obsTokens,
+              generation: 0,
+            })
+            .execute()
+        }
+
+        // Advance watermark for this batch — partial progress is preserved
         await this.db
-          .insertInto('observations')
-          .values({
-            id: nanoid(),
-            conversation_id: conversationId,
-            content: obs.content,
-            priority: obs.priority,
-            observation_date: obs.observation_date,
-            source_message_ids: JSON.stringify(messageIds),
-            token_count: tokenCount,
-            generation: 0,
-          })
-          .execute()
-      }
-
-      // Update watermark
-      const totalObsTokens = result.observations.reduce(
-        (sum, o) => sum + estimateTokens(o.content),
-        0,
-      )
-      const currentTokens = (
-        await this.db
-          .selectFrom('conversations')
-          .select('observation_token_count')
+          .updateTable('conversations')
+          .set({ observed_up_to_message_id: lastMessageId })
           .where('id', '=', conversationId)
-          .executeTakeFirst()
-      )?.observation_token_count ?? 0
+          .execute()
 
+        if (result.observations.length > 0) {
+          anyCreated = true
+          toolLog.info`Observer batch: ${result.observations.length} observations from ${batch.length} messages`
+        }
+
+        // Track usage per batch
+        if (result.usage) {
+          await trackUsage(this.db, {
+            model: this.workerConfig.model,
+            input_tokens: result.usage.input_tokens,
+            output_tokens: result.usage.output_tokens,
+            cost_usd: null,
+            source: 'observer',
+          })
+        }
+      } catch (err) {
+        toolLog.error`Observer batch failed (${batch.length} messages): ${err}`
+        // Continue with next batch — don't abort the whole run
+      }
+    }
+
+    // Recalculate observation token count once at the end
+    if (anyCreated) {
+      const activeObs = await this.getActiveObservations(conversationId)
+      const newTokenCount = activeObs.reduce((sum, o) => sum + o.token_count, 0)
       await this.db
         .updateTable('conversations')
-        .set({
-          observed_up_to_message_id: lastMessageId,
-          observation_token_count: currentTokens + totalObsTokens,
-        })
+        .set({ observation_token_count: newTokenCount })
         .where('id', '=', conversationId)
         .execute()
-
-      toolLog.info`Observer created ${result.observations.length} observations`
-
-      // Track usage
-      if (result.usage) {
-        await trackUsage(this.db, {
-          model: this.workerConfig.model,
-          input_tokens: result.usage.input_tokens,
-          output_tokens: result.usage.output_tokens,
-          cost_usd: null,
-          source: 'observer',
-        })
-      }
-
-      return true
-    } catch (err) {
-      toolLog.error`Observer failed: ${err}`
-      return false
     }
+
+    return anyCreated
   }
 
   /**

@@ -95,7 +95,7 @@ export async function processMessage(
   const workerConfig: WorkerModelConfig | null = env.MEMORY_WORKER_MODEL
     ? { apiKey: env.OPENROUTER_API_KEY, model: env.MEMORY_WORKER_MODEL }
     : null
-  const memoryManager = new MemoryManager(db, workerConfig)
+  const memoryManager = new MemoryManager(db, workerConfig, env.EMBEDDING_MODEL)
 
   // 3. Load context: observations (stable prefix) + un-observed messages (active suffix)
   // Falls back to last 20 messages if no observations exist yet

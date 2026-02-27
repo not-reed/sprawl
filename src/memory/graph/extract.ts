@@ -54,7 +54,10 @@ export async function extractEntities(
 
   const text = data.choices[0]?.message?.content?.trim()
   if (!text) {
-    throw new Error('Empty response from extraction model')
+    toolLog.debug`Empty extraction response for content: ${content.slice(0, 80)}`
+    return { entities: [], relationships: [], usage: data.usage
+      ? { input_tokens: data.usage.prompt_tokens ?? 0, output_tokens: data.usage.completion_tokens ?? 0 }
+      : undefined }
   }
 
   // Parse JSON, stripping markdown fences if present
