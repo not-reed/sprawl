@@ -25,7 +25,7 @@ Environment variables are validated at startup using Zod in `src/env.ts`. The ap
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `NODE_ENV` | `'production'` | Set to `'development'` for dev mode |
-| `OPENROUTER_MODEL` | `'anthropic/claude-sonnet-4'` | LLM model identifier for OpenRouter |
+| `OPENROUTER_MODEL` | `'google/gemini-3-flash-preview'` | LLM model identifier for OpenRouter |
 | `DATABASE_URL` | `'./data/construct.db'` | Path to SQLite database file |
 | `ALLOWED_TELEGRAM_IDS` | `''` (allow all) | Comma-separated Telegram user IDs |
 | `TIMEZONE` | `'UTC'` | Timezone for date display and context (e.g., `'America/New_York'`) |
@@ -62,7 +62,7 @@ const envSchema = z.object({
   OPENROUTER_API_KEY: z.string(),            // Required
   TELEGRAM_BOT_TOKEN: z.string(),            // Required
   NODE_ENV: z.string().default('production'),
-  OPENROUTER_MODEL: z.string().default('anthropic/claude-sonnet-4'),
+  OPENROUTER_MODEL: z.string().default('google/gemini-3-flash-preview'),
   DATABASE_URL: z.string().default('./data/construct.db'),
   ALLOWED_TELEGRAM_IDS: z.string().default('').transform(s => s.split(',').filter(Boolean)),
   TIMEZONE: z.string().default('UTC'),

@@ -1,6 +1,6 @@
 # Database Layer
 
-*Last updated: 2026-02-24 -- Initial documentation*
+*Last updated: 2026-02-26 -- Added graph memory and observational memory tables*
 
 ## Overview
 
@@ -31,7 +31,7 @@ Construct uses SQLite for all persistent storage, accessed through Kysely (a typ
 
 ## Schema
 
-Seven tables are defined in `src/db/schema.ts`:
+Ten tables are defined in `src/db/schema.ts`:
 
 ### memories
 
@@ -119,7 +119,7 @@ Tracks LLM API usage for cost monitoring.
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | text (PK) | nanoid |
-| `model` | text | Model identifier (e.g., `anthropic/claude-sonnet-4`) |
+| `model` | text | Model identifier (e.g., `google/gemini-3-flash-preview`) |
 | `input_tokens` | integer (nullable) | Input token count |
 | `output_tokens` | integer (nullable) | Output token count |
 | `cost_usd` | real (nullable) | Cost in USD |
@@ -148,6 +148,62 @@ Stores API keys and tokens for extensions.
 | `created_at` | text | Auto-set |
 | `updated_at` | text | Auto-set |
 
+### graph_nodes
+
+Entity nodes extracted from memories by the graph memory system. See [Memory System](./memory.md) for details.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | text (PK) | nanoid |
+| `name` | text | Canonical (lowercased, trimmed) |
+| `display_name` | text | Original casing |
+| `node_type` | text | `person`, `place`, `concept`, `event`, or `entity`. Default `entity` |
+| `description` | text (nullable) | Short description from extraction |
+| `embedding` | text (nullable) | Reserved for future node embeddings |
+| `created_at` | text | Auto-set |
+| `updated_at` | text | Auto-set |
+
+Unique index: `idx_gn_name_type` on `(name, node_type)`
+
+### graph_edges
+
+Relationships between graph nodes, linked back to source memories.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | text (PK) | nanoid |
+| `source_id` | text (FK) | References `graph_nodes.id` |
+| `target_id` | text (FK) | References `graph_nodes.id` |
+| `relation` | text | Short verb phrase, lowercased |
+| `weight` | real | Default 1.0, incremented on repeated mention |
+| `properties` | text (nullable) | JSON for extensible metadata |
+| `memory_id` | text (nullable, FK) | References `memories.id` |
+| `created_at` | text | Auto-set |
+| `updated_at` | text | Auto-set |
+
+Indexes: `idx_ge_source`, `idx_ge_target`, `idx_ge_unique` (unique on `source_id, target_id, relation`)
+
+### observations
+
+Compressed conversation summaries produced by the observational memory system. See [Memory System](./memory.md) for details.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | text (PK) | nanoid |
+| `conversation_id` | text (FK) | References `conversations.id` |
+| `content` | text | The observation text |
+| `priority` | text | `high`, `medium`, or `low`. Default `medium` |
+| `observation_date` | text | Date context for the observation |
+| `source_message_ids` | text (nullable) | JSON array of message IDs |
+| `token_count` | integer (nullable) | Estimated token count |
+| `generation` | integer | 0 = observer, 1+ = reflector rounds. Default 0 |
+| `superseded_at` | text (nullable) | Set when replaced by reflector |
+| `created_at` | text | Auto-set |
+
+Indexes: `idx_obs_conv` (conversation_id), `idx_obs_active` (conversation_id, superseded_at)
+
+Note: Migration 006 also adds `observed_up_to_message_id` (text, nullable) and `observation_token_count` (integer, default 0) to the `conversations` table for watermark tracking.
+
 ## Migrations
 
 Migrations use Kysely's `FileMigrationProvider` which scans `src/db/migrations/` for files. Each migration exports `up()` and `down()` functions.
@@ -158,6 +214,8 @@ Migrations use Kysely's `FileMigrationProvider` which scans `src/db/migrations/`
 | `002-fts5-and-embeddings.ts` | Creates FTS5 virtual table, sync triggers, adds `embedding` column to memories |
 | `003-secrets.ts` | Creates the secrets table |
 | `004-telegram-message-ids.ts` | Adds `telegram_message_id` column and index to messages |
+| `005-graph-memory.ts` | Creates `graph_nodes` and `graph_edges` tables with indexes and foreign keys |
+| `006-observational-memory.ts` | Creates `observations` table, adds watermark columns to `conversations` |
 
 Migrations are run via `runMigrations()` which is called both at startup and by the `npm run db:migrate` script. The convention is **additive only** -- never drop tables or columns.
 
@@ -206,5 +264,6 @@ All entity IDs use `nanoid()` (21-character URL-safe string) rather than auto-in
 ## Related Documentation
 
 - [Architecture Overview](./../architecture/overview.md) -- How the database fits into the system
+- [Memory System](./memory.md) -- Graph memory, observational memory, and declarative memory details
 - [Tool System](./tools.md) -- Tools that interact with the database
 - [Extension System](./extensions.md) -- Secrets table usage

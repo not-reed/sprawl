@@ -1,6 +1,6 @@
 # Agent System
 
-*Last updated: 2026-02-24 -- Initial documentation*
+*Last updated: 2026-02-26 -- Updated for memory system integration (MemoryManager, observations, graph memory)*
 
 ## Overview
 
@@ -13,6 +13,7 @@ The agent system is the central intelligence of Construct. It takes a user messa
 | `src/agent.ts` | `processMessage()` -- the main orchestration function |
 | `src/system-prompt.ts` | System prompt construction and context preamble |
 | `src/embeddings.ts` | Embedding generation via OpenRouter and cosine similarity |
+| `src/memory/index.ts` | `MemoryManager` -- observational + graph memory facade |
 | `src/tools/packs.ts` | Tool pack selection and instantiation |
 | `src/extensions/index.ts` | Extension registry (skills, dynamic tools, identity) |
 
@@ -41,32 +42,40 @@ async function processMessage(
 ```mermaid
 flowchart TD
     A[User message arrives] --> B[getOrCreateConversation]
-    B --> C[Load 20 recent messages]
-    C --> D[Load 10 recent memories]
-    D --> E[Generate message embedding]
-    E --> F[Recall semantically relevant memories]
-    F --> G[Select relevant skills]
-    G --> H[Build context preamble]
-    H --> I[Build system prompt with identity files]
-    I --> J[Select tool packs via embedding similarity]
-    J --> K[Create pi-agent Agent instance]
-    K --> L[Replay conversation history]
-    L --> M[Subscribe to agent events]
-    M --> N[Save user message to DB]
-    N --> O[Prompt agent with preamble + message]
-    O --> P[Wait for agent idle]
-    P --> Q[Save assistant response]
-    Q --> R[Track usage]
-    R --> S[Return AgentResponse]
+    B --> C[Create MemoryManager]
+    C --> D[buildContext: observations + un-observed messages]
+    D --> E[Load 10 recent memories]
+    E --> F[Generate message embedding]
+    F --> G[Recall semantically relevant memories]
+    G --> H[Select relevant skills]
+    H --> I[Build context preamble with observations]
+    I --> J[Build system prompt with identity files]
+    J --> K[Select tool packs via embedding similarity]
+    K --> L[Create pi-agent Agent instance]
+    L --> M[Replay conversation history]
+    M --> N[Subscribe to agent events]
+    N --> O[Save user message to DB]
+    O --> P[Prompt agent with preamble + message]
+    P --> Q[Wait for agent idle]
+    Q --> R[Save assistant response]
+    R --> S[Track usage]
+    S --> T[Async: run observer then reflector]
+    T --> U[Return AgentResponse]
 ```
 
 ### 1. Conversation Management
 
 Every message is associated with a conversation identified by `(source, externalId)`. For Telegram, the external ID is the chat ID. For CLI, it is the fixed string `'cli'`. The function `getOrCreateConversation()` either finds an existing conversation or creates a new one.
 
-### 2. History Loading
+### 2. MemoryManager and Context Building
 
-The last 20 messages from the conversation are loaded and later replayed into the Agent instance so the LLM sees multi-turn context.
+A `MemoryManager` is instantiated for the conversation. It uses the `MEMORY_WORKER_MODEL` env var to configure the worker LLM (if not set, LLM-powered memory features are disabled).
+
+`memoryManager.buildContext()` determines what conversation history the LLM sees:
+- **If observations exist**: Rendered observations become a stable text prefix (injected into the context preamble), and only un-observed messages (those after the watermark) are replayed as conversation turns. This keeps the context window bounded as conversations grow.
+- **If no observations yet**: Falls back to loading the last 20 raw messages (original behavior).
+
+See [Memory System](./memory.md) for details on how observations are created and managed.
 
 ### 3. Memory Context
 
@@ -78,7 +87,7 @@ Relevant memories that already appear in the recent set are deduplicated.
 
 ### 4. Embedding Generation
 
-The user's message is embedded using `generateEmbedding()` in `src/embeddings.ts`. This calls the OpenRouter embeddings endpoint with the `openai/text-embedding-3-small` model. The resulting vector is reused for:
+The user's message is embedded using `generateEmbedding()` in `src/embeddings.ts`. This calls the OpenRouter embeddings endpoint with the configured `EMBEDDING_MODEL` (default `qwen/qwen3-embedding-4b`). The resulting vector is reused for:
 - Memory recall (semantic search)
 - Skill selection
 - Tool pack selection
@@ -133,12 +142,13 @@ A `pi-agent-core` `Agent` is instantiated with the system prompt and model. Conv
 
 The agent is then prompted with `preamble + message` and the function awaits `agent.waitForIdle()`.
 
-### 10. Persistence
+### 10. Persistence and Post-Response Memory
 
 After the agent finishes:
 - The user's message is saved (already done before prompting)
 - The assistant's response is saved with any tool call records
 - LLM usage (input/output tokens, cost) is tracked in the `ai_usage` table
+- **Async (non-blocking)**: `memoryManager.runObserver()` checks if un-observed messages exceed the token threshold (3000 tokens). If so, it compresses them into observations. If the observer runs, it chains into `memoryManager.runReflector()` to condense observations if they exceed 4000 tokens. This is fire-and-forget -- the current response is already sent, and the next turn benefits from the compression.
 
 ## AgentResponse
 
@@ -190,6 +200,7 @@ Error handling in the adapter catches exceptions and returns them as text result
 ## Related Documentation
 
 - [Architecture Overview](./../architecture/overview.md)
+- [Memory System](./memory.md) -- Graph memory, observational memory, and the MemoryManager facade
 - [Tool System](./tools.md) -- How tools are defined, organized, and selected
 - [System Prompt](./system-prompt.md) -- Prompt construction details
 - [Extension System](./extensions.md) -- Skills and dynamic tools

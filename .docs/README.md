@@ -9,9 +9,10 @@ Construct is a personal braindump companion that communicates via Telegram, stor
 ## Features
 
 - **[Agent System](./features/agent.md)** -- The `processMessage()` pipeline: conversation management, memory loading, embedding generation, skill selection, context preamble, tool registration, pi-agent execution, and response persistence
+- **[Memory System](./features/memory.md)** -- Three-layer memory: declarative (facts/preferences with hybrid search), graph (entity-relationship extraction and associative recall), and observational (automatic conversation compression via observer/reflector LLM pipeline). Covers schema, tools, embeddings, and `processMessage()` integration.
 - **[Tool System](./features/tools.md)** -- Tool packs (core, web, self, telegram), embedding-based pack selection, the `InternalTool` interface, TypeBox schemas, and the Telegram side-effects pattern. Includes detailed descriptions of all 24+ tools.
 - **[Extension System](./features/extensions.md)** -- User-authored skills (Markdown with YAML frontmatter) and dynamic tools (TypeScript loaded via jiti). Identity files (SOUL.md, IDENTITY.md, USER.md), secrets management, requirement checking, and the reload mechanism.
-- **[Database Layer](./features/database.md)** -- SQLite via node:sqlite with a custom Kysely dialect. Seven tables (memories, conversations, messages, schedules, ai_usage, settings, secrets), FTS5 full-text search, embedding storage, and all query functions.
+- **[Database Layer](./features/database.md)** -- SQLite via node:sqlite with a custom Kysely dialect. Ten tables (memories, conversations, messages, schedules, ai_usage, settings, secrets, graph_nodes, graph_edges, observations), FTS5 full-text search, embedding storage, and all query functions.
 - **[Telegram Integration](./features/telegram.md)** -- Grammy bot with long polling, authorization, typing indicators, Markdown-to-HTML conversion, message chunking, reaction handling, and message ID tracking.
 - **[Scheduler / Reminders](./features/scheduler.md)** -- Croner-based scheduling with cron expressions and one-shot reminders. 30-second sync loop, auto-cancellation, and systemd integration.
 - **[CLI Interface](./features/cli.md)** -- Citty-based CLI with interactive REPL, one-shot messages, and direct tool invocation modes.
@@ -41,7 +42,18 @@ src/
     schema.ts          TypeScript table types
     queries.ts         All query functions
     migrate.ts         Migration runner
-    migrations/        001-initial through 004-telegram-message-ids
+    migrations/        001-initial through 006-observational-memory
+  memory/
+    index.ts           MemoryManager facade (graph + observational memory)
+    observer.ts        Observer LLM -- compresses messages into observations
+    reflector.ts       Reflector LLM -- condenses observations
+    context.ts         Observation rendering for context injection
+    tokens.ts          Token estimation utilities
+    types.ts           Shared types (Observation, GraphNode, GraphEdge, etc.)
+    graph/
+      index.ts         processMemoryForGraph() orchestrator
+      extract.ts       Entity/relationship extraction via LLM
+      queries.ts       Graph node/edge CRUD, traversal, search
   tools/
     packs.ts           Pack definitions, selection, embedding cache
     core/              Memory, schedule, secret, identity, usage tools
