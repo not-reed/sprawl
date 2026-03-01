@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 User=construct
 WorkingDirectory=/opt/construct
-ExecStart=/usr/bin/node --env-file=%h/.construct/.env --import=tsx src/main.ts
+ExecStart=/usr/bin/node --env-file=%h/.construct/.env --import=tsx apps/construct/src/main.ts
 Restart=on-failure
 RestartSec=5
 

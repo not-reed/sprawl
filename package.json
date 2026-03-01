@@ -1,47 +1,15 @@
 {
-  "name": "construct",
-  "version": "0.1.0",
+  "name": "nullclaw",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "NODE_ENV=development node --env-file=.env --import=tsx --watch-path=src --watch-path=cli src/main.ts",
-    "start": "node --env-file=.env --import=tsx src/main.ts",
-    "start:cairn": "node --env-file=.env.cairn --import=tsx src/main.ts",
-    "start:case": "node --env-file=.env.case --import=tsx src/main.ts",
-    "cli:case": "node --env-file=.env.case --import=tsx cli/index.ts",
-    "cli:cairn": "node --env-file=.env.cairn --import=tsx cli/index.ts",
-    "telegram": "node --env-file=.env --import=tsx src/telegram/index.ts",
-    "db:migrate": "node --env-file=.env --import=tsx src/db/migrate.ts",
-    "test": "vitest run",
-    "test:ai": "vitest run --config vitest.ai.config.ts",
-    "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
-    "explorer": "node --env-file=.env --import=tsx explorer/server.ts",
-    "explorer:dev:case": "concurrently -k \"NODE_ENV=development node --env-file=.env.case --import=tsx --watch-path=explorer --watch-path=src explorer/server.ts\" \"cd explorer/web && npx vite\"",
-    "explorer:dev:cairn": "concurrently -k \"NODE_ENV=development node --env-file=.env.cairn --import=tsx --watch-path=explorer --watch-path=src explorer/server.ts\" \"cd explorer/web && npx vite\"",
-    "explorer:build": "cd explorer/web && npm run build"
-  },
-  "dependencies": {
-    "@hono/node-server": "^1.14.0",
-    "@logtape/logtape": "^2.0.2",
-    "@mariozechner/pi-agent-core": "^0.54.2",
-    "@mariozechner/pi-ai": "^0.54.2",
-    "@sinclair/typebox": "^0.34.48",
-    "citty": "^0.2.1",
-    "croner": "^10.0.1",
-    "grammy": "^1.40.0",
-    "hono": "^4.7.0",
-    "jiti": "^2.6.1",
-    "kysely": "^0.28.11",
-    "nanoid": "^5.1.6",
-    "yaml": "^2.8.2",
-    "zod": "^4.3.6"
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test"
   },
   "devDependencies": {
     "@types/node": "^25.3.0",
     "concurrently": "^9.2.1",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.18"
+    "typescript": "^5.9.3"
   }
 }

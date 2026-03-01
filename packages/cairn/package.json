@@ -1,0 +1,26 @@
+{
+  "name": "@repo/cairn",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./embeddings": "./src/embeddings.ts",
+    "./graph": "./src/graph/index.ts",
+    "./graph/queries": "./src/graph/queries.ts",
+    "./db/types": "./src/db/types.ts",
+    "./db/queries": "./src/db/queries.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/db": "workspace:*",
+    "kysely": "^0.28.11",
+    "nanoid": "^5.1.6"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
+  }
+}

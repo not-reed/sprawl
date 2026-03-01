@@ -1,22 +1,5 @@
 {
-  "include": ["src/**/*.ts", "cli/**/*.ts", "explorer/**/*.ts"],
-  "exclude": ["explorer/web/**"],
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "lib": ["ES2022"],
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": false,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"]
-    }
-  }
+  "extends": "./tsconfig.base.json",
+  "include": [],
+  "references": []
 }

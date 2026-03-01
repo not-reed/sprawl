@@ -39,7 +39,8 @@ setup_install_dir() {
 install_deps() {
   info "Installing dependencies"
   cd "$INSTALL_DIR"
-  sudo -u "$SERVICE_USER" npm install --production=false
+  sudo -u "$SERVICE_USER" corepack enable pnpm
+  sudo -u "$SERVICE_USER" pnpm install
 }
 
 setup_data_dir() {
@@ -91,7 +92,7 @@ EOF
 run_migrations() {
   info "Running database migrations"
   cd "$INSTALL_DIR"
-  sudo -u "$SERVICE_USER" node --env-file="$DATA_DIR/.env" --import=tsx src/db/migrate.ts
+  sudo -u "$SERVICE_USER" node --env-file="$DATA_DIR/.env" --import=tsx apps/construct/src/db/migrate.ts
 }
 
 enable_service() {

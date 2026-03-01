@@ -1,0 +1,24 @@
+import { createDb } from '@repo/db'
+import type { Database } from '../db/schema.js'
+import { runMigrations } from '../db/migrate.js'
+import { setupLogging, log } from '../logger.js'
+import { env } from '../env.js'
+import { createBot } from './bot.js'
+
+async function main() {
+  await setupLogging(env.LOG_LEVEL, env.LOG_FILE)
+  log.info`Starting Construct Telegram bot`
+
+  await runMigrations(env.DATABASE_URL)
+
+  const { db } = createDb<Database>(env.DATABASE_URL)
+  const bot = createBot(db)
+
+  log.info`Telegram bot is running (long polling)`
+  bot.start({ allowed_updates: ['message', 'message_reaction'] })
+}
+
+main().catch((err) => {
+  console.error('Fatal error:', err)
+  process.exit(1)
+})

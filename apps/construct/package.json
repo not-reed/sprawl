@@ -1,0 +1,30 @@
+{
+  "name": "@repo/construct",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:ai": "vitest run --config vitest.ai.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/db": "workspace:*",
+    "@repo/cairn": "workspace:*",
+    "@logtape/logtape": "^2.0.2",
+    "@mariozechner/pi-agent-core": "^0.54.2",
+    "@mariozechner/pi-ai": "^0.54.2",
+    "@sinclair/typebox": "^0.34.48",
+    "citty": "^0.2.1",
+    "croner": "^10.0.1",
+    "grammy": "^1.40.0",
+    "jiti": "^2.6.1",
+    "kysely": "^0.28.11",
+    "nanoid": "^5.1.6",
+    "yaml": "^2.8.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
+  }
+}

@@ -16,6 +16,11 @@
           pkgs.oxlint
           pkgs.pnpm
           pkgs.nodejs_24
+          pkgs.rustup
+
+          pkgs.pkg-config
+          pkgs.gcc
+          pkgs.go
         ];
 
         shellHook = ''
