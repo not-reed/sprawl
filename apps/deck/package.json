@@ -1,0 +1,17 @@
+{
+  "name": "@repo/deck",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/db": "workspace:*",
+    "@repo/cairn": "workspace:*",
+    "@hono/node-server": "^1.14.0",
+    "hono": "^4.7.0",
+    "kysely": "^0.28.11",
+    "zod": "^4.3.6"
+  }
+}
