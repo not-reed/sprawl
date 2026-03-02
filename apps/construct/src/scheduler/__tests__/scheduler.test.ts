@@ -5,6 +5,12 @@ import { setupDb } from '../../__tests__/fixtures.js'
 import { registerJob, stopScheduler } from '../index.js'
 import { listSchedules, cancelSchedule, markScheduleRun } from '../../db/queries.js'
 import { nanoid } from 'nanoid'
+import type { AgentResponse } from '../../agent.js'
+
+const mockProcessMessage = vi.fn<(...args: unknown[]) => Promise<AgentResponse>>()
+vi.mock('../../agent.js', () => ({
+  processMessage: (...args: unknown[]) => mockProcessMessage(...args),
+}))
 
 let db: Kysely<Database>
 
@@ -22,6 +28,7 @@ async function insertSchedule(
       cron_expression: overrides.cron_expression ?? null,
       run_at: overrides.run_at ?? null,
       message: overrides.message,
+      prompt: overrides.prompt ?? null,
       chat_id: overrides.chat_id,
     })
     .execute()
@@ -45,6 +52,7 @@ function makeMockBot() {
 describe('scheduler', () => {
   beforeEach(async () => {
     db = await setupDb()
+    mockProcessMessage.mockReset()
   })
 
   afterEach(async () => {
@@ -215,6 +223,109 @@ describe('scheduler', () => {
       .executeTakeFirstOrThrow()
 
     expect(updated.last_run_at).toBeTruthy()
+  })
+
+  // ── Agent-prompt schedules ──────────────────────────────────────
+
+  it('fires agent prompt for schedule with prompt column', async () => {
+    const bot = makeMockBot()
+    mockProcessMessage.mockResolvedValueOnce({
+      text: 'Weather is cold, wear a jacket!',
+      toolCalls: [],
+    })
+
+    const s = await insertSchedule(db, {
+      run_at: '2020-01-01T00:00:00Z',
+      message: 'Check weather',
+      prompt: 'Check the weather and alert if cold',
+      chat_id: '12345',
+    })
+
+    registerJob(db, bot, s, 'UTC')
+    await new Promise((r) => setTimeout(r, 100))
+
+    // processMessage should have been called with the prompt
+    expect(mockProcessMessage).toHaveBeenCalledWith(
+      db,
+      'Check the weather and alert if cold',
+      expect.objectContaining({
+        source: 'scheduler',
+        externalId: `schedule:${s.id}`,
+        chatId: '12345',
+      }),
+    )
+
+    // Non-empty response should be sent to Telegram
+    expect(bot.api.sendMessage).toHaveBeenCalled()
+    const call = bot.api.sendMessage.mock.calls[0]
+    expect(call[0]).toBe('12345')
+    expect(call[1]).toContain('Weather is cold')
+  })
+
+  it('stays silent when agent returns empty response', async () => {
+    const bot = makeMockBot()
+    mockProcessMessage.mockResolvedValueOnce({
+      text: '   ',
+      toolCalls: [],
+    })
+
+    const s = await insertSchedule(db, {
+      run_at: '2020-01-01T00:00:00Z',
+      message: 'Background task',
+      prompt: 'Run system updates silently',
+      chat_id: '12345',
+    })
+
+    registerJob(db, bot, s, 'UTC')
+    await new Promise((r) => setTimeout(r, 100))
+
+    expect(mockProcessMessage).toHaveBeenCalled()
+    // Empty response → no Telegram message
+    expect(bot.api.sendMessage).not.toHaveBeenCalled()
+
+    // But last_run_at should still be set
+    const row = await db
+      .selectFrom('schedules')
+      .select('last_run_at')
+      .where('id', '=', s.id)
+      .executeTakeFirstOrThrow()
+    expect(row.last_run_at).toBeTruthy()
+  })
+
+  it('does not crash scheduler when agent throws', async () => {
+    const bot = makeMockBot()
+    mockProcessMessage.mockRejectedValueOnce(new Error('LLM API down'))
+
+    const s = await insertSchedule(db, {
+      run_at: '2020-01-01T00:00:00Z',
+      message: 'Risky task',
+      prompt: 'Do something that fails',
+      chat_id: '12345',
+    })
+
+    registerJob(db, bot, s, 'UTC')
+    await new Promise((r) => setTimeout(r, 100))
+
+    // Should not throw, sendMessage should not be called
+    expect(bot.api.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('uses static path when schedule has no prompt', async () => {
+    const bot = makeMockBot()
+
+    const s = await insertSchedule(db, {
+      run_at: '2020-01-01T00:00:00Z',
+      message: 'plain reminder',
+      chat_id: '12345',
+    })
+
+    registerJob(db, bot, s, 'UTC')
+    await new Promise((r) => setTimeout(r, 100))
+
+    // Should NOT call processMessage
+    expect(mockProcessMessage).not.toHaveBeenCalled()
+    // Should send static message
+    expect(bot.api.sendMessage).toHaveBeenCalledWith('12345', 'plain reminder')
   })
 })
 

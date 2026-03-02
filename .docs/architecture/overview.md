@@ -1,14 +1,46 @@
 # Architecture Overview
 
-*Last updated: 2026-02-24 -- Initial documentation*
+*Last updated: 2026-03-01 -- Expanded to cover full Sprawl monorepo*
 
 ## Overview
 
-Construct is a personal braindump companion that runs as a long-lived Node.js process. It receives messages over Telegram (or a local CLI), processes them through an AI agent backed by OpenRouter, and uses SQLite for persistent storage of conversations, memories, schedules, secrets, and usage tracking.
+Sprawl is a monorepo of five apps sharing two packages and a SQLite-based data layer. The flagship app is Construct, a self-aware braindump companion. The trading pipeline (Cortex, Synapse, Optic) reuses the same memory substrate for market intelligence. Deck provides observability for any app's memory graph.
+
+Construct runs as a long-lived Node.js process. It receives messages over Telegram (or a local CLI), processes them through an AI agent backed by OpenRouter, and uses SQLite for persistent storage of conversations, memories, schedules, secrets, and usage tracking.
 
 The system is self-aware: it can read, edit, test, and deploy its own source code. It extends itself through a plugin-like extension system that supports user-authored skills (Markdown instructions) and tools (TypeScript modules).
 
-## High-Level Architecture
+## Monorepo Data Flow
+
+```
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│  Construct   │  │   Cortex    │  │   Synapse   │  │    Deck     │  │    Optic    │
+│  (agent)     │  │  (ingest)   │  │  (trading)  │  │  (web UI)   │  │  (TUI)      │
+└──────┬───────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘
+       │                 │                │                │                │
+       └────────┬────────┘                │                │                │
+                │                         │                │                │
+       ┌────────▼────────┐                │                │                │
+       │   @repo/cairn   │                │                │                │
+       │  memory pipeline│────────────────│────────────────┘                │
+       └────────┬────────┘                │                                 │
+                │                         │                                 │
+       ┌────────▼────────┐                │                                 │
+       │    @repo/db     │────────────────┘                                 │
+       │  kysely + sqlite│                                                  │
+       └────────┬────────┘                                                  │
+                │                                                           │
+       ┌────────▼───────────────────────────────────────────────────────────▼──┐
+       │                              SQLITE                                   │
+       └──────────────────────────────────────────────────────────────────────┘
+```
+
+- Construct, Cortex, Deck use Cairn for memory (observe/reflect/promote/graph)
+- Synapse reads Cortex's DB directly (signals, prices)
+- Optic reads Cortex + Synapse DBs via rusqlite (no JS runtime)
+- Each app manages its own database and migrations
+
+## High-Level Architecture (Construct)
 
 ```
                          ┌──────────────────────────────────┐
@@ -91,6 +123,7 @@ The agent can edit its own source, but with guardrails:
 
 ## Related Documentation
 
+### Construct features
 - [Agent System](./../features/agent.md) -- processMessage() flow in detail
 - [Tool System](./../features/tools.md) -- Packs, selection, and tool definitions
 - [Extension System](./../features/extensions.md) -- Skills, dynamic tools, identity files
@@ -99,5 +132,16 @@ The agent can edit its own source, but with guardrails:
 - [Scheduler](./../features/scheduler.md) -- Reminders and cron jobs
 - [CLI Interface](./../features/cli.md) -- REPL and one-shot modes
 - [System Prompt](./../features/system-prompt.md) -- Prompt construction
+
+### Other apps
+- [Cortex](./../apps/cortex.md) -- Market intelligence daemon
+- [Synapse](./../apps/synapse.md) -- Paper trading daemon
+- [Deck](./../apps/deck.md) -- Memory graph explorer
+- [Optic](./../apps/optic.md) -- Terminal trading dashboard
+
+### Shared packages
+- [Cairn](./../packages/cairn.md) -- Memory substrate
+
+### Guides
 - [Environment Configuration](./../guides/environment.md) -- Env vars and configuration
-- [Development Workflow](./../guides/development.md) -- Scripts, testing, deployment
+- [Development Workflow](./../guides/development.md) -- Just commands, testing, deployment

@@ -16,6 +16,7 @@ import * as m002 from '../db/migrations/002-fts5-and-embeddings.js'
 import * as m004 from '../db/migrations/004-telegram-message-ids.js'
 import * as m005 from '../db/migrations/005-graph-memory.js'
 import * as m006 from '../db/migrations/006-observational-memory.js'
+import * as m008 from '../db/migrations/008-schedule-prompts.js'
 
 const DIM = 16
 
@@ -163,6 +164,7 @@ export async function setupDb(): Promise<Kysely<Database>> {
   await m004.up(db as Kysely<unknown>)
   await m005.up(db as Kysely<unknown>)
   await m006.up(db as Kysely<unknown>)
+  await m008.up(db as Kysely<unknown>)
   return db
 }
 

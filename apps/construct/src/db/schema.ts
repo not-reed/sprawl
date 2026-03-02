@@ -16,6 +16,7 @@ export interface ScheduleTable {
   cron_expression: string | null
   run_at: string | null
   message: string
+  prompt: string | null
   chat_id: string
   active: Generated<number>
   last_run_at: string | null

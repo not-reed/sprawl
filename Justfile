@@ -1,4 +1,4 @@
-# nullclaw-ts monorepo task runner
+# sprawl monorepo task runner
 
 # Default: show help
 default:
@@ -13,9 +13,9 @@ dev: construct-dev
 construct-dev:
     node --env-file=.env --import=tsx --watch-path=apps/construct/src apps/construct/src/main.ts
 
-# Run explorer in dev mode
-explorer-dev instance:
-    node --env-file=.env.{{instance}} --import=tsx apps/explorer/src/server.ts
+# Run deck in dev mode
+deck-dev instance:
+    node --env-file=.env.{{instance}} --import=tsx apps/deck/src/server.ts
 
 # --- Test ---
 
@@ -81,27 +81,33 @@ cortex-backfill-news days="30":
 cortex-backfill-prices days="30":
     node --env-file=.env.cortex --import=tsx apps/cortex/src/main.ts --backfill-prices {{days}}
 
-# --- Cortex TUI ---
+# --- Synapse ---
 
-# Run cortex-ink TUI (TypeScript/Ink)
-cortex-ink db="./data/cortex.db":
-    node --import=tsx apps/cortex-ink/src/main.tsx {{db}}
+# Run synapse in dev mode with file watching
+synapse-dev:
+    node --env-file=.env.synapse --import=tsx --watch-path=apps/synapse/src apps/synapse/src/main.ts
 
-# Run cortex-ratatui TUI (Rust)
-cortex-ratatui db="./data/cortex.db":
-    cd apps/cortex-ratatui && cargo run -- "{{justfile_directory()}}/{{db}}"
+# Run synapse (production)
+synapse-start:
+    node --env-file=.env.synapse --import=tsx apps/synapse/src/main.ts
 
-# Build cortex-ratatui
-cortex-ratatui-build:
-    cd apps/cortex-ratatui && cargo build --release
+# Show synapse portfolio status
+synapse-status:
+    node --env-file=.env.synapse --import=tsx apps/synapse/src/status.ts
 
-# Run cortex-bubbletea TUI (Go)
-cortex-bubbletea db="./data/cortex.db":
-    cd apps/cortex-bubbletea && go run . "{{justfile_directory()}}/{{db}}"
+# Run synapse tests
+test-synapse:
+    pnpm --filter @repo/synapse vitest run
 
-# Build cortex-bubbletea
-cortex-bubbletea-build:
-    cd apps/cortex-bubbletea && go build -o cortex-bubbletea .
+# --- Optic TUI ---
+
+# Run optic TUI (Rust)
+optic db="./data/cortex.db" synapse="./data/synapse.db":
+    cd apps/optic && cargo run -- "{{justfile_directory()}}/{{db}}" --synapse "{{justfile_directory()}}/{{synapse}}"
+
+# Build optic
+optic-build:
+    cd apps/optic && cargo build --release
 
 # --- Blog ---
 

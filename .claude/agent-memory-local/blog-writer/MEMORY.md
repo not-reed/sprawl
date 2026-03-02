@@ -58,6 +58,19 @@
    - Key systems: `explorer/server.ts` (Hono), `explorer/routes/` (memories/graph/observations/stats), `explorer/web/src/` (React + d3-force canvas)
    - Notable: matchType field surfaces retrieval path; bidirectional memory↔graph-node linkage; ObservationTimeline shows superseded obs + generation count; expandNode mirrors agent's graph traversal
 
+8. **One Memory Package, Three Apps** (`.blog/drafts/cairn-across-the-stack.md`)
+   - Topic: cairn as a shared package across Construct, Cortex, Synapse, and Optic (Rust TUI)
+   - Angle: Each app uses cairn differently — full pipeline (Construct), market data as conversation (Cortex), ignored (Synapse), raw SQL read (Optic)
+   - Key code: `apps/cortex/src/pipeline/loop.ts` (feed prices/news through cairn), `apps/cortex/src/pipeline/analyzer.ts` (recall + graph traversal before signal gen), `apps/optic/src/db.rs` (direct SQL on cairn tables), `apps/synapse/src/engine/loop.ts` (reads Cortex signals, no cairn)
+   - Notable: Kysely invariance workaround (accept `Kysely<any>`, cast internally); Cortex writes signals back as cairn memories (feedback loop); Optic `weight > 1.0` filter uses cairn graph edge weight as noise gate; `commands` table as TUI-to-daemon IPC
+   - Synapse is `apps/synapse/` — a paper execution engine that polls Cortex signals and manages portfolio state with stop-loss/drawdown halts
+
+9. **Building an Inbox for Agents: Construct's Federation Design** (`.blog/drafts/inbox-federation.md`)
+   - Topic: Inbox federation design walkthrough (not yet implemented — forward-looking article)
+   - Angle: The trust model is the interesting part: one-directional trust, order-independent handshake, deny-by-default, personality stripping for agent-to-agent comms, reusing processMessage() as inbox processor
+   - Key systems: `inbox/identity.ts` (Ed25519 via node:crypto), `inbox/server.ts` (Hono POST /inbox), `peers` + `inbox_messages` tables, `getInboxSystemPrompt()`, scheduler integration
+   - Notable: "share availability windows, not reasons" privacy rule; `mutual` flag is informational not a gate; phase 2 scoped out (service peers, per-peer permissions, persistent nonce log)
+
 ## Areas to Avoid (already covered or thin)
 
 - General "how Construct works" tour — too broad

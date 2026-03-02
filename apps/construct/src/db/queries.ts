@@ -119,6 +119,7 @@ export async function createSchedule(
       cron_expression: schedule.cron_expression ?? null,
       run_at: schedule.run_at ?? null,
       message: schedule.message,
+      prompt: schedule.prompt ?? null,
       chat_id: schedule.chat_id,
       last_run_at: null,
     })

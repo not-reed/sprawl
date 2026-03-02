@@ -7,6 +7,9 @@ data/
 *.db-wal
 *.db-shm
 dist/
+target/
 
 .cairn/
 .direnv/
+.plans/
+.blog/drafts/

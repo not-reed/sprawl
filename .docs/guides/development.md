@@ -1,32 +1,45 @@
 # Development Workflow
 
-*Last updated: 2026-02-25 -- Updated self-deploy section for Docker-aware behavior*
+*Last updated: 2026-03-01 -- Updated for pnpm monorepo with Just task runner*
 
 ## Overview
 
-Construct uses tsx for TypeScript execution, Vitest for testing, and a file-watching dev mode. The project runs directly from TypeScript source -- there is no build/compile step for development or production.
+Sprawl uses tsx for TypeScript execution, Vitest for testing, and Just for task orchestration. All TS apps run directly from source -- no build step. Optic is the exception (Rust, compiled with cargo).
 
 ## Key Files
 
 | File | Role |
 |------|------|
-| `package.json` | Scripts, dependencies |
-| `tsconfig.json` | TypeScript configuration |
-| `vitest.config.ts` | Test configuration |
-| `src/logger.ts` | Logging with rotation |
+| `Justfile` | Task runner (primary interface) |
+| `pnpm-workspace.yaml` | Workspace config |
+| `apps/*/package.json` | App dependencies |
+| `packages/*/package.json` | Package dependencies |
 
-## npm Scripts
+## Just Commands
 
-| Script | Command | Description |
-|--------|---------|-------------|
-| `npm run dev` | `NODE_ENV=development node --env-file=.env --import=tsx --watch-path=src --watch-path=cli src/main.ts` | Dev mode with file watching on `src/` and `cli/` |
-| `npm run start` | `node --env-file=.env --import=tsx src/main.ts` | Production start (Telegram + scheduler) |
-| `npm run cli` | `node --env-file=.env --import=tsx cli/index.ts` | CLI interface (REPL/one-shot/tool mode) |
-| `npm run telegram` | `node --env-file=.env --import=tsx src/telegram/index.ts` | Telegram bot only (no scheduler) |
-| `npm run db:migrate` | `node --env-file=.env --import=tsx src/db/migrate.ts` | Run database migrations |
-| `npm run test` | `vitest run` | Run tests once |
-| `npm run test:watch` | `vitest` | Run tests in watch mode |
-| `npm run typecheck` | `tsc --noEmit` | Type checking without emit |
+| Command | Description |
+|---------|-------------|
+| `just dev` | Construct dev mode (file watching) |
+| `just start <instance>` | Start named Construct instance (reads `.env.<instance>`) |
+| `just cli [instance] [args]` | Construct CLI |
+| `just cortex-dev` | Cortex dev mode |
+| `just cortex-start` | Cortex production |
+| `just cortex-backfill [days]` | Backfill historical data |
+| `just synapse-dev` | Synapse dev mode |
+| `just synapse-start` | Synapse production |
+| `just synapse-status` | Portfolio summary |
+| `just deck-dev <instance>` | Deck dev mode |
+| `just optic [db] [synapse]` | Optic TUI |
+| `just optic-build` | Build Optic release binary |
+| `just test` | Run all tests (`pnpm -r run test`) |
+| `just test-construct` | Construct tests only |
+| `just test-cairn` | Cairn tests only |
+| `just test-synapse` | Synapse tests only |
+| `just test-ai` | AI integration tests |
+| `just typecheck` | Typecheck all packages |
+| `just db-migrate [inst]` | Run Construct DB migrations |
+
+Each app reads its env from `.env` (Construct), `.env.cortex`, `.env.synapse`, etc.
 
 ## TypeScript Configuration
 

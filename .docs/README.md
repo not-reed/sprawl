@@ -1,93 +1,39 @@
-# Construct Documentation
+# Sprawl Documentation
 
-Construct is a personal braindump companion that communicates via Telegram, stores long-term memories in SQLite, handles reminders, and can read/edit/test/deploy its own source code. This directory contains comprehensive documentation of the system's architecture, features, and development workflow.
+Documentation for the Sprawl monorepo: five apps, two shared packages, one memory pipeline.
 
-## Architecture
+## Apps
 
-- **[Architecture Overview](./architecture/overview.md)** -- How all the pieces fit together: startup sequence, data flow, key design decisions (embedding-based tool selection, static/dynamic prompt split, self-modification safety)
+- **[Cortex](./apps/cortex.md)** -- Crypto market intelligence daemon. Ingests prices + news, feeds them through Cairn's memory pipeline, generates LLM-grounded trading signals.
+- **[Synapse](./apps/synapse.md)** -- Paper trading daemon. Reads Cortex signals, sizes positions by confidence, manages risk with stop-losses and drawdown limits.
+- **[Deck](./apps/deck.md)** -- Memory graph explorer. Hono REST API + React SPA with D3-force graph visualization, memory browser, and observation timeline.
+- **[Optic](./apps/optic.md)** -- Terminal trading dashboard. Ratatui TUI that reads Cortex + Synapse DBs. Market view (prices, charts, news, signals, graph) and trading view (positions, trades, risk events).
 
-## Features
+## Construct (flagship)
+
+### Architecture
+
+- **[Architecture Overview](./architecture/overview.md)** -- Startup sequence, data flow, key design decisions (embedding-based tool selection, static/dynamic prompt split, self-modification safety)
+
+### Features
 
 - **[Agent System](./features/agent.md)** -- The `processMessage()` pipeline: conversation management, memory loading, embedding generation, skill selection, context preamble, tool registration, pi-agent execution, and response persistence
-- **[Memory System](./features/memory.md)** -- Three-layer memory: declarative (facts/preferences with hybrid search), graph (entity-relationship extraction and associative recall), and observational (automatic conversation compression via observer/reflector LLM pipeline). Covers schema, tools, embeddings, and `processMessage()` integration.
-- **[Tool System](./features/tools.md)** -- Tool packs (core, web, self, telegram), embedding-based pack selection, the `InternalTool` interface, TypeBox schemas, and the Telegram side-effects pattern. Includes detailed descriptions of all 24+ tools.
-- **[Extension System](./features/extensions.md)** -- User-authored skills (Markdown with YAML frontmatter) and dynamic tools (TypeScript loaded via jiti). Identity files (SOUL.md, IDENTITY.md, USER.md), secrets management, requirement checking, and the reload mechanism.
-- **[Database Layer](./features/database.md)** -- SQLite via node:sqlite with a custom Kysely dialect. Ten tables (memories, conversations, messages, schedules, ai_usage, settings, secrets, graph_nodes, graph_edges, observations), FTS5 full-text search, embedding storage, and all query functions.
-- **[Telegram Integration](./features/telegram.md)** -- Grammy bot with long polling, authorization, typing indicators, Markdown-to-HTML conversion, message chunking, reaction handling, and message ID tracking.
-- **[Scheduler / Reminders](./features/scheduler.md)** -- Croner-based scheduling with cron expressions and one-shot reminders. 30-second sync loop, auto-cancellation, and systemd integration.
-- **[CLI Interface](./features/cli.md)** -- Citty-based CLI with interactive REPL, one-shot messages, and direct tool invocation modes.
-- **[System Prompt](./features/system-prompt.md)** -- Two-layer prompt design: static system prompt (base rules + identity files) and dynamic context preamble (date, memories, skills, reply context).
+- **[Memory System](./features/memory.md)** -- Three-layer memory: declarative, graph, and observational. Schema, tools, embeddings, and `processMessage()` integration.
+- **[Tool System](./features/tools.md)** -- Tool packs (core, web, self, telegram), embedding-based pack selection, `InternalTool` interface, TypeBox schemas, Telegram side-effects pattern.
+- **[Extension System](./features/extensions.md)** -- User-authored skills (Markdown) and dynamic tools (TypeScript via jiti). Identity files, secrets management, reload mechanism.
+- **[Database Layer](./features/database.md)** -- SQLite via node:sqlite + Kysely. Tables, FTS5 search, embedding storage, query functions.
+- **[Telegram Integration](./features/telegram.md)** -- Grammy bot, authorization, typing indicators, Markdown-to-HTML, message chunking, reactions.
+- **[Scheduler / Reminders](./features/scheduler.md)** -- Croner scheduling, cron expressions, one-shot reminders, 30s sync loop.
+- **[CLI Interface](./features/cli.md)** -- Citty CLI: REPL, one-shot, direct tool invocation.
+- **[System Prompt](./features/system-prompt.md)** -- Static system prompt + dynamic context preamble.
+
+## Shared Packages
+
+- **[Cairn](./packages/cairn.md)** -- Memory substrate shared by Construct, Cortex, and Deck. Observer/reflector pipeline, embeddings, graph extraction, context building.
 
 ## Guides
 
-- **[Deployment Guide](./guides/deployment.md)** -- Docker deployment (primary), volume layout, self-deploy behavior in Docker vs systemd, image rebuilds, and legacy systemd setup.
-- **[Security Considerations](./guides/security.md)** -- Self-modification safety gates, secrets management, Docker security, extension trust model, and Telegram authorization.
-- **[Environment Configuration](./guides/environment.md)** -- All environment variables (required and optional), Zod validation, EXTENSIONS_DIR defaults, and EXT_* secret syncing.
-- **[Development Workflow](./guides/development.md)** -- npm scripts, TypeScript configuration, testing with Vitest, logging with Logtape, self-deploy pipeline, dev mode differences, and dependency inventory.
-
-## Quick Reference
-
-### Directory Structure
-
-```
-src/
-  main.ts              Entry point (startup orchestrator)
-  agent.ts             processMessage() -- the central pipeline
-  system-prompt.ts     System prompt construction
-  embeddings.ts        OpenRouter embeddings + cosine similarity
-  env.ts               Zod-validated environment config
-  logger.ts            Logtape logging with file rotation
-  db/
-    index.ts           Custom Kysely dialect for node:sqlite
-    schema.ts          TypeScript table types
-    queries.ts         All query functions
-    migrate.ts         Migration runner
-    migrations/        001-initial through 006-observational-memory
-  memory/
-    index.ts           MemoryManager facade (graph + observational memory)
-    observer.ts        Observer LLM -- compresses messages into observations
-    reflector.ts       Reflector LLM -- condenses observations
-    context.ts         Observation rendering for context injection
-    tokens.ts          Token estimation utilities
-    types.ts           Shared types (Observation, GraphNode, GraphEdge, etc.)
-    graph/
-      index.ts         processMemoryForGraph() orchestrator
-      extract.ts       Entity/relationship extraction via LLM
-      queries.ts       Graph node/edge CRUD, traversal, search
-  tools/
-    packs.ts           Pack definitions, selection, embedding cache
-    core/              Memory, schedule, secret, identity, usage tools
-    self/              Source read/edit, test, deploy, logs, status, extension reload
-    web/               Web read (Jina), web search (Tavily)
-    telegram/          React, reply-to, pin, unpin, get-pinned
-  extensions/
-    index.ts           Singleton registry, init, reload
-    loader.ts          File loading (identity, skills, dynamic tools via jiti)
-    embeddings.ts      Skill + dynamic pack embedding caches
-    secrets.ts         Secret CRUD and env sync
-    types.ts           Extension type definitions
-  telegram/
-    bot.ts             Grammy bot, message/reaction handlers
-    index.ts           Standalone Telegram entry point
-    types.ts           TelegramContext, TelegramSideEffects
-  scheduler/
-    index.ts           Croner job management
-cli/
-  index.ts             Citty CLI (REPL, one-shot, tool invoke)
-```
-
-### Tech Stack
-
-| Component | Library |
-|-----------|---------|
-| Runtime | Node.js + tsx |
-| Agent | @mariozechner/pi-agent-core |
-| LLM | OpenRouter (OpenAI-compatible) |
-| Database | node:sqlite + Kysely |
-| Telegram | Grammy |
-| CLI | Citty |
-| Scheduler | Croner |
-| Testing | Vitest |
-| Dynamic loading | jiti |
-| Schemas | @sinclair/typebox (tools), Zod (env) |
-| Logging | @logtape/logtape |
+- **[Deployment Guide](./guides/deployment.md)** -- Docker and systemd deployment, self-deploy behavior.
+- **[Security Considerations](./guides/security.md)** -- Self-modification safety, secrets, extension trust, Telegram auth.
+- **[Environment Configuration](./guides/environment.md)** -- All env vars across all apps, Zod validation.
+- **[Development Workflow](./guides/development.md)** -- Just commands, testing, logging, TypeScript config.

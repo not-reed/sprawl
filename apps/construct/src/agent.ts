@@ -66,7 +66,7 @@ export interface AgentResponse {
 }
 
 export interface ProcessMessageOpts {
-  source: 'telegram' | 'cli'
+  source: 'telegram' | 'cli' | 'scheduler'
   externalId: string | null
   chatId?: string
   telegram?: TelegramContext
