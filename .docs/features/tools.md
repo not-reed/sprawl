@@ -108,7 +108,7 @@ Results are merged and deduplicated.
 
 **memory_forget** -- Soft-deletes (archives) a memory by ID, or searches for candidates if given a query.
 
-**schedule_create** -- Creates a one-shot (`run_at`) or recurring (`cron_expression`) schedule. The `chat_id` is injected automatically from conversation context.
+**schedule_create** -- Creates a one-shot (`run_at`) or recurring (`cron_expression`) schedule. Supports two modes: `message` for static text delivery, or `prompt` for agent-executed tasks with full tool access via `processMessage()`. Includes two-pass dedup (Levenshtein + embedding similarity). The `chat_id` is injected automatically from conversation context. See [Scheduler](./scheduler.md) for details.
 
 **schedule_list** -- Lists all active (or all) schedules.
 

@@ -11,7 +11,7 @@ dev: construct-dev
 
 # Run construct in dev mode with file watching
 construct-dev:
-    node --env-file=.env --import=tsx --watch-path=apps/construct/src apps/construct/src/main.ts
+    node --env-file=.env.construct --import=tsx --watch-path=apps/construct/src apps/construct/src/main.ts
 
 # Run deck in dev mode
 deck-dev instance:
@@ -44,13 +44,13 @@ typecheck:
 # --- DB ---
 
 # Run database migrations
-db-migrate instance="":
+db-migrate instance="construct":
     node --env-file=.env.{{instance}} --import=tsx apps/construct/src/db/migrate.ts
 
 # --- CLI ---
 
 # Run construct CLI
-cli instance="" *args="":
+cli instance="construct" *args="":
     node --env-file=.env.{{instance}} --import=tsx apps/construct/src/cli/index.ts {{args}}
 
 # --- Multi-instance ---

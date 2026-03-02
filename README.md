@@ -15,6 +15,8 @@
 
 **The Sprawl** is a monorepo of personal AI tools -- a constellation of daemons, agents, and memory systems wired together through shared databases and a common memory substrate. Built with pnpm workspaces, orchestrated with [Just](https://github.com/casey/just).
 
+> **Fair warning:** Built for one operator. No support, no warranty, no promise any of this works. If you plug in anyway, whatever happens is yours to deal with.
+
 ## The Wire
 
 ```

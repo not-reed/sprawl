@@ -4,12 +4,13 @@ Documentation for the Sprawl monorepo: five apps, two shared packages, one memor
 
 ## Apps
 
+- **[Construct](./apps/construct.md)** -- Personal AI braindump companion. Telegram + CLI + scheduler interfaces, LLM agent with tools, three-layer memory, self-modification, extensions.
 - **[Cortex](./apps/cortex.md)** -- Crypto market intelligence daemon. Ingests prices + news, feeds them through Cairn's memory pipeline, generates LLM-grounded trading signals.
 - **[Synapse](./apps/synapse.md)** -- Paper trading daemon. Reads Cortex signals, sizes positions by confidence, manages risk with stop-losses and drawdown limits.
 - **[Deck](./apps/deck.md)** -- Memory graph explorer. Hono REST API + React SPA with D3-force graph visualization, memory browser, and observation timeline.
 - **[Optic](./apps/optic.md)** -- Terminal trading dashboard. Ratatui TUI that reads Cortex + Synapse DBs. Market view (prices, charts, news, signals, graph) and trading view (positions, trades, risk events).
 
-## Construct (flagship)
+## Construct (flagship) -- feature deep-dives
 
 ### Architecture
 
@@ -23,7 +24,7 @@ Documentation for the Sprawl monorepo: five apps, two shared packages, one memor
 - **[Extension System](./features/extensions.md)** -- User-authored skills (Markdown) and dynamic tools (TypeScript via jiti). Identity files, secrets management, reload mechanism.
 - **[Database Layer](./features/database.md)** -- SQLite via node:sqlite + Kysely. Tables, FTS5 search, embedding storage, query functions.
 - **[Telegram Integration](./features/telegram.md)** -- Grammy bot, authorization, typing indicators, Markdown-to-HTML, message chunking, reactions.
-- **[Scheduler / Reminders](./features/scheduler.md)** -- Croner scheduling, cron expressions, one-shot reminders, 30s sync loop.
+- **[Scheduler / Reminders](./features/scheduler.md)** -- Croner scheduling with two execution modes: static messages and agent prompts (full tool access via `processMessage()`). Cron + one-shot timing, dedup, 30s sync loop.
 - **[CLI Interface](./features/cli.md)** -- Citty CLI: REPL, one-shot, direct tool invocation.
 - **[System Prompt](./features/system-prompt.md)** -- Static system prompt + dynamic context preamble.
 

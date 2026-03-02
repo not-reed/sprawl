@@ -287,7 +287,7 @@ $EXTENSIONS_DIR/
 
 ## Environment Variables
 
-Each app reads from its own env file (`.env`, `.env.cortex`, `.env.synapse`, etc.).
+All env files live in the repo root with the naming convention `.env.<app>` (e.g. `.env.construct`, `.env.cortex`, `.env.synapse`, `.env.deck`). Example files: `.env.<app>.example`. The Justfile passes these via `node --env-file=.env.<app>`. All SQLite databases go in `./data/` so apps can share DBs by path.
 
 ### Construct
 

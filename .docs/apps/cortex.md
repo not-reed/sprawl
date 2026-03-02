@@ -48,8 +48,8 @@ CryptoPanic ────┐                              │               │
 CryptoCompare ──┴─> news_items                 │               ↓
                         │                      │         Synapse reads
                         ↓                      │
-                  Cairn pipeline                │
-                  (observe → promote →          │
+                  Cairn pipeline               │
+                  (observe → promote →         │
                    reflect → graph)  ──────────┘
                         │
                      memories + graph_nodes + graph_edges

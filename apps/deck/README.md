@@ -11,7 +11,7 @@
 
 ---
 
-**Deck** is the observability layer. A web UI for navigating the knowledge graph, searching memories, and tracing the observation pipeline. D3-force visualization on canvas, Hono API on the backend, React on the front. You see what the construct sees.
+**Deck** is the observability layer for any app powered by [Cairn](../../packages/cairn/). Point it at a SQLite database with Cairn tables and get a web UI for navigating the knowledge graph, searching memories, and tracing the observation pipeline. D3-force visualization on canvas, Hono API on the backend, React on the front. Works with Construct, Cortex, or any future Cairn-backed app.
 
 ## Interface
 
@@ -34,7 +34,7 @@
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-Three views. One database. Everything cross-linked.
+Three views. Any Cairn database. Everything cross-linked.
 
 ## Graph View
 
@@ -88,7 +88,7 @@ Priority badges (low/medium/high), generation numbers, token counts, superseded 
 ╚═══════════════════════╤══════════════════════════════════╝
                         │ kysely
 ╔═══════════════════════▼══════════════════════════════════╗
-║  SQLite (construct's memory store)                      ║
+║  SQLite (any Cairn-backed database)                     ║
 ║  memories │ graph_nodes │ graph_edges │ observations     ║
 ╚══════════════════════════════════════════════════════════╝
 ```
@@ -130,17 +130,20 @@ web/
 ## Jacking In
 
 ```bash
-pnpm start                # boot hono server on :4800
-pnpm typecheck            # static analysis
-cd web && pnpm dev        # vite dev server for frontend
-cd web && pnpm build      # build to web/dist/ (served by hono in prod)
+# From monorepo root — point at any Cairn DB instance:
+just deck-dev construct   # browse construct's memory (reads .env.construct)
+just deck-dev cortex      # browse cortex's memory (reads .env.cortex)
+
+# Frontend dev
+cd apps/deck/web && pnpm dev    # vite dev server
+cd apps/deck/web && pnpm build  # build to web/dist/ (served by hono in prod)
 ```
 
 ## Environment
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | Path to construct's SQLite database |
+| `DATABASE_URL` | Path to any Cairn-backed SQLite database |
 | `OPENROUTER_API_KEY` | Embedding search (optional -- falls back to FTS) |
 | `EMBEDDING_MODEL` | Default: `qwen/qwen3-embedding-4b` |
 | `PORT` | Default: `4800` |
