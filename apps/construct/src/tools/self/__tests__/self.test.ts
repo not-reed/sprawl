@@ -4,25 +4,25 @@ import { writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { createSelfReadTool } from '../self-read.js'
 import { createSelfEditTool } from '../self-edit.js'
 
+// Simulates monorepo root as projectRoot
 const testRoot = resolve(import.meta.dirname, '../../../../.test-project')
 
-// Set up a fake project structure for self-aware tool tests
 function setupTestProject() {
   rmSync(testRoot, { recursive: true, force: true })
-  mkdirSync(resolve(testRoot, 'src/tools'), { recursive: true })
-  mkdirSync(resolve(testRoot, 'cli'), { recursive: true })
+  mkdirSync(resolve(testRoot, 'apps/construct/src/tools'), { recursive: true })
+  mkdirSync(resolve(testRoot, 'apps/construct/cli'), { recursive: true })
+  mkdirSync(resolve(testRoot, 'packages/cairn/src'), { recursive: true })
   writeFileSync(
-    resolve(testRoot, 'src/tools/example.ts'),
+    resolve(testRoot, 'apps/construct/src/tools/example.ts'),
     'export const hello = "world"\n',
   )
   writeFileSync(
-    resolve(testRoot, 'CLAUDE.md'),
-    '# Test Project\n',
+    resolve(testRoot, 'packages/cairn/src/index.ts'),
+    'export const cairn = true\n',
   )
-  writeFileSync(
-    resolve(testRoot, 'package.json'),
-    '{"name": "test"}\n',
-  )
+  writeFileSync(resolve(testRoot, 'CLAUDE.md'), '# Test Project\n')
+  writeFileSync(resolve(testRoot, 'package.json'), '{"name": "test"}\n')
+  writeFileSync(resolve(testRoot, 'Justfile'), 'dev:\n\techo dev\n')
 }
 
 function cleanupTestProject() {
@@ -30,14 +30,27 @@ function cleanupTestProject() {
 }
 
 describe('self_read_source', () => {
-  it('reads a file within src/', async () => {
+  it('reads a file within apps/', async () => {
     setupTestProject()
     try {
       const tool = createSelfReadTool(testRoot)
-      const result = await tool.execute('t1', { path: 'src/tools/example.ts' })
+      const result = await tool.execute('t1', { path: 'apps/construct/src/tools/example.ts' })
 
       expect(result.output).toContain('hello')
       expect(result.output).toContain('world')
+      expect((result.details as any).type).toBe('file')
+    } finally {
+      cleanupTestProject()
+    }
+  })
+
+  it('reads a file within packages/', async () => {
+    setupTestProject()
+    try {
+      const tool = createSelfReadTool(testRoot)
+      const result = await tool.execute('t1', { path: 'packages/cairn/src/index.ts' })
+
+      expect(result.output).toContain('cairn')
       expect((result.details as any).type).toBe('file')
     } finally {
       cleanupTestProject()
@@ -48,7 +61,7 @@ describe('self_read_source', () => {
     setupTestProject()
     try {
       const tool = createSelfReadTool(testRoot)
-      const result = await tool.execute('t1', { path: 'src/tools' })
+      const result = await tool.execute('t1', { path: 'apps/construct/src/tools' })
 
       expect(result.output).toContain('example.ts')
       expect((result.details as any).type).toBe('directory')
@@ -64,6 +77,18 @@ describe('self_read_source', () => {
       const result = await tool.execute('t1', { path: 'CLAUDE.md' })
 
       expect(result.output).toContain('Test Project')
+    } finally {
+      cleanupTestProject()
+    }
+  })
+
+  it('allows reading Justfile', async () => {
+    setupTestProject()
+    try {
+      const tool = createSelfReadTool(testRoot)
+      const result = await tool.execute('t1', { path: 'Justfile' })
+
+      expect(result.output).toContain('dev')
     } finally {
       cleanupTestProject()
     }
@@ -94,6 +119,18 @@ describe('self_read_source', () => {
       cleanupTestProject()
     }
   })
+
+  it('blocks path traversal through allowed prefix', async () => {
+    setupTestProject()
+    try {
+      const tool = createSelfReadTool(testRoot)
+      const result = await tool.execute('t1', { path: 'apps/../../../../etc/passwd' })
+
+      expect(result.output).toContain('Access denied')
+    } finally {
+      cleanupTestProject()
+    }
+  })
 })
 
 describe('self_edit_source', () => {
@@ -102,7 +139,7 @@ describe('self_edit_source', () => {
     try {
       const tool = createSelfEditTool(testRoot)
       const result = await tool.execute('t1', {
-        path: 'src/tools/example.ts',
+        path: 'apps/construct/src/tools/example.ts',
         search: '"world"',
         replace: '"universe"',
       })
@@ -111,7 +148,7 @@ describe('self_edit_source', () => {
 
       // Verify the edit
       const read = createSelfReadTool(testRoot)
-      const readResult = await read.execute('t2', { path: 'src/tools/example.ts' })
+      const readResult = await read.execute('t2', { path: 'apps/construct/src/tools/example.ts' })
       expect(readResult.output).toContain('universe')
       expect(readResult.output).not.toContain('world')
     } finally {
@@ -119,7 +156,23 @@ describe('self_edit_source', () => {
     }
   })
 
-  it('rejects edits outside src/ and cli/', async () => {
+  it('edits a file in packages/', async () => {
+    setupTestProject()
+    try {
+      const tool = createSelfEditTool(testRoot)
+      const result = await tool.execute('t1', {
+        path: 'packages/cairn/src/index.ts',
+        search: 'true',
+        replace: 'false',
+      })
+
+      expect(result.output).toContain('replaced 1 occurrence')
+    } finally {
+      cleanupTestProject()
+    }
+  })
+
+  it('rejects edits outside apps/ and packages/', async () => {
     setupTestProject()
     try {
       const tool = createSelfEditTool(testRoot)
@@ -138,13 +191,13 @@ describe('self_edit_source', () => {
   it('rejects ambiguous search strings', async () => {
     setupTestProject()
     writeFileSync(
-      resolve(testRoot, 'src/tools/example.ts'),
+      resolve(testRoot, 'apps/construct/src/tools/example.ts'),
       'const a = 1\nconst b = 1\n',
     )
     try {
       const tool = createSelfEditTool(testRoot)
       const result = await tool.execute('t1', {
-        path: 'src/tools/example.ts',
+        path: 'apps/construct/src/tools/example.ts',
         search: '= 1',
         replace: '= 2',
       })
@@ -160,12 +213,28 @@ describe('self_edit_source', () => {
     try {
       const tool = createSelfEditTool(testRoot)
       const result = await tool.execute('t1', {
-        path: 'src/tools/example.ts',
+        path: 'apps/construct/src/tools/example.ts',
         search: 'nonexistent',
         replace: 'something',
       })
 
       expect(result.output).toContain('not found')
+    } finally {
+      cleanupTestProject()
+    }
+  })
+
+  it('blocks path traversal through allowed prefix', async () => {
+    setupTestProject()
+    try {
+      const tool = createSelfEditTool(testRoot)
+      const result = await tool.execute('t1', {
+        path: 'apps/../../../../etc/passwd',
+        search: 'a',
+        replace: 'b',
+      })
+
+      expect(result.output).toContain('Access denied')
     } finally {
       cleanupTestProject()
     }

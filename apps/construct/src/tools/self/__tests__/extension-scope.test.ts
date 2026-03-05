@@ -13,9 +13,9 @@ describe('self-read with extensions scope', () => {
     projectRoot = await mkdtemp(join(tmpdir(), 'proj-'))
     extensionsDir = await mkdtemp(join(tmpdir(), 'ext-'))
 
-    // Create project files
-    await mkdir(join(projectRoot, 'src'), { recursive: true })
-    await writeFile(join(projectRoot, 'src', 'main.ts'), 'console.log("hello")')
+    // Create project files (monorepo layout)
+    await mkdir(join(projectRoot, 'apps/construct/src'), { recursive: true })
+    await writeFile(join(projectRoot, 'apps/construct/src', 'main.ts'), 'console.log("hello")')
 
     // Create extension files
     await mkdir(join(extensionsDir, 'skills'), { recursive: true })
@@ -46,9 +46,9 @@ describe('self-read with extensions scope', () => {
     expect(result.output).toContain('test.md')
   })
 
-  it('still reads project src/ files', async () => {
+  it('still reads project apps/ files', async () => {
     const tool = createSelfReadTool(projectRoot, extensionsDir)
-    const result = await tool.execute('t1', { path: 'src/main.ts' })
+    const result = await tool.execute('t1', { path: 'apps/construct/src/main.ts' })
     expect(result.output).toContain('console.log')
   })
 
@@ -67,8 +67,8 @@ describe('self-edit with extensions scope', () => {
     projectRoot = await mkdtemp(join(tmpdir(), 'proj-'))
     extensionsDir = await mkdtemp(join(tmpdir(), 'ext-'))
 
-    await mkdir(join(projectRoot, 'src'), { recursive: true })
-    await writeFile(join(projectRoot, 'src', 'test.ts'), 'const x = 1')
+    await mkdir(join(projectRoot, 'apps/construct/src'), { recursive: true })
+    await writeFile(join(projectRoot, 'apps/construct/src', 'test.ts'), 'const x = 1')
 
     await mkdir(join(extensionsDir, 'skills'), { recursive: true })
     await writeFile(join(extensionsDir, 'skills', 'existing.md'), 'old content')

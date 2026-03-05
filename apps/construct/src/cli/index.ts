@@ -8,6 +8,7 @@ import { runMigrations } from '../db/migrate.js'
 import { env } from '../env.js'
 import { processMessage, isDev } from '../agent.js'
 import { selectAndCreateTools } from '../tools/packs.js'
+import { initExtensions, selectAndCreateDynamicTools } from '../extensions/index.js'
 
 const main = defineCommand({
   meta: {
@@ -31,7 +32,7 @@ const main = defineCommand({
     },
     reembed: {
       type: 'boolean',
-      description: 'Re-embed all memories using the current EMBEDDING_MODEL',
+      description: 'Re-embed all memories and graph nodes using the current EMBEDDING_MODEL',
     },
     backfill: {
       type: 'boolean',
@@ -46,7 +47,7 @@ const main = defineCommand({
 
     // Re-embed all memories
     if (args.reembed) {
-      await reembedMemories(db)
+      await reembedAll(db)
       process.exit(0)
     }
 
@@ -112,7 +113,7 @@ async function runTool(
   argsJson?: string,
 ) {
   // Load all tools (no query embedding → all packs selected)
-  const tools = selectAndCreateTools(undefined, {
+  const ctx = {
     db,
     chatId: 'cli',
     apiKey: env.OPENROUTER_API_KEY,
@@ -122,7 +123,14 @@ async function runTool(
     tavilyApiKey: env.TAVILY_API_KEY,
     logFile: env.LOG_FILE,
     isDev,
-  })
+  }
+  const builtinTools = selectAndCreateTools(undefined, ctx)
+
+  // Also load dynamic extension tools
+  await initExtensions(env.EXTENSIONS_DIR, env.OPENROUTER_API_KEY, db, env.EMBEDDING_MODEL)
+  const dynamicTools = selectAndCreateDynamicTools(undefined, ctx)
+
+  const tools = [...builtinTools, ...dynamicTools]
   const tool = tools.find((t) => t.name === toolName)
 
   if (!tool) {
@@ -141,11 +149,13 @@ async function runTool(
   console.log(result.output)
 }
 
-async function reembedMemories(db: Kysely<Database>) {
+async function reembedAll(db: Kysely<Database>) {
   const model = env.EMBEDDING_MODEL
-  console.log(`Re-embedding all memories using model: ${model}\n`)
+  console.log(`Re-embedding all data using model: ${model}\n`)
 
-  // Fetch all memories with content
+  // Phase 1 — Memories
+  console.log('=== Phase 1: Memories ===')
+
   const memories = await db
     .selectFrom('memories')
     .select(['id', 'content'])
@@ -154,10 +164,10 @@ async function reembedMemories(db: Kysely<Database>) {
 
   console.log(`Found ${memories.length} memories to re-embed`)
 
-  let success = 0
-  let failed = 0
+  let m_success = 0
+  let m_failed = 0
 
-  for (const memory of memories) {
+  await pooled(memories, 10, async (memory) => {
     try {
       const embedding = await generateEmbedding(env.OPENROUTER_API_KEY, memory.content, model)
       await db
@@ -165,16 +175,53 @@ async function reembedMemories(db: Kysely<Database>) {
         .set({ embedding: JSON.stringify(embedding) })
         .where('id', '=', memory.id)
         .execute()
-      success++
-      process.stdout.write(`\r  ${success + failed}/${memories.length} (${failed} failed)`)
+      m_success++
     } catch (err) {
-      failed++
-      process.stdout.write(`\r  ${success + failed}/${memories.length} (${failed} failed)`)
-      console.error(`\n  Failed to embed memory ${memory.id}: ${err instanceof Error ? err.message : err}`)
+      m_failed++
+      console.error(`\n  Failed memory ${memory.id}: ${err instanceof Error ? err.message : err}`)
     }
-  }
+    process.stdout.write(`\r  ${m_success + m_failed}/${memories.length} (${m_failed} failed)`)
+  })
 
-  console.log(`\n\nDone: ${success} re-embedded, ${failed} failed`)
+  if (memories.length > 0) console.log()
+  console.log(`Done: ${m_success} re-embedded, ${m_failed} failed`)
+
+  // Phase 2 — Graph nodes
+  console.log('\n=== Phase 2: Graph nodes ===')
+
+  const nodes = await db
+    .selectFrom('graph_nodes')
+    .select(['id', 'display_name', 'description'])
+    .execute()
+
+  console.log(`Found ${nodes.length} graph nodes to re-embed`)
+
+  let n_success = 0
+  let n_failed = 0
+
+  await pooled(nodes, 10, async (node) => {
+    try {
+      const text = node.description
+        ? `${node.display_name}: ${node.description}`
+        : node.display_name
+      const embedding = await generateEmbedding(env.OPENROUTER_API_KEY, text, model)
+      await db
+        .updateTable('graph_nodes')
+        .set({ embedding: JSON.stringify(embedding) })
+        .where('id', '=', node.id)
+        .execute()
+      n_success++
+    } catch (err) {
+      n_failed++
+      console.error(`\n  Failed node ${node.id}: ${err instanceof Error ? err.message : err}`)
+    }
+    process.stdout.write(`\r  ${n_success + n_failed}/${nodes.length} (${n_failed} failed)`)
+  })
+
+  if (nodes.length > 0) console.log()
+  console.log(`Done: ${n_success} re-embedded, ${n_failed} failed`)
+
+  console.log('\n=== Re-embed complete ===')
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))

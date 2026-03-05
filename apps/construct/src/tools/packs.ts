@@ -28,6 +28,7 @@ import { createTelegramReplyToTool } from './telegram/telegram-reply-to.js'
 import { createTelegramPinTool } from './telegram/telegram-pin.js'
 import { createTelegramUnpinTool } from './telegram/telegram-unpin.js'
 import { createTelegramGetPinnedTool } from './telegram/telegram-get-pinned.js'
+import { createTelegramAskTool } from './telegram/telegram-ask.js'
 
 // --- Types ---
 
@@ -122,6 +123,7 @@ export const TOOL_PACKS: ToolPack[] = [
       (ctx) => ctx.telegram ? createTelegramPinTool(ctx.telegram) as InternalTool<TSchema> : null,
       (ctx) => ctx.telegram ? createTelegramUnpinTool(ctx.telegram) as InternalTool<TSchema> : null,
       (ctx) => ctx.telegram ? createTelegramGetPinnedTool(ctx.telegram) as InternalTool<TSchema> : null,
+      (ctx) => ctx.telegram ? createTelegramAskTool(ctx.db, ctx.telegram) as InternalTool<TSchema> : null,
     ],
   },
 ]

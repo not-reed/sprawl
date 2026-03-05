@@ -220,6 +220,66 @@ export async function getUsageStats(
   }
 }
 
+// --- Pending Asks ---
+
+export async function createPendingAsk(
+  db: DB,
+  ask: { id: string; conversationId: string; chatId: string; question: string; options?: string[] },
+) {
+  // Auto-resolve any existing pending ask for this chat
+  await db
+    .updateTable('pending_asks')
+    .set({ resolved_at: sql<string>`datetime('now')`, response: '[superseded]' })
+    .where('chat_id', '=', ask.chatId)
+    .where('resolved_at', 'is', null)
+    .execute()
+
+  await db
+    .insertInto('pending_asks')
+    .values({
+      id: ask.id,
+      conversation_id: ask.conversationId,
+      chat_id: ask.chatId,
+      question: ask.question,
+      options: ask.options ? JSON.stringify(ask.options) : null,
+    })
+    .execute()
+}
+
+export async function getPendingAsk(db: DB, chatId: string) {
+  return db
+    .selectFrom('pending_asks')
+    .selectAll()
+    .where('chat_id', '=', chatId)
+    .where('resolved_at', 'is', null)
+    .where('created_at', '>=', sql<string>`datetime('now', '-10 minutes')`)
+    .executeTakeFirst()
+}
+
+export async function getPendingAskById(db: DB, askId: string) {
+  return db
+    .selectFrom('pending_asks')
+    .selectAll()
+    .where('id', '=', askId)
+    .executeTakeFirst()
+}
+
+export async function resolvePendingAsk(db: DB, askId: string, response: string) {
+  await db
+    .updateTable('pending_asks')
+    .set({ resolved_at: sql<string>`datetime('now')`, response })
+    .where('id', '=', askId)
+    .execute()
+}
+
+export async function setPendingAskTelegramId(db: DB, askId: string, msgId: number) {
+  await db
+    .updateTable('pending_asks')
+    .set({ telegram_message_id: msgId })
+    .where('id', '=', askId)
+    .execute()
+}
+
 // --- Settings ---
 
 export async function getSetting(db: DB, key: string) {

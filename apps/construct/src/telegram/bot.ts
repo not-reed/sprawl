@@ -1,4 +1,4 @@
-import { Bot } from 'grammy'
+import { Bot, InlineKeyboard } from 'grammy'
 import type { Kysely } from 'kysely'
 import { env } from '../env.js'
 import { telegramLog } from '../logger.js'
@@ -8,8 +8,12 @@ import {
   getOrCreateConversation,
   getMessageByTelegramId,
   updateTelegramMessageId,
+  getPendingAsk,
+  getPendingAskById,
+  resolvePendingAsk,
+  setPendingAskTelegramId,
 } from '../db/queries.js'
-import type { TelegramSideEffects, TelegramContext } from './types.js'
+import type { AskPayload, TelegramSideEffects, TelegramContext } from './types.js'
 import { markdownToTelegramHtml } from './format.js'
 
 export function createBot(db: Kysely<Database>) {
@@ -96,6 +100,37 @@ export function createBot(db: Kysely<Database>) {
     }
   }
 
+  /**
+   * Send an ask message with optional inline keyboard buttons.
+   * Returns the sent message so we can track its telegram_message_id.
+   */
+  async function sendAskMessage(chatId: string, payload: AskPayload) {
+    const keyboard = new InlineKeyboard()
+    if (payload.options) {
+      for (let i = 0; i < payload.options.length; i++) {
+        keyboard.text(payload.options[i], `ask:${payload.askId}:${i}`)
+        if (i < payload.options.length - 1) keyboard.row()
+      }
+    }
+
+    const sendOpts = payload.options
+      ? { reply_markup: keyboard }
+      : {}
+
+    try {
+      const sent = await bot.api.sendMessage(
+        chatId,
+        markdownToTelegramHtml(payload.question),
+        { ...sendOpts, parse_mode: 'HTML' as const },
+      )
+      return sent
+    } catch {
+      // HTML parse failed — send as plain text
+      const sent = await bot.api.sendMessage(chatId, payload.question, sendOpts)
+      return sent
+    }
+  }
+
   bot.on('message:text', async (ctx) => {
     const userId = String(ctx.from.id)
     const chatId = String(ctx.chat.id)
@@ -118,6 +153,28 @@ export function createBot(db: Kysely<Database>) {
       await sendTyping()
 
       try {
+        // Check for pending ask — resolve it and prepend soft context
+        let messageText = ctx.message.text
+        const pendingAsk = await getPendingAsk(db, chatId)
+        if (pendingAsk) {
+          await resolvePendingAsk(db, pendingAsk.id, messageText)
+          messageText = `[You had asked: "${pendingAsk.question}". User's next message:]\n${messageText}`
+
+          // Edit original ask message to show answered state + remove keyboard
+          if (pendingAsk.telegram_message_id) {
+            try {
+              await bot.api.editMessageText(
+                chatId,
+                pendingAsk.telegram_message_id,
+                `${pendingAsk.question}\n\n<i>Answered</i>`,
+                { parse_mode: 'HTML', reply_markup: undefined },
+              )
+            } catch (err) {
+              telegramLog.error`Failed to edit ask message: ${err}`
+            }
+          }
+        }
+
         // Build telegram context with mutable side-effects
         const sideEffects: TelegramSideEffects = {}
         const telegramCtx: TelegramContext = {
@@ -130,7 +187,7 @@ export function createBot(db: Kysely<Database>) {
         // Extract reply context if user is replying to a message
         const replyContext = ctx.message.reply_to_message?.text ?? undefined
 
-        const response = await processMessage(db, ctx.message.text, {
+        const response = await processMessage(db, messageText, {
           source: 'telegram',
           externalId: chatId,
           chatId,
@@ -150,6 +207,16 @@ export function createBot(db: Kysely<Database>) {
           }
         }
 
+        // Process side effects: ask payload
+        if (sideEffects.askPayload) {
+          try {
+            const sent = await sendAskMessage(chatId, sideEffects.askPayload)
+            await setPendingAskTelegramId(db, sideEffects.askPayload.askId, sent.message_id)
+          } catch (err) {
+            telegramLog.error`Failed to send ask message: ${err}`
+          }
+        }
+
         // Auto-reply-to the incoming message when multiple messages are queued,
         // so responses thread correctly instead of appearing as disconnected messages
         if (!sideEffects.replyToMessageId && shouldReplyTo(chatId)) {
@@ -165,6 +232,122 @@ export function createBot(db: Kysely<Database>) {
       } catch (err) {
         telegramLog.error`Error processing message: ${err}`
         await ctx.reply('Something went wrong. Check the logs.')
+      } finally {
+        clearInterval(typingInterval)
+      }
+    })
+  })
+
+  bot.on('callback_query:data', async (ctx) => {
+    const userId = String(ctx.from.id)
+    if (!isAuthorized(userId)) {
+      await ctx.answerCallbackQuery({ text: 'Unauthorized.' })
+      return
+    }
+
+    const data = ctx.callbackQuery.data
+    const match = data.match(/^ask:([^:]+):(\d+)$/)
+    if (!match) {
+      await ctx.answerCallbackQuery()
+      return
+    }
+
+    const [, askId, indexStr] = match
+    const optionIndex = parseInt(indexStr, 10)
+    const chatId = String(ctx.chat!.id)
+
+    const ask = await getPendingAskById(db, askId)
+    if (!ask || ask.resolved_at) {
+      await ctx.answerCallbackQuery({ text: 'This question has expired.' })
+      return
+    }
+
+    // Check 10-min expiry
+    const createdAt = new Date(ask.created_at + 'Z').getTime()
+    if (Date.now() - createdAt > 10 * 60 * 1000) {
+      await ctx.answerCallbackQuery({ text: 'This question has expired.' })
+      return
+    }
+
+    const options: string[] = ask.options ? JSON.parse(ask.options) : []
+    const selectedOption = options[optionIndex]
+    if (!selectedOption) {
+      await ctx.answerCallbackQuery({ text: 'Invalid option.' })
+      return
+    }
+
+    // Resolve ask in DB
+    await resolvePendingAsk(db, askId, selectedOption)
+    await ctx.answerCallbackQuery({ text: `Selected: ${selectedOption}` })
+
+    // Edit original message to show selection + remove keyboard
+    try {
+      await ctx.editMessageText(
+        `${ask.question}\n\n<b>${selectedOption}</b>`,
+        { parse_mode: 'HTML', reply_markup: undefined },
+      )
+    } catch (err) {
+      telegramLog.error`Failed to edit ask message after callback: ${err}`
+    }
+
+    // Enqueue synthetic message through processMessage
+    enqueue(chatId, async () => {
+      const sendTyping = () =>
+        bot.api.sendChatAction(chatId, 'typing').catch((err) => {
+          telegramLog.error`Typing indicator failed: ${err}`
+        })
+      const typingInterval = setInterval(sendTyping, 4000)
+      await sendTyping()
+
+      try {
+        const syntheticMessage = `[User answered your question "${ask.question}": ${selectedOption}]`
+
+        const sideEffects: TelegramSideEffects = {}
+        const telegramCtx: TelegramContext = {
+          bot,
+          chatId,
+          incomingMessageId: ctx.callbackQuery.message?.message_id ?? 0,
+          sideEffects,
+        }
+
+        const response = await processMessage(db, syntheticMessage, {
+          source: 'telegram',
+          externalId: chatId,
+          chatId,
+          telegram: telegramCtx,
+        })
+
+        // Process side effects: reaction (on the ask message itself)
+        if (sideEffects.reactToUser && ctx.callbackQuery.message?.message_id) {
+          try {
+            await bot.api.setMessageReaction(chatId, ctx.callbackQuery.message.message_id, [
+              { type: 'emoji', emoji: sideEffects.reactToUser as any },
+            ])
+          } catch (err) {
+            telegramLog.error`Failed to react: ${err}`
+          }
+        }
+
+        // Process side effects: ask payload (agent can chain asks)
+        if (sideEffects.askPayload) {
+          try {
+            const sent = await sendAskMessage(chatId, sideEffects.askPayload)
+            await setPendingAskTelegramId(db, sideEffects.askPayload.askId, sent.message_id)
+          } catch (err) {
+            telegramLog.error`Failed to send ask message: ${err}`
+          }
+        }
+
+        if (!sideEffects.suppressText && response.text.trim()) {
+          await sendReply(
+            { reply: (text: string, extra?: any) => bot.api.sendMessage(chatId, text, extra) },
+            response.text,
+            sideEffects,
+            response.messageId,
+          )
+        }
+      } catch (err) {
+        telegramLog.error`Error processing callback query: ${err}`
       } finally {
         clearInterval(typingInterval)
       }

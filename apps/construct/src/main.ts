@@ -40,7 +40,7 @@ async function main() {
 
   // Start Telegram long polling
   log.info`Construct is running`
-  bot.start({ allowed_updates: ['message', 'message_reaction'] })
+  bot.start({ allowed_updates: ['message', 'message_reaction', 'callback_query'] })
 
   // Graceful shutdown
   const shutdown = async () => {

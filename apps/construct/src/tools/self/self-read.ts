@@ -5,7 +5,7 @@ import { resolve, relative } from 'node:path'
 const SelfReadParams = Type.Object({
   path: Type.String({
     description:
-      'File path relative to project root (e.g. "src/tools/memory-store.ts") or extensions directory (e.g. "extensions/skills/standup.md"). Can also list a directory.',
+      'File path relative to project root (e.g. "apps/construct/src/agent.ts", "packages/cairn/src/index.ts") or extensions directory (e.g. "extensions/skills/standup.md"). Can also list a directory.',
   }),
 })
 
@@ -15,7 +15,7 @@ export function createSelfReadTool(projectRoot: string, extensionsDir?: string) 
   return {
     name: 'self_read_source',
     description:
-      'Read your own source files or extension files. Path must be within src/, cli/, or extensions/ (skills, tools, SOUL.md).',
+      'Read your own source files or extension files. Path must be within apps/, packages/, or extensions/ (skills, tools, SOUL.md).',
     parameters: SelfReadParams,
     execute: async (_toolCallId: string, args: SelfReadInput) => {
       // Resolve extensions/ prefix against extensionsDir
@@ -39,14 +39,16 @@ export function createSelfReadTool(projectRoot: string, extensionsDir?: string) 
         const rel = relative(projectRoot, resolved)
         displayPath = rel
 
-        // Scope check: only allow src/, cli/, package.json, tsconfig.json, CLAUDE.md
+        // Scope check: only allow apps/, packages/, and select config files
         const allowed =
-          rel.startsWith('src/') ||
-          rel.startsWith('cli/') ||
+          rel.startsWith('apps/') ||
+          rel.startsWith('packages/') ||
           rel === 'package.json' ||
           rel === 'tsconfig.json' ||
           rel === 'CLAUDE.md' ||
-          rel === 'PLAN.md'
+          rel === 'PLAN.md' ||
+          rel === 'Justfile' ||
+          rel === 'pnpm-workspace.yaml'
 
         if (!allowed || rel.startsWith('..')) {
           return {

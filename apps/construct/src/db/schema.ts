@@ -7,6 +7,7 @@ export interface Database extends CairnDatabase {
   schedules: ScheduleTable
   settings: SettingTable
   secrets: SecretTable
+  pending_asks: PendingAskTable
   [key: string]: any  // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
@@ -44,3 +45,17 @@ export interface SecretTable {
 }
 
 export type Secret = Selectable<SecretTable>
+
+export interface PendingAskTable {
+  id: string
+  conversation_id: string
+  chat_id: string
+  question: string
+  options: string | null // JSON string[]
+  telegram_message_id: number | null
+  created_at: Generated<string>
+  resolved_at: string | null
+  response: string | null
+}
+
+export type PendingAsk = Selectable<PendingAskTable>

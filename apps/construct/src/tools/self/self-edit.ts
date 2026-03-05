@@ -5,7 +5,7 @@ import { resolve, relative, dirname } from 'node:path'
 const SelfEditParams = Type.Object({
   path: Type.String({
     description:
-      'File path relative to project root (e.g. "src/tools/memory-store.ts") or extensions directory (e.g. "extensions/skills/standup.md")',
+      'File path relative to project root (e.g. "apps/construct/src/agent.ts", "packages/cairn/src/index.ts") or extensions directory (e.g. "extensions/skills/standup.md")',
   }),
   search: Type.String({
     description:
@@ -22,7 +22,7 @@ export function createSelfEditTool(projectRoot: string, extensionsDir?: string) 
   return {
     name: 'self_edit_source',
     description:
-      'Edit your own source files or extension files using search-and-replace. Use empty search string with a path that doesn\'t exist to create a new file. Allowed scopes: src/, cli/, extensions/.',
+      'Edit your own source files or extension files using search-and-replace. Use empty search string with a path that doesn\'t exist to create a new file. Allowed scopes: apps/, packages/, extensions/.',
     parameters: SelfEditParams,
     execute: async (_toolCallId: string, args: SelfEditInput) => {
       // Resolve extensions/ prefix against extensionsDir
@@ -46,8 +46,8 @@ export function createSelfEditTool(projectRoot: string, extensionsDir?: string) 
         const rel = relative(projectRoot, resolved)
         displayPath = rel
 
-        // Scope check: only allow src/ and cli/
-        if ((!rel.startsWith('src/') && !rel.startsWith('cli/')) || rel.startsWith('..')) {
+        // Scope check: only allow apps/ and packages/
+        if ((!rel.startsWith('apps/') && !rel.startsWith('packages/')) || rel.startsWith('..')) {
           return {
             output: `Access denied: "${args.path}" is outside the allowed scope (src/, cli/, extensions/).`,
             details: { error: 'scope_violation' },

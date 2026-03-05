@@ -109,6 +109,12 @@ optic db="./data/cortex.db" synapse="./data/synapse.db":
 optic-build:
     cd apps/optic && cargo build --release
 
+# --- Extensions ---
+
+# Run extension tests
+test-ext pack:
+    cd data/tools/{{pack}} && ../../../apps/construct/node_modules/.bin/vitest run --config vitest.config.ts
+
 # --- Blog ---
 
 # Run blog commands
