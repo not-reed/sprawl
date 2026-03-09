@@ -37,8 +37,8 @@ export async function runBackfill(
   log: (msg: string) => void,
   scope: BackfillScope = 'all',
 ): Promise<BackfillResult> {
-  const statsBefore = await getStats(db as any)
-  const tokens = await getActiveTokens(db as any)
+  const statsBefore = await getStats(db)
+  const tokens = await getActiveTokens(db)
   const skipPrices = scope === 'news'
   const skipNews = scope === 'prices'
 
@@ -56,7 +56,7 @@ export async function runBackfill(
         allPriceData.set(token.id, history)
 
         for (const point of history) {
-          await insertPriceSnapshot(db as any, {
+          await insertPriceSnapshot(db, {
             token_id: token.id,
             price_usd: point.price,
             market_cap: point.marketCap,
@@ -113,7 +113,7 @@ export async function runBackfill(
     }
 
     for (const item of allNews) {
-      const inserted = await insertNewsItem(db as any, {
+      const inserted = await insertNewsItem(db, {
         external_id: item.externalId,
         title: item.title,
         url: item.url,
@@ -130,8 +130,8 @@ export async function runBackfill(
   }
 
   // 3. Chunk chronologically into weekly batches and run cairn pipeline
-  const priceConvId = !skipPrices ? await getOrCreateConversation(db as any, 'cortex', 'prices') : null
-  const newsConvId = !skipNews ? await getOrCreateConversation(db as any, 'cortex', 'news') : null
+  const priceConvId = !skipPrices ? await getOrCreateConversation(db, 'cortex', 'prices') : null
+  const newsConvId = !skipNews ? await getOrCreateConversation(db, 'cortex', 'news') : null
 
   const weekMs = 7 * 24 * 60 * 60 * 1000
   const endTime = Date.now()
@@ -187,7 +187,7 @@ export async function runBackfill(
 
         if (weekPriceLines.length > 0) {
           const msg = `[Week of ${weekLabel}] Price data:\n${weekPriceLines.join('\n')}`
-          await saveMessage(db as any, { conversation_id: priceConvId, role: 'user', content: msg })
+          await saveMessage(db, { conversation_id: priceConvId, role: 'user', content: msg })
           wroteMessages = true
         }
       }
@@ -246,7 +246,7 @@ export async function runBackfill(
       })
 
       const msg = `News batch ${i / BATCH_SIZE + 1} (${firstDate} to ${lastDate}, ${batch.length} articles):\n${newsLines.join('\n')}`
-      await saveMessage(db as any, { conversation_id: newsConvId, role: 'user', content: msg })
+      await saveMessage(db, { conversation_id: newsConvId, role: 'user', content: msg })
       newsBatchCount++
     }
 
@@ -265,7 +265,7 @@ export async function runBackfill(
     }
   }
 
-  const statsAfter = await getStats(db as any)
+  const statsAfter = await getStats(db)
 
   const result: BackfillResult = {
     days,

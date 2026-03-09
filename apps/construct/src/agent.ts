@@ -20,7 +20,8 @@ import {
   saveMessage,
   trackUsage,
 } from './db/queries.js'
-import { generateEmbedding, MemoryManager, type WorkerModelConfig } from '@repo/cairn'
+import { generateEmbedding, estimateTokens, type WorkerModelConfig } from '@repo/cairn'
+import { ConstructMemoryManager, CONSTRUCT_OBSERVER_PROMPT, CONSTRUCT_REFLECTOR_PROMPT } from './memory.js'
 import { selectAndCreateTools, type InternalTool } from './tools/packs.js'
 import { selectSkills, getExtensionRegistry, selectAndCreateDynamicTools } from './extensions/index.js'
 
@@ -92,12 +93,14 @@ export async function processMessage(
 
   // 2. Create MemoryManager for this conversation
   const workerConfig: WorkerModelConfig | null = env.MEMORY_WORKER_MODEL
-    ? { apiKey: env.OPENROUTER_API_KEY, model: env.MEMORY_WORKER_MODEL }
+    ? { apiKey: env.OPENROUTER_API_KEY, model: env.MEMORY_WORKER_MODEL, extraBody: { reasoning: { max_tokens: 1 } } }
     : null
-  const memoryManager = new MemoryManager(db, {
+  const memoryManager = new ConstructMemoryManager(db, {
     workerConfig,
     embeddingModel: env.EMBEDDING_MODEL,
     apiKey: env.OPENROUTER_API_KEY,
+    observerPrompt: CONSTRUCT_OBSERVER_PROMPT,
+    reflectorPrompt: CONSTRUCT_REFLECTOR_PROMPT,
   })
 
   // 3. Load context: observations (stable prefix) + un-observed messages (active suffix)
@@ -105,16 +108,15 @@ export async function processMessage(
   const { observationsText, activeMessages, hasObservations, evictedObservations } =
     await memoryManager.buildContext(conversationId)
 
-  let historyMessages: Array<{ role: string; content: string; telegram_message_id: number | null }>
+  let historyMessages: typeof activeMessages
   if (hasObservations) {
     // Use only un-observed messages — observations cover the rest
     historyMessages = activeMessages
     agentLog.debug`Context: ${observationsText.split('\n').length} observations, ${activeMessages.length} active messages${evictedObservations > 0 ? `, ${evictedObservations} evicted` : ''}`
   } else {
     // No observations yet — fall back to recent messages (current behavior)
-    const recentMessages = await getRecentMessages(db, conversationId, 20)
-    historyMessages = recentMessages
-    agentLog.debug`Loaded ${recentMessages.length} history messages (no observations)`
+    historyMessages = await getRecentMessages(db, conversationId, 20)
+    agentLog.debug`Loaded ${historyMessages.length} history messages (no observations)`
   }
 
   // 4. Load memories for context injection
@@ -208,8 +210,8 @@ export async function processMessage(
       agent.appendMessage({
         role: 'assistant',
         content: [{ type: 'text', text: tgPrefix + msg.content }],
-        api: 'openrouter' as any,
-        provider: 'openrouter' as any,
+        api: 'openrouter',
+        provider: 'openrouter',
         model: env.OPENROUTER_MODEL,
         usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
         stopReason: 'stop',
@@ -257,7 +259,21 @@ export async function processMessage(
     telegram_message_id: opts.incomingTelegramMessageId ?? null,
   })
 
-  // 12. Run agent — prepend context preamble to first message
+  // 12. Log context breakdown for auditing
+  const systemPromptText = getSystemPrompt(identity)
+  const systemTokens = estimateTokens(systemPromptText)
+  const observationTokens = observationsText ? estimateTokens(observationsText) : 0
+  const recentMemTokens = recentMemories.reduce((sum, m) => sum + estimateTokens(m.content), 0)
+  const relevantMemTokens = relevantMemories.reduce((sum, m) => sum + estimateTokens(m.content), 0)
+  const skillTokens = selectedSkills.reduce((sum, s) => sum + estimateTokens(s.body), 0)
+  const historyTokens = historyMessages.reduce((sum, m) => sum + estimateTokens(m.content), 0)
+  const toolCount = tools.length
+  const preambleTokens = estimateTokens(preamble)
+  const totalContextTokens = systemTokens + preambleTokens + historyTokens
+  agentLog.info`Context breakdown: system=${systemTokens} observations=${observationTokens} recentMem=${recentMemTokens}(${recentMemories.length}) relevantMem=${relevantMemTokens}(${relevantMemories.length}) skills=${skillTokens}(${selectedSkills.length}) history=${historyTokens}(${historyMessages.length}msgs) tools=${toolCount} preamble=${preambleTokens} total=${totalContextTokens}`
+
+  // 13. Run agent — prepend context preamble to first message
+  // (subsequent steps renumbered: save=14, usage=15, observer=16)
   agentLog.debug`Prompting agent`
   await agent.prompt(preamble + message)
   await agent.waitForIdle()

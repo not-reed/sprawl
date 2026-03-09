@@ -20,31 +20,34 @@
 ## The Wire
 
 ```
-╔═══════════════╗  ╔═══════════════╗  ╔═══════════════╗  ╔═══════════════╗  ╔═══════════════╗
-║   CONSTRUCT   ║  ║    CORTEX     ║  ║     DECK      ║  ║    SYNAPSE    ║  ║     OPTIC     ║
-║  braindump    ║  ║  market intel ║  ║  graph UI     ║  ║  paper trade  ║  ║  trade        ║
-║  companion    ║  ║  pipeline     ║  ║  explorer     ║  ║  daemon       ║  ║  dashboard    ║
-╚═══════╤═══════╝  ╚═══════╤═══════╝  ╚═══════╤═══════╝  ╚═══════╤═══════╝  ╚═══════╤═══════╝
-        │                  │                  │                  │                  │
-        └──────────────────┼──────────────────┘                  │                  │
-                           │                                     │                  │
-              ╔════════════▼════════════╗                        │                  │
-              ║        @repo/cairn      ║                        │                  │
-              ║  observe → reflect →    ║                        │                  │
-              ║  promote → graph        ║                        │                  │
-              ╚════════════╤════════════╝                        │                  │
-                           │                                     │                  │
-              ╔════════════▼═════════════════════════════════════▼═══╗              │
-              ║                    @repo/db                          ║              │
-              ║               kysely + migrations                    ║              │
-              ╚══════════════════════╤═══════════════════════════════╝              │
-                                     │                                              │
-              ╔══════════════════════▼══════════════════════════════════════════════▼══╗
-              ║                              SQLITE                                    ║
-              ╚════════════════════════════════════════════════════════════════════════╝
+                              ┌─────────────────────────────┐
+                              │             Cairn           │
+                              │  observe / reflect / graph  │
+                              └──┬──────┬──────┬──────┬─────┘
+                                 │      │      │      │
+                 ┌───────────────┘      │      │      └ ─ ─ ─ ─ ─ ─ ┐
+                 │                      │      │                     │
+          ╔══════▼══════╗  ╔════════════▼══╗  ╔▼═══════════════╗  ┌ ─▼─ ─ ─ ─ ─ ─ ┐
+          ║  CONSTRUCT  ║  ║    CORTEX     ║  ║      LOOM      ║    QUILL
+          ║  braindump  ║  ║  market       ║  ║  RPG game      ║  │ pi code       │
+          ║  companion  ║  ║  intel        ║  ║  master        ║    extension
+          ║             ║  ║               ║  ║                ║  │               │
+          ║ construct.db║  ║   cortex.db   ║  ║    loom.db     ║    *planned*
+          ╚═════════════╝  ╚══╤════════╤═══╝  ╚════════════════╝  └ ─ ─ ─ ─ ─ ─ ─ ┘
+                              │        │
+                       ╔══════▼═╗  ╔═══▼════════╗
+                       ║SYNAPSE ║  ║   OPTIC    ║
+                       ║ paper  ║  ║  terminal  ║
+                       ║ trade  ║  ║  dashboard ║
+                       ╚════════╝  ╚════════════╝
+
+
+          ╔═══════════════════════════════════════╗
+          ║  DECK — cairn viewer                  ║
+          ╚═══════════════════════════════════════╝
 ```
 
-Five apps. Two shared packages. One memory pipeline. Everything converges in SQLite. Optic reads the databases directly via rusqlite -- no JS runtime needed.
+Independent apps, shared memory substrate. Each app owns its own SQLite database. Cairn is the library that makes them all remember.
 
 ## Apps
 
@@ -69,6 +72,10 @@ Paper trading daemon. Reads signals from Cortex, sizes positions by confidence, 
 ### Deck (`apps/deck/`)
 
 Observability layer. REST API + web UI for navigating the knowledge graph, searching memories, and tracing the observation pipeline. D3-force on canvas, Hono on the backend.
+
+### Loom (`apps/loom/`)
+
+System-agnostic RPG Game Master. Ingests rulebooks into cairn's memory pipeline, tracks campaign state through play, runs sessions over SSE streaming chat. Mobile-first React SPA + Hono API.
 
 ### Optic (`apps/optic/`)
 
@@ -165,6 +172,12 @@ just synapse-status            # portfolio summary
 # Deck
 just deck-dev myinstance       # memory graph explorer
 
+# Loom
+just loom-dev                  # backend dev (file watching)
+just loom-web                  # frontend dev (Vite)
+just loom-ingest               # ingest rulebooks
+just loom-start                # production
+
 # Optic TUI
 just optic                     # reads cortex + synapse DBs
 just optic-build               # release binary
@@ -215,7 +228,7 @@ sprawl/
 │   ├── cortex/               # market intelligence daemon
 │   │   └── src/
 │   │       ├── main.ts       # boot, seeding, backfill, daemon
-│   │       ├── ingest/       # prices (coingecko), news (cryptopanic/cryptocompare)
+│   │       ├── ingest/       # prices (coingecko), news (cryptopanic/cryptocompare/rss)
 │   │       ├── pipeline/     # loop, analyzer, backfill, prompts
 │   │       └── db/           # tokens, snapshots, news, signals, commands
 │   ├── synapse/              # paper trading daemon
@@ -228,6 +241,9 @@ sprawl/
 │   ├── deck/                 # memory graph explorer
 │   │   ├── src/              # hono API (memories, graph, observations, stats)
 │   │   └── web/              # react SPA (d3-force graph, memory browser)
+│   ├── loom/                 # RPG game master
+│   │   ├── src/              # hono API (campaigns, sessions, chat SSE, ingest)
+│   │   └── web/              # react SPA (mobile-first chat, campaign management)
 │   └── optic/                # trade dashboard TUI (rust/ratatui)
 │       └── src/              # market view + trading view, reads cortex+synapse DBs
 ├── packages/

@@ -1,0 +1,14 @@
+# Build output
+dist/
+.astro/
+
+# Synced content dirs (source of truth is colocated docs)
+src/content/docs/construct/
+src/content/docs/cortex/
+src/content/docs/synapse/
+src/content/docs/deck/
+src/content/docs/loom/
+src/content/docs/optic/
+src/content/docs/cairn/
+src/content/docs/db/
+src/content/docs/guides/

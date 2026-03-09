@@ -110,7 +110,7 @@ describe('buildContextPreamble — empty inputs', () => {
     })
 
     // Should have the context line
-    expect(preamble).toMatch(/\[Context:.*UTC.*test\]/)
+    expect(preamble).toMatch(/\[Current time:.*UTC.*test\]/)
 
     // Should NOT have any optional sections
     expect(preamble).not.toContain('[Conversation observations')

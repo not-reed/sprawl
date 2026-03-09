@@ -64,6 +64,11 @@ describe('scheduler', () => {
 
   it('fires immediately for past-due one-shot schedule', async () => {
     const bot = makeMockBot()
+    mockProcessMessage.mockResolvedValueOnce({
+      text: 'overdue reminder',
+      toolCalls: [],
+    })
+
     const schedule = await insertSchedule(db, {
       run_at: '2020-01-01T00:00:00Z',
       message: 'overdue reminder',
@@ -73,9 +78,17 @@ describe('scheduler', () => {
     registerJob(db, bot, schedule, 'UTC')
 
     // Past-due path is fire-and-forget (.then()), wait for microtask flush
-    await new Promise((r) => setTimeout(r, 50))
+    await new Promise((r) => setTimeout(r, 100))
 
-    expect(bot.api.sendMessage).toHaveBeenCalledWith('12345', 'overdue reminder')
+    // All schedules now go through the agent pipeline with framed instruction
+    expect(mockProcessMessage).toHaveBeenCalledWith(
+      db,
+      expect.stringContaining('overdue reminder'),
+      expect.objectContaining({
+        source: 'scheduler',
+        chatId: '12345',
+      }),
+    )
 
     // Schedule should be cancelled after firing
     const schedules = await listSchedules(db, true)
@@ -244,10 +257,10 @@ describe('scheduler', () => {
     registerJob(db, bot, s, 'UTC')
     await new Promise((r) => setTimeout(r, 100))
 
-    // processMessage should have been called with the prompt
+    // processMessage should have been called with the framed prompt
     expect(mockProcessMessage).toHaveBeenCalledWith(
       db,
-      'Check the weather and alert if cold',
+      expect.stringContaining('Check the weather and alert if cold'),
       expect.objectContaining({
         source: 'scheduler',
         externalId: `schedule:${s.id}`,
@@ -310,8 +323,12 @@ describe('scheduler', () => {
     expect(bot.api.sendMessage).not.toHaveBeenCalled()
   })
 
-  it('uses static path when schedule has no prompt', async () => {
+  it('routes legacy schedules (no prompt) through agent using message as instruction', async () => {
     const bot = makeMockBot()
+    mockProcessMessage.mockResolvedValueOnce({
+      text: 'Here is your plain reminder!',
+      toolCalls: [],
+    })
 
     const s = await insertSchedule(db, {
       run_at: '2020-01-01T00:00:00Z',
@@ -322,10 +339,19 @@ describe('scheduler', () => {
     registerJob(db, bot, s, 'UTC')
     await new Promise((r) => setTimeout(r, 100))
 
-    // Should NOT call processMessage
-    expect(mockProcessMessage).not.toHaveBeenCalled()
-    // Should send static message
-    expect(bot.api.sendMessage).toHaveBeenCalledWith('12345', 'plain reminder')
+    // All schedules go through agent — legacy message becomes the framed instruction
+    expect(mockProcessMessage).toHaveBeenCalledWith(
+      db,
+      expect.stringContaining('plain reminder'),
+      expect.objectContaining({
+        source: 'scheduler',
+        chatId: '12345',
+      }),
+    )
+    // Agent response sent to Telegram
+    expect(bot.api.sendMessage).toHaveBeenCalled()
+    const call = bot.api.sendMessage.mock.calls[0]
+    expect(call[1]).toContain('plain reminder')
   })
 })
 

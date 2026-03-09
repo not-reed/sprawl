@@ -1,0 +1,51 @@
+/* Cyberpunk-inspired overrides for Starlight */
+
+:root {
+  --sl-color-accent-low: #1a1025;
+  --sl-color-accent: #7c6cf0;
+  --sl-color-accent-high: #c4b5fd;
+  --sl-color-white: #e4e4ef;
+  --sl-color-gray-1: #c8c8d8;
+  --sl-color-gray-2: #9898a8;
+  --sl-color-gray-3: #686878;
+  --sl-color-gray-4: #383848;
+  --sl-color-gray-5: #252530;
+  --sl-color-gray-6: #1a1a24;
+  --sl-color-black: #12121a;
+  --sl-color-bg-nav: var(--sl-color-gray-6);
+  --sl-color-bg-sidebar: var(--sl-color-black);
+  --sl-font-system: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+}
+
+[data-theme='light'] {
+  --sl-color-accent-low: #ede9fe;
+  --sl-color-accent: #6d28d9;
+  --sl-color-accent-high: #3b0764;
+}
+
+/* Glow effect on headings */
+.sl-markdown-content h1,
+.sl-markdown-content h2 {
+  text-shadow: 0 0 12px rgba(124, 108, 240, 0.15);
+}
+
+/* Code block styling */
+.sl-markdown-content pre {
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 6px;
+}
+
+/* Sidebar active link glow */
+[aria-current='page'] {
+  text-shadow: 0 0 8px rgba(124, 108, 240, 0.3);
+}
+
+/* Graph explorer container */
+.graph-explorer {
+  width: 100%;
+  min-height: 600px;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+}

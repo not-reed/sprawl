@@ -176,6 +176,11 @@ async function ensureNodeModulesLink(extensionsDir: string): Promise<void> {
   }
 }
 
+/** Skip config, test, and spec files that aren't tool exports. */
+function isNonToolFile(filename: string): boolean {
+  return /\.(config|test|spec)\.[cm]?ts$/.test(filename)
+}
+
 /**
  * Load dynamic tool .ts files from the tools/ directory within extensions.
  * - Root-level .ts files → standalone packs (single tool)
@@ -203,7 +208,7 @@ export async function loadDynamicTools(
   for (const entry of entries) {
     const fullPath = join(toolsDir, entry.name)
 
-    if (entry.isFile() && extname(entry.name) === '.ts') {
+    if (entry.isFile() && extname(entry.name) === '.ts' && !isNonToolFile(entry.name)) {
       // Standalone tool file → single-tool pack
       const tool = await loadSingleToolFile(fullPath, toolCtx, availableSecrets)
       if (tool) {
@@ -292,7 +297,7 @@ async function directoryToPack(
 
   const entries = await readdir(dirPath, { withFileTypes: true })
   for (const entry of entries) {
-    if (entry.isFile() && extname(entry.name) === '.ts') {
+    if (entry.isFile() && extname(entry.name) === '.ts' && !isNonToolFile(entry.name)) {
       const tool = await loadSingleToolFile(
         join(dirPath, entry.name),
         toolCtx,

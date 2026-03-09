@@ -1,7 +1,7 @@
 import type { WorkerModelConfig, ReflectorInput, ReflectorOutput, CairnLogger } from './types.js'
 import { isDegenerateRaw, sanitizeObservations } from './observer.js'
 
-const REFLECTOR_PROMPT = `You reorganize and condense observations. Your output replaces the input — any information you drop is permanently lost. Treat this as the sole memory of the conversation.
+export const DEFAULT_REFLECTOR_PROMPT = `You reorganize and condense observations. Your output replaces the input — any information you drop is permanently lost. Treat this as the sole memory of the conversation.
 
 ## What You Receive
 
@@ -80,6 +80,7 @@ export async function reflect(
   config: WorkerModelConfig,
   input: ReflectorInput,
   logger?: CairnLogger,
+  prompt?: string,
 ): Promise<ReflectorOutput & { usage?: { input_tokens: number; output_tokens: number } }> {
   const observationsText = input.observations
     .map((o) => `[${o.id}] (${o.priority}, ${o.observation_date}) ${o.content}`)
@@ -94,11 +95,12 @@ export async function reflect(
     body: JSON.stringify({
       model: config.model,
       messages: [
-        { role: 'system', content: REFLECTOR_PROMPT },
+        { role: 'system', content: prompt ?? DEFAULT_REFLECTOR_PROMPT },
         { role: 'user', content: observationsText },
       ],
       temperature: 0,
       max_tokens: 2048,
+      ...config.extraBody,
     }),
   })
 

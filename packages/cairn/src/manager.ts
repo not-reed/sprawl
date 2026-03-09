@@ -6,7 +6,7 @@
 import type { Kysely } from 'kysely'
 import { sql } from 'kysely'
 import { nanoid } from 'nanoid'
-import type { WorkerModelConfig, Observation, CairnLogger } from './types.js'
+import type { WorkerModelConfig, Observation, ObserverOutput, CairnLogger, CairnMessage } from './types.js'
 import { nullLogger } from './types.js'
 import { processMemoryForGraph } from './graph/index.js'
 import { observe } from './observer.js'
@@ -28,14 +28,20 @@ export interface CairnOptions {
   embeddingModel?: string
   apiKey: string
   logger?: CairnLogger
+  observerPrompt?: string
+  reflectorPrompt?: string
+  entityTypes?: string[]
 }
 
 export class MemoryManager {
-  private db: Kysely<any>
+  protected db: Kysely<any>
   private workerConfig: WorkerModelConfig | null
   private embeddingModel?: string
   private apiKey: string
-  private log: CairnLogger
+  protected log: CairnLogger
+  private observerPrompt?: string
+  private reflectorPrompt?: string
+  private entityTypes?: string[]
 
   constructor(db: Kysely<any>, opts: CairnOptions) {
     this.db = db
@@ -43,6 +49,29 @@ export class MemoryManager {
     this.embeddingModel = opts.embeddingModel
     this.apiKey = opts.apiKey
     this.log = opts.logger ?? nullLogger
+    this.observerPrompt = opts.observerPrompt
+    this.reflectorPrompt = opts.reflectorPrompt
+    this.entityTypes = opts.entityTypes
+  }
+
+  // --- Observation Storage Hook (override in subclasses to add custom fields) ---
+
+  protected async storeObservation(
+    conversationId: string,
+    obs: ObserverOutput['observations'][0],
+    messageIds: string[] | null,
+    generation: number,
+  ): Promise<void> {
+    await this.db.insertInto('observations').values({
+      id: nanoid(),
+      conversation_id: conversationId,
+      content: obs.content,
+      priority: obs.priority,
+      observation_date: obs.observation_date,
+      source_message_ids: messageIds ? JSON.stringify(messageIds) : null,
+      token_count: estimateTokens(obs.content),
+      generation,
+    }).execute()
   }
 
   // --- Graph Memory ---
@@ -66,6 +95,7 @@ export class MemoryManager {
         content,
         { apiKey: this.apiKey, embeddingModel: this.embeddingModel },
         this.log,
+        this.entityTypes,
       )
 
       if (result.usage) {
@@ -90,9 +120,9 @@ export class MemoryManager {
    * the ceiling gets its own batch.
    */
   batchMessages(
-    messages: Array<{ id: string; role: string; content: string; created_at: string; telegram_message_id: number | null }>,
+    messages: CairnMessage[],
     maxTokens: number,
-  ): Array<Array<{ id: string; role: string; content: string; created_at: string; telegram_message_id: number | null }>> {
+  ): CairnMessage[][] {
     const batches: typeof messages[] = []
     let current: typeof messages = []
     let currentTokens = 0
@@ -150,7 +180,7 @@ export class MemoryManager {
    */
   async getUnobservedMessages(
     conversationId: string,
-  ): Promise<Array<{ id: string; role: string; content: string; created_at: string; telegram_message_id: number | null }>> {
+  ): Promise<CairnMessage[]> {
     // Get the watermark
     const conv = await this.db
       .selectFrom('conversations')
@@ -163,8 +193,8 @@ export class MemoryManager {
     if (watermarkId) {
       // Use rowid comparison to handle messages inserted within the same second.
       // SQLite rowid is monotonically increasing, so this is insertion-order safe.
-      const rows = await sql<{ id: string; role: string; content: string; created_at: string; telegram_message_id: number | null }>`
-        SELECT id, role, content, created_at, telegram_message_id
+      const rows = await sql<CairnMessage>`
+        SELECT id, conversation_id, role, content, created_at
         FROM messages
         WHERE conversation_id = ${conversationId}
           AND rowid > (SELECT rowid FROM messages WHERE id = ${watermarkId})
@@ -175,10 +205,10 @@ export class MemoryManager {
 
     return this.db
       .selectFrom('messages')
-      .select(['id', 'role', 'content', 'created_at', 'telegram_message_id'])
+      .select(['id', 'role', 'content', 'created_at'])
       .where('conversation_id', '=', conversationId)
       .orderBy('created_at', 'asc')
-      .execute()
+      .execute() as Promise<CairnMessage[]>
   }
 
   /**
@@ -209,29 +239,15 @@ export class MemoryManager {
             role: m.role,
             content: m.content,
             created_at: m.created_at,
-            telegram_message_id: m.telegram_message_id,
           })),
-        }, this.log)
+        }, this.log, this.observerPrompt)
 
         const messageIds = batch.map((m) => m.id)
         const lastMessageId = messageIds[messageIds.length - 1]
 
         // Store observations from this batch
         for (const obs of result.observations) {
-          const obsTokens = estimateTokens(obs.content)
-          await this.db
-            .insertInto('observations')
-            .values({
-              id: nanoid(),
-              conversation_id: conversationId,
-              content: obs.content,
-              priority: obs.priority,
-              observation_date: obs.observation_date,
-              source_message_ids: JSON.stringify(messageIds),
-              token_count: obsTokens,
-              generation: 0,
-            })
-            .execute()
+          await this.storeObservation(conversationId, obs, messageIds, 0)
         }
 
         // Advance watermark for this batch — partial progress is preserved
@@ -292,7 +308,7 @@ export class MemoryManager {
     this.log.info(`Reflector triggered: ${observations.length} observations, ~${totalTokens} tokens`)
 
     try {
-      const result = await reflect(this.workerConfig, { observations }, this.log)
+      const result = await reflect(this.workerConfig, { observations }, this.log, this.reflectorPrompt)
 
       // Mark superseded observations
       if (result.superseded_ids.length > 0) {
@@ -306,19 +322,7 @@ export class MemoryManager {
       // Insert new condensed observations
       const maxGen = Math.max(...observations.map((o) => o.generation), 0)
       for (const obs of result.observations) {
-        await this.db
-          .insertInto('observations')
-          .values({
-            id: nanoid(),
-            conversation_id: conversationId,
-            content: obs.content,
-            priority: obs.priority,
-            observation_date: obs.observation_date,
-            source_message_ids: null,
-            token_count: estimateTokens(obs.content),
-            generation: maxGen + 1,
-          })
-          .execute()
+        await this.storeObservation(conversationId, obs, null, maxGen + 1)
       }
 
       // Update observation token count
@@ -454,13 +458,7 @@ export class MemoryManager {
    */
   async buildContext(conversationId: string): Promise<{
     observationsText: string
-    activeMessages: Array<{
-      id: string
-      role: string
-      content: string
-      created_at: string
-      telegram_message_id: number | null
-    }>
+    activeMessages: CairnMessage[]
     hasObservations: boolean
     evictedObservations: number
   }> {

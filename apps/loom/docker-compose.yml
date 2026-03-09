@@ -1,0 +1,14 @@
+services:
+  kokoro:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:v0.2.4
+    ports:
+      - "8880:8880"
+    volumes:
+      - kokoro-models:/app/api/src/models
+    environment:
+      - KOKORO_DEFAULT_VOICE=af_heart
+      - ALLOW_LOCAL_VOICE_SAVING=true
+    restart: unless-stopped
+
+volumes:
+  kokoro-models:

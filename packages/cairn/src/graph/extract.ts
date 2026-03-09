@@ -1,9 +1,12 @@
 import type { WorkerModelConfig, ExtractionResult, CairnLogger } from '../types.js'
 
-const EXTRACTION_PROMPT = `Extract entities and relationships from the following memory content.
+export const DEFAULT_ENTITY_TYPES = ['person', 'place', 'concept', 'event', 'entity']
+
+function buildExtractionPrompt(entityTypes: string[]): string {
+  return `Extract entities and relationships from the following memory content.
 
 Return a JSON object with:
-- "entities": array of {name, type, description?} where type is one of: person, place, concept, event, entity
+- "entities": array of {name, type, description?} where type is one of: ${entityTypes.join(', ')}
 - "relationships": array of {from, to, relation} where from/to are entity names and relation is a short verb phrase
 
 Rules:
@@ -14,6 +17,7 @@ Rules:
 - Entity names should preserve original casing
 
 Respond ONLY with the JSON object, no markdown fences or explanation.`
+}
 
 /**
  * Extract entities and relationships from memory content using an LLM.
@@ -24,7 +28,9 @@ export async function extractEntities(
   config: WorkerModelConfig,
   content: string,
   logger?: CairnLogger,
+  entityTypes?: string[],
 ): Promise<ExtractionResult> {
+  const types = entityTypes ?? DEFAULT_ENTITY_TYPES
   const response = await fetch(config.baseUrl ?? 'https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -34,11 +40,12 @@ export async function extractEntities(
     body: JSON.stringify({
       model: config.model,
       messages: [
-        { role: 'system', content: EXTRACTION_PROMPT },
+        { role: 'system', content: buildExtractionPrompt(types) },
         { role: 'user', content },
       ],
       temperature: 0,
       max_tokens: 1024,
+      ...config.extraBody,
     }),
   })
 
@@ -77,7 +84,7 @@ export async function extractEntities(
   if (!Array.isArray(result.relationships)) result.relationships = []
 
   // Normalize entity types
-  const validTypes = new Set(['person', 'place', 'concept', 'event', 'entity'])
+  const validTypes = new Set(types)
   result.entities = result.entities.filter(
     (e) => e.name && typeof e.name === 'string' && validTypes.has(e.type),
   )

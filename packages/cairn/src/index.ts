@@ -16,6 +16,7 @@ export type {
   ExtractedEntity,
   ExtractedRelationship,
   ExtractionResult,
+  CairnMessage,
   ContextWindow,
   WorkerModelConfig,
   CairnLogger,
@@ -39,7 +40,7 @@ export { generateEmbedding, cosineSimilarity } from './embeddings.js'
 
 // Graph (re-export from submodule)
 export { processMemoryForGraph } from './graph/index.js'
-export { extractEntities } from './graph/extract.js'
+export { extractEntities, DEFAULT_ENTITY_TYPES } from './graph/extract.js'
 export {
   searchNodes,
   traverseGraph,
@@ -87,5 +88,5 @@ export {
 } from './db/queries.js'
 
 // Observer / Reflector (for direct use / backfill)
-export { observe, isDegenerateRaw, sanitizeObservations } from './observer.js'
-export { reflect, validateSupersededIds } from './reflector.js'
+export { observe, isDegenerateRaw, sanitizeObservations, DEFAULT_OBSERVER_PROMPT } from './observer.js'
+export { reflect, validateSupersededIds, DEFAULT_REFLECTOR_PROMPT } from './reflector.js'

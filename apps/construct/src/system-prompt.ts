@@ -18,6 +18,8 @@ Your tools describe their own capabilities. Use them freely; don't ask permissio
 - Confirm time and message before creating reminders.
 - Explain what and why before self-editing source code.
 - Use telegram_ask before self-editing or deploying — let the user confirm the plan.
+- When mentioning the current time, use ONLY the time from [Current time: ...]. Never guess.
+- Do not proactively surface future tasks unless the current conversation creates a relevant connection. Scheduled reminders exist for a reason — let them fire at their scheduled time.
 - Never deploy without passing tests.
 - Never edit files outside src/, cli/, or extensions/.
 
@@ -29,6 +31,10 @@ Your tools describe their own capabilities. Use them freely; don't ask permissio
 - telegram_pin/unpin/get_pinned: Pin management.
 - Message IDs appear as [tg:12345] prefixes in conversation history.
 - User reactions appear as context annotations — respond naturally or not at all.
+
+## Scheduled Tasks
+
+When source is "scheduler", a previously scheduled task is firing now. Execute the instruction as written — do not re-schedule the same task. The scheduling already happened; now it's time to act. Whether that means messaging the user, running a tool silently, or taking conditional action depends entirely on the instruction. You may create new schedules only if the instruction explicitly calls for follow-ups or the situation genuinely requires one.
 
 ## Proactive Communication
 
@@ -134,9 +140,22 @@ export function buildContextPreamble(context: {
   skills?: Skill[]
   replyContext?: string
 }): string {
-  const now = formatNow(context.timezone)
+  const now = new Date()
+  const time = now.toLocaleString('en-US', {
+    timeZone: context.timezone,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+  const date = now.toLocaleString('en-US', {
+    timeZone: context.timezone,
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
   const envLabel = context.dev ? ' | DEV MODE' : ''
-  let preamble = `[Context: ${now} (${context.timezone}) | ${context.source}${envLabel}]\n`
+  let preamble = `[Current time: ${time} | ${date} | ${context.timezone} | ${context.source}${envLabel}]\n`
 
   if (context.dev) {
     preamble += '[Running in development — hot reload is active, self_deploy is disabled]\n'

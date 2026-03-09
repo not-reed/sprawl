@@ -23,7 +23,6 @@ export interface ObserverInput {
     role: string
     content: string
     created_at: string
-    telegram_message_id?: number | null
   }>
 }
 
@@ -32,6 +31,7 @@ export interface ObserverOutput {
     content: string
     priority: 'low' | 'medium' | 'high'
     observation_date: string
+    [key: string]: unknown
   }>
 }
 
@@ -44,6 +44,7 @@ export interface ReflectorOutput {
     content: string
     priority: 'low' | 'medium' | 'high'
     observation_date: string
+    [key: string]: unknown
   }>
   superseded_ids: string[]
 }
@@ -54,7 +55,7 @@ export interface GraphNode {
   id: string
   name: string // canonical (lowercased)
   display_name: string // original casing
-  node_type: 'person' | 'place' | 'concept' | 'event' | 'entity'
+  node_type: string
   description: string | null
   embedding: string | null
   created_at: string
@@ -75,7 +76,7 @@ export interface GraphEdge {
 
 export interface ExtractedEntity {
   name: string
-  type: GraphNode['node_type']
+  type: string
   description?: string
 }
 
@@ -91,6 +92,17 @@ export interface ExtractionResult {
   usage?: { input_tokens: number; output_tokens: number }
 }
 
+// --- Messages ---
+
+/** Base message shape returned by Cairn queries. Consumers may have extra columns (e.g. telegram_message_id) accessible via index signature. */
+export interface CairnMessage {
+  id: string
+  role: string
+  content: string
+  created_at: string
+  [key: string]: unknown
+}
+
 // --- Context Building ---
 
 export interface ContextWindow {
@@ -98,7 +110,6 @@ export interface ContextWindow {
   activeMessages: Array<{
     role: string
     content: string
-    telegram_message_id?: number | null
   }>
 }
 
@@ -108,6 +119,8 @@ export interface WorkerModelConfig {
   apiKey: string
   model: string
   baseUrl?: string
+  /** Extra body params merged into every LLM request (e.g. { reasoning: { max_tokens: 1 } }) */
+  extraBody?: Record<string, unknown>
 }
 
 // --- Logger (dependency injection) ---

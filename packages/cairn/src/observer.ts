@@ -1,6 +1,6 @@
 import type { WorkerModelConfig, ObserverInput, ObserverOutput, CairnLogger } from './types.js'
 
-const OBSERVER_PROMPT = `You extract observations from conversation. You compress raw messages into facts, events, preferences, and state changes. Each observation is a standalone record — it may be the only trace of what was said.
+export const DEFAULT_OBSERVER_PROMPT = `You extract observations from conversation. You compress raw messages into facts, events, preferences, and state changes. Each observation is a standalone record — it may be the only trace of what was said.
 
 ## Source Authority
 
@@ -114,6 +114,7 @@ export async function observe(
   config: WorkerModelConfig,
   input: ObserverInput,
   logger?: CairnLogger,
+  prompt?: string,
 ): Promise<ObserverOutput & { usage?: { input_tokens: number; output_tokens: number } }> {
   const messagesText = input.messages
     .map((m) => {
@@ -131,11 +132,12 @@ export async function observe(
     body: JSON.stringify({
       model: config.model,
       messages: [
-        { role: 'system', content: OBSERVER_PROMPT },
+        { role: 'system', content: prompt ?? DEFAULT_OBSERVER_PROMPT },
         { role: 'user', content: messagesText },
       ],
       temperature: 0,
       max_tokens: 2048,
+      ...config.extraBody,
     }),
   })
 

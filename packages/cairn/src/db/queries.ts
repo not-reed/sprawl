@@ -91,13 +91,23 @@ export async function recallMemories(
           AND m.archived_at IS NULL
           ${opts?.category ? sql`AND m.category = ${opts.category}` : sql``}
         ORDER BY fts.rank
-        LIMIT ${limit}
+        LIMIT ${limit * 2}
       `.execute(d)
 
-      for (const row of ftsResults.rows) {
+      const scoredFts = ftsResults.rows.map((row) => {
+        const ageInDays = (Date.now() - new Date(row.created_at).getTime()) / 86_400_000
+        // FTS5 rank is negative (more negative = more relevant). Convert to positive relevance.
+        const relevance = Math.abs(row.rank)
+        const decay = ageInDays <= 7 ? 1.0 : 1.0 / (1.0 + Math.log2(ageInDays / 7))
+        return { ...row, score: relevance * decay, matchType: 'fts5' as const }
+      })
+
+      scoredFts.sort((a, b) => b.score - a.score)
+
+      for (const row of scoredFts.slice(0, limit)) {
         if (!seen.has(row.id)) {
           seen.add(row.id)
-          results.push({ ...row, matchType: 'fts5' })
+          results.push(row)
         }
       }
     }
@@ -117,11 +127,17 @@ export async function recallMemories(
       .execute()
 
     const scored = allWithEmbeddings
-      .map((m) => ({
-        ...m,
-        score: cosineSimilarity(opts.queryEmbedding!, JSON.parse(m.embedding!)),
-        matchType: 'embedding' as const,
-      }))
+      .map((m) => {
+        const rawScore = cosineSimilarity(opts.queryEmbedding!, JSON.parse(m.embedding!))
+        // Recency decay: full weight for first 7 days, then logarithmic decay
+        const ageInDays = (Date.now() - new Date(m.created_at).getTime()) / 86_400_000
+        const decay = ageInDays <= 7 ? 1.0 : 1.0 / (1.0 + Math.log2(ageInDays / 7))
+        return {
+          ...m,
+          score: rawScore * decay,
+          matchType: 'embedding' as const,
+        }
+      })
       .filter((m) => m.score >= threshold)
       .sort((a, b) => b.score - a.score)
 

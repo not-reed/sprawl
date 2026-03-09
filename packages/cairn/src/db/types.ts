@@ -51,7 +51,6 @@ export interface MessageTable {
   role: string
   content: string
   tool_calls: string | null
-  telegram_message_id: number | null
   created_at: Generated<string>
 }
 

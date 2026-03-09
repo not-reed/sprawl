@@ -67,40 +67,7 @@ async function fireSchedule(
   bot: Bot,
   schedule: Schedule,
 ) {
-  if (schedule.prompt) {
-    await fireAgentSchedule(db, bot, schedule)
-  } else {
-    await fireStaticSchedule(db, bot, schedule)
-  }
-}
-
-async function fireStaticSchedule(
-  db: Kysely<Database>,
-  bot: Bot,
-  schedule: Schedule,
-) {
-  schedulerLog.info`Firing static schedule [${schedule.id}]: ${schedule.description} → chat ${schedule.chat_id}`
-  try {
-    const sent = await bot.api.sendMessage(schedule.chat_id, schedule.message)
-    await markScheduleRun(db, schedule.id)
-
-    // Save to conversation history so the agent knows the reminder was delivered
-    try {
-      const conversationId = await getOrCreateConversation(db, 'telegram', schedule.chat_id)
-      await saveMessage(db, {
-        conversation_id: conversationId,
-        role: 'assistant',
-        content: `[Scheduled reminder: ${schedule.description}] ${schedule.message}`,
-        telegram_message_id: sent.message_id,
-      })
-    } catch (saveErr) {
-      schedulerLog.error`Failed to save schedule message to history [${schedule.id}]: ${saveErr}`
-    }
-
-    schedulerLog.info`Schedule [${schedule.id}] fired successfully`
-  } catch (err) {
-    schedulerLog.error`Failed to fire schedule [${schedule.id}]: ${err}`
-  }
+  await fireAgentSchedule(db, bot, schedule)
 }
 
 async function fireAgentSchedule(
@@ -108,9 +75,17 @@ async function fireAgentSchedule(
   bot: Bot,
   schedule: Schedule,
 ) {
-  schedulerLog.info`Firing agent schedule [${schedule.id}]: ${schedule.description} → prompt: "${schedule.prompt}"`
+  const instruction = schedule.prompt ?? schedule.message
+  schedulerLog.info`Firing agent schedule [${schedule.id}]: ${schedule.description} → instruction: "${instruction}"`
   try {
-    const response = await processMessage(db, schedule.prompt!, {
+    // Frame the instruction so the agent knows this schedule is firing NOW
+    // and should execute/deliver it, not re-schedule it.
+    const framedInstruction = [
+      `[Scheduled task "${schedule.description}" is firing now. Execute the instruction — do not re-schedule it.]`,
+      instruction,
+    ].join('\n')
+
+    const response = await processMessage(db, framedInstruction, {
       source: 'scheduler',
       externalId: `schedule:${schedule.id}`,
       chatId: schedule.chat_id,

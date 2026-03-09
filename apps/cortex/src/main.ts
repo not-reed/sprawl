@@ -39,10 +39,11 @@ async function main() {
   const { db } = createDb<Database>(env.DATABASE_URL)
 
   // Create MemoryManager
-  const memory = new MemoryManager(db as any, {
+  const memory = new MemoryManager(db, {
     workerConfig: {
       apiKey: env.OPENROUTER_API_KEY,
       model: env.MEMORY_WORKER_MODEL,
+      extraBody: { reasoning: { max_tokens: 1 } },
     },
     embeddingModel: env.EMBEDDING_MODEL,
     apiKey: env.OPENROUTER_API_KEY,
@@ -58,7 +59,7 @@ async function main() {
   log('Seeding tracked tokens...')
   const tokenInfos = await fetchTokenInfo(env.TRACKED_TOKENS)
   for (const info of tokenInfos) {
-    await upsertTrackedToken(db as any, info)
+    await upsertTrackedToken(db, info)
     log(`  ${info.symbol} (${info.name})`)
   }
 
@@ -67,7 +68,7 @@ async function main() {
 
   // Backfill mode
   if (backfillDays) {
-    await runBackfill(db as any, memory, backfillDays, log, backfillScope)
+    await runBackfill(db, memory, backfillDays, log, backfillScope)
 
     // Exit after backfill unless --daemon flag
     if (!process.argv.includes('--daemon')) {
@@ -79,13 +80,13 @@ async function main() {
   // Initial price fetch (non-fatal — cron will retry)
   log('Fetching initial prices...')
   try {
-    await ingestPrices(db as any, memory, log)
+    await ingestPrices(db, memory, log)
   } catch (err) {
     log(`Initial price fetch failed (will retry on next cycle): ${err}`)
   }
 
   // Start pipeline loop (headless daemon)
-  startLoop({ db: db as any, memory, log })
+  startLoop({ db: db, memory, log })
   log('Daemon running. Press Ctrl+C to stop.')
 
   // Graceful shutdown

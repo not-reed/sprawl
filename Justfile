@@ -109,11 +109,43 @@ optic db="./data/cortex.db" synapse="./data/synapse.db":
 optic-build:
     cd apps/optic && cargo build --release
 
+# --- Loom ---
+
+# Run loom backend in dev mode with file watching
+loom-dev:
+    node --env-file=.env.loom --import=tsx --watch-path=apps/loom/src apps/loom/src/main.ts
+
+# Run loom web frontend dev
+loom-web:
+    cd apps/loom/web && pnpm dev --host
+
+# Ingest rulebooks into loom
+loom-ingest:
+    node --env-file=.env.loom --import=tsx apps/loom/src/ingest.ts
+
+# Production start (build web + start server)
+loom-start:
+    cd apps/loom/web && pnpm build && cd ../../.. && NODE_ENV=production node --env-file=.env.loom --import=tsx apps/loom/src/main.ts
+
 # --- Extensions ---
 
 # Run extension tests
 test-ext pack:
     cd data/tools/{{pack}} && ../../../apps/construct/node_modules/.bin/vitest run --config vitest.config.ts
+
+# --- Docs ---
+
+# Run docs dev server (syncs colocated docs first)
+docs-dev:
+    cd apps/docs && node --import=tsx scripts/sync-docs.ts && pnpm dev
+
+# Build docs site (syncs colocated docs first)
+docs-build:
+    cd apps/docs && node --import=tsx scripts/sync-docs.ts && pnpm build
+
+# Extract knowledge graph from docs via Cairn
+docs-extract:
+    node --env-file=.env.construct --import=tsx apps/docs/scripts/extract-graph.ts
 
 # --- Blog ---
 

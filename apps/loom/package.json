@@ -1,0 +1,20 @@
+{
+  "name": "@repo/loom",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/db": "workspace:*",
+    "@repo/cairn": "workspace:*",
+    "@hono/node-server": "^1.14.0",
+    "@mariozechner/pi-agent-core": "^0.54.2",
+    "@mariozechner/pi-ai": "^0.54.2",
+    "hono": "^4.7.0",
+    "kysely": "^0.28.11",
+    "nanoid": "^5.1.6",
+    "zod": "^4.3.6"
+  }
+}

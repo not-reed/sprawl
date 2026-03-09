@@ -10,7 +10,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 export async function runMigrations(databaseUrl?: string) {
   const { db } = createDb<Database>(databaseUrl ?? env.DATABASE_URL)
 
-  await runMigrationsGeneric(db as any, join(__dirname, 'migrations'))
+  await runMigrationsGeneric(db, join(__dirname, 'migrations'))
 
   await db.destroy()
 }

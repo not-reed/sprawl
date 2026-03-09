@@ -90,7 +90,7 @@ export async function ingestPrices(
   memory: MemoryManager,
   log: (msg: string) => void,
 ): Promise<PriceData[]> {
-  const tokens = await getActiveTokens(db as any)
+  const tokens = await getActiveTokens(db)
   if (tokens.length === 0) return []
 
   const tokenIds = tokens.map((t) => t.id)
@@ -98,7 +98,7 @@ export async function ingestPrices(
 
   // Store snapshots
   for (const p of prices) {
-    await insertPriceSnapshot(db as any, {
+    await insertPriceSnapshot(db, {
       token_id: p.tokenId,
       price_usd: p.priceUsd,
       market_cap: p.marketCap,
@@ -111,11 +111,11 @@ export async function ingestPrices(
   // Compose and save message for cairn
   if (prices.length > 0) {
     if (!priceConvId) {
-      priceConvId = await getOrCreateConversation(db as any, 'cortex', 'prices')
+      priceConvId = await getOrCreateConversation(db, 'cortex', 'prices')
     }
 
     const msg = composePriceMessage(prices, tokens)
-    await saveMessage(db as any, {
+    await saveMessage(db, {
       conversation_id: priceConvId,
       role: 'user',
       content: msg,
@@ -139,13 +139,13 @@ export async function ingestNews(
   memory: MemoryManager,
   log: (msg: string) => void,
 ): Promise<number> {
-  const tokens = await getActiveTokens(db as any)
+  const tokens = await getActiveTokens(db)
   const currencies = tokens.map((t) => t.symbol).join(',')
   const news = await fetchNews(env.CRYPTOPANIC_API_KEY, currencies, env.CRYPTOCOMPARE_API_KEY, log)
   let newCount = 0
 
   for (const item of news) {
-    const inserted = await insertNewsItem(db as any, {
+    const inserted = await insertNewsItem(db, {
       external_id: item.externalId,
       title: item.title,
       url: item.url,
@@ -161,15 +161,15 @@ export async function ingestNews(
   // Compose and save message for cairn
   if (newCount > 0) {
     if (!newsConvId) {
-      newsConvId = await getOrCreateConversation(db as any, 'cortex', 'news')
+      newsConvId = await getOrCreateConversation(db, 'cortex', 'news')
     }
 
-    const tokens = await getActiveTokens(db as any)
+    const tokens = await getActiveTokens(db)
     const msg = composeNewsMessage(
       news.slice(0, 10),
       tokens.map((t) => t.symbol),
     )
-    await saveMessage(db as any, {
+    await saveMessage(db, {
       conversation_id: newsConvId,
       role: 'user',
       content: msg,
@@ -192,7 +192,7 @@ async function processCommandQueue(
   memory: MemoryManager,
   log: (msg: string) => void,
 ): Promise<void> {
-  const pending = await getPendingCommands(db as any)
+  const pending = await getPendingCommands(db)
   if (pending.length === 0) return
 
   for (const cmd of pending) {
@@ -204,7 +204,7 @@ async function processCommandQueue(
       default:
         log(`Unknown command: ${cmd.command}`)
     }
-    await markCommandComplete(db as any, cmd.id)
+    await markCommandComplete(db, cmd.id)
   }
 }
 

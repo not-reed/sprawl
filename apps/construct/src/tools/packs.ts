@@ -105,7 +105,7 @@ export const TOOL_PACKS: ToolPack[] = [
     alwaysLoad: false,
     factories: [
       (ctx) => createSelfReadTool(ctx.projectRoot, ctx.extensionsDir) as InternalTool<TSchema>,
-      (ctx) => createSelfEditTool(ctx.projectRoot, ctx.extensionsDir) as InternalTool<TSchema>,
+      (ctx) => createSelfEditTool(ctx.projectRoot, ctx.extensionsDir, ctx.db, ctx.chatId) as InternalTool<TSchema>,
       (ctx) => createSelfTestTool(ctx.projectRoot) as InternalTool<TSchema>,
       (ctx) => createSelfLogsTool(ctx.logFile) as InternalTool<TSchema>,
       (ctx) => createSelfStatusTool(ctx.dbPath, ctx.logFile) as InternalTool<TSchema>,

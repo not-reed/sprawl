@@ -425,6 +425,9 @@ export function createBot(db: Kysely<Database>) {
 
   bot.on('message', async (ctx) => {
     if (!isAuthorized(String(ctx.from?.id))) return
+    // Ignore service messages (pin, unpin, group changes, etc.)
+    const m = ctx.message
+    if (m.pinned_message || m.new_chat_members || m.left_chat_member || m.new_chat_title || m.new_chat_photo || m.delete_chat_photo || m.group_chat_created || m.supergroup_chat_created || m.migrate_to_chat_id || m.migrate_from_chat_id) return
     await ctx.reply("I can only process text messages for now.")
   })
 

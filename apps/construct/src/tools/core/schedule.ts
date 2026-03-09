@@ -52,36 +52,31 @@ function isSimilarMessage(a: string, b: string, threshold = 0.75): boolean {
   return 1 - levenshtein(na, nb) / maxLen >= threshold
 }
 
-/** Filter existing schedules to those matching time + chat + mode. */
+/** Filter existing schedules to those matching time + chat. */
 function getTimeCandidates(
   existing: Schedule[],
   chatId: string,
-  isPromptMode: boolean,
+  _isPromptMode: boolean,
   cronExpression: string | undefined,
   normalizedRunAt: string | null,
 ): Schedule[] {
   return existing.filter((s) => {
     if (s.chat_id !== chatId) return false
-    if (!!s.prompt !== isPromptMode) return false
     if (cronExpression && s.cron_expression === cronExpression) return true
     if (normalizedRunAt && s.run_at === normalizedRunAt) return true
     return false
   })
 }
 
-/** Fast dedup: Levenshtein on message/prompt content + description. */
+/** Fast dedup: Levenshtein on instruction/prompt content + description. */
 function findFastDuplicate(
   candidates: Schedule[],
   args: ScheduleCreateInput,
-  isPromptMode: boolean,
 ): Schedule | undefined {
   return candidates.find((s) => {
-    // Check message/prompt content (original behavior)
-    if (isPromptMode) {
-      if (isSimilarMessage(s.prompt!, args.prompt!)) return true
-    } else {
-      if (isSimilarMessage(s.message, args.message!)) return true
-    }
+    // Check prompt/message content against new instruction
+    const existingInstruction = s.prompt ?? s.message
+    if (isSimilarMessage(existingInstruction, args.instruction)) return true
     // Also check description similarity
     if (isSimilarMessage(s.description, args.description)) return true
     return false
@@ -121,16 +116,9 @@ const ScheduleCreateParams = Type.Object({
   description: Type.String({
     description: 'Human-readable description (e.g. "Dentist appointment reminder")',
   }),
-  message: Type.Optional(
-    Type.String({
-      description: 'The static message to send when the schedule triggers. Required unless prompt is provided.',
-    }),
-  ),
-  prompt: Type.Optional(
-    Type.String({
-      description: 'An agent prompt to run when the schedule triggers (with full tool access). Use this for conditional notifications, background tasks, or anything that needs reasoning. Mutually exclusive with message.',
-    }),
-  ),
+  instruction: Type.String({
+    description: 'What the agent should do when the schedule fires. The agent runs this with full context and tool access (e.g. "Remind the user about their dentist appointment and check if they need directions").',
+  }),
   cron_expression: Type.Optional(
     Type.String({
       description:
@@ -160,7 +148,7 @@ export function createScheduleCreateTool(
   return {
     name: 'schedule_create',
     description:
-      'Create a scheduled reminder or agent task. Use message for static reminders, or prompt for agent-executed tasks (with full tool access for conditional logic, web lookups, memory storage, etc.). Either provide a cron_expression for recurring, or run_at for one-shot.',
+      'Create a scheduled reminder or agent task. All reminders run through the agent with full context and tool access. Provide cron_expression for recurring, or run_at for one-shot.',
     parameters: ScheduleCreateParams,
     execute: async (_toolCallId: string, args: ScheduleCreateInput) => {
       if (!args.cron_expression && !args.run_at) {
@@ -171,31 +159,15 @@ export function createScheduleCreateTool(
         }
       }
 
-      if (!args.message && !args.prompt) {
-        return {
-          output: 'Please provide either a message (static) or a prompt (agent-executed).',
-          details: {},
-        }
-      }
-
-      if (args.message && args.prompt) {
-        return {
-          output: 'Provide either message or prompt, not both.',
-          details: {},
-        }
-      }
-
-      const isPromptMode = !!args.prompt
-
       // Normalize run_at: strip any Z or offset the LLM may have added
       const normalizedRunAt = args.run_at ? stripTimezoneOffset(args.run_at) : null
 
       // Dedup: two-pass — fast Levenshtein, then embedding similarity for same-time schedules
       const existing = await listSchedules(db, true)
-      const candidates = getTimeCandidates(existing, chatId, isPromptMode, args.cron_expression, normalizedRunAt)
+      const candidates = getTimeCandidates(existing, chatId, true, args.cron_expression, normalizedRunAt)
 
       // Fast pass: Levenshtein on content + description (no API call)
-      let duplicate = findFastDuplicate(candidates, args, isPromptMode)
+      let duplicate = findFastDuplicate(candidates, args)
 
       // Slow pass: embedding similarity on descriptions (only if fast pass missed)
       if (!duplicate && candidates.length > 0) {
@@ -205,23 +177,19 @@ export function createScheduleCreateTool(
       if (duplicate) {
         const type = duplicate.cron_expression ? 'recurring' : 'one-shot'
         const when = duplicate.cron_expression ?? duplicate.run_at
-        const mode = duplicate.prompt ? 'agent-prompt' : 'static-message'
         toolLog.info`Dedup: returning existing schedule [${duplicate.id}] instead of creating duplicate`
         return {
-          output: `Schedule already exists — ${type} ${mode} [${duplicate.id}]: "${duplicate.description}" — ${when} (${timezone})`,
+          output: `Schedule already exists — ${type} [${duplicate.id}]: "${duplicate.description}" — ${when} (${timezone})`,
           details: { schedule: duplicate, deduplicated: true },
         }
       }
 
-      // For prompt mode, use description as the message (DB column is NOT NULL)
-      const message = args.message ?? args.description
-
-      toolLog.info`Creating schedule: ${args.description} for chat ${chatId}${isPromptMode ? ' (agent-prompt)' : ''}`
+      toolLog.info`Creating schedule: ${args.description} for chat ${chatId}`
 
       const schedule = await createSchedule(db, {
         description: args.description,
-        message,
-        prompt: args.prompt ?? null,
+        message: args.description, // satisfies NOT NULL column
+        prompt: args.instruction,
         chat_id: chatId,
         cron_expression: args.cron_expression ?? null,
         run_at: normalizedRunAt,
@@ -229,12 +197,11 @@ export function createScheduleCreateTool(
 
       const type = schedule.cron_expression ? 'recurring' : 'one-shot'
       const when = schedule.cron_expression ?? schedule.run_at
-      const mode = isPromptMode ? 'agent-prompt' : 'static-message'
 
-      toolLog.info`Created ${type} ${mode} schedule [${schedule.id}]: ${args.description} — ${when}`
+      toolLog.info`Created ${type} schedule [${schedule.id}]: ${args.description} — ${when}`
 
       return {
-        output: `Created ${type} ${mode} schedule [${schedule.id}]: "${schedule.description}" — ${when} (${timezone})`,
+        output: `Created ${type} schedule [${schedule.id}]: "${schedule.description}" — ${when} (${timezone})`,
         details: { schedule },
       }
     },

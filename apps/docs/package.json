@@ -1,0 +1,27 @@
+{
+  "name": "@repo/docs",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/react": "^4.3.1",
+    "@astrojs/starlight": "^0.35.1",
+    "@repo/cairn": "workspace:*",
+    "astro": "^5.10.1",
+    "d3-force": "^3.0.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "starlight-llms-txt": "^0.7.0"
+  },
+  "devDependencies": {
+    "@types/d3-force": "^3.0.10",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "typescript": "^5.9.3"
+  }
+}

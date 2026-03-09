@@ -62,7 +62,7 @@ export async function getRecentMessages(
 
 export async function saveMessage(
   db: DB,
-  message: Omit<import('@repo/cairn').NewMessage, 'id'>,
+  message: { conversation_id: string; role: string; content: string; tool_calls?: string | null; telegram_message_id?: number | null },
 ) {
   const id = nanoid()
   await db
@@ -278,6 +278,21 @@ export async function setPendingAskTelegramId(db: DB, askId: string, msgId: numb
     .set({ telegram_message_id: msgId })
     .where('id', '=', askId)
     .execute()
+}
+
+/**
+ * Get the most recent resolved ask for a chat (within last 5 minutes).
+ * Used by self-edit tools to check if user rejected a recent proposal.
+ */
+export async function getLastResolvedAsk(db: DB, chatId: string) {
+  return db
+    .selectFrom('pending_asks')
+    .selectAll()
+    .where('chat_id', '=', chatId)
+    .where('resolved_at', 'is not', null)
+    .where('resolved_at', '>=', sql<string>`datetime('now', '-5 minutes')`)
+    .orderBy('resolved_at', 'desc')
+    .executeTakeFirst()
 }
 
 // --- Settings ---

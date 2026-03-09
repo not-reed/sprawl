@@ -259,7 +259,7 @@ async function backfillAll(db: Kysely<Database>) {
     process.exit(1)
   }
 
-  const workerConfig = { apiKey: env.OPENROUTER_API_KEY, model: env.MEMORY_WORKER_MODEL }
+  const workerConfig = { apiKey: env.OPENROUTER_API_KEY, model: env.MEMORY_WORKER_MODEL, extraBody: { reasoning: { max_tokens: 1 } } }
   const embeddingOpts = { apiKey: env.OPENROUTER_API_KEY, embeddingModel: env.EMBEDDING_MODEL }
   const mm = new MemoryManager(db, {
     workerConfig,

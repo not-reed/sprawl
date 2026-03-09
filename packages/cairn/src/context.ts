@@ -78,7 +78,6 @@ export function buildContextWindow(
   activeMessages: Array<{
     role: string
     content: string
-    telegram_message_id?: number | null
   }>,
 ): ContextWindow {
   return {

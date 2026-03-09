@@ -28,8 +28,9 @@ export async function processMemoryForGraph(
   content: string,
   embeddingOpts?: { apiKey?: string; embeddingModel?: string },
   logger?: CairnLogger,
+  entityTypes?: string[],
 ): Promise<ExtractionResult> {
-  const result = await extractEntities(config, content, logger)
+  const result = await extractEntities(config, content, logger, entityTypes)
 
   if (result.entities.length === 0 && result.relationships.length === 0) {
     logger?.debug(`No graph entities extracted from memory [${memoryId}]`)

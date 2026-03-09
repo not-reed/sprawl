@@ -1,9 +1,14 @@
 import type { Generated, Insertable, Selectable, Updateable } from 'kysely'
-import type { CairnDatabase } from '@repo/cairn'
+import type { CairnDatabase, MessageTable as CairnMessageTable } from '@repo/cairn'
+
+interface ConstructMessageTable extends CairnMessageTable {
+  telegram_message_id: number | null
+}
 
 // Index signature needed so Kysely<Database> is assignable to cairn's
 // Kysely<CairnDatabase & Record<string, any>> (Kysely is invariant).
 export interface Database extends CairnDatabase {
+  messages: ConstructMessageTable
   schedules: ScheduleTable
   settings: SettingTable
   secrets: SecretTable

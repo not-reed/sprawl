@@ -32,8 +32,8 @@ export async function analyzeAllTokens(
   _memory: MemoryManager,
   log: (msg: string) => void,
 ): Promise<void> {
-  const tokens = await getActiveTokens(db as any)
-  const prices = await getLatestPrices(db as any)
+  const tokens = await getActiveTokens(db)
+  const prices = await getLatestPrices(db)
   const priceMap = new Map(prices.map((p) => [p.token_id, p]))
 
   for (const token of tokens) {
@@ -98,12 +98,12 @@ async function analyzeToken(
       const relatedMemoryIds = await getRelatedMemoryIds(db, nodeIds)
       const graphMemories = await Promise.all(
         relatedMemoryIds.slice(0, 5).map((id) =>
-          db.selectFrom('memories' as any).selectAll().where('id', '=', id).executeTakeFirst(),
+          db.selectFrom('memories').selectAll().where('id', '=', id).executeTakeFirst(),
         ),
       )
       for (const m of graphMemories) {
         if (m && !memories.some((existing) => existing.id === m.id)) {
-          memories.push(m as any)
+          memories.push(m)
         }
       }
     }
@@ -154,7 +154,7 @@ async function analyzeToken(
 
   // 7. Store signal
   const memoryIds = memories.map((m) => m.id)
-  await insertSignal(db as any, {
+  await insertSignal(db, {
     token_id: token.id,
     signal_type: parsed.signal,
     confidence: parsed.confidence,
@@ -194,6 +194,7 @@ async function callLLM(
       messages: [{ role: 'user', content: prompt }],
       temperature,
       max_tokens: opts?.maxTokens ?? 500,
+      reasoning: { max_tokens: 1 },
     }),
   })
 

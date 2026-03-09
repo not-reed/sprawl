@@ -45,17 +45,16 @@ describe('schedule_create', () => {
     const tool = createScheduleCreateTool(db, TEST_CHAT_ID, TEST_TZ, TEST_API_KEY)
     const result = await tool.execute('t1', {
       description: 'Dentist appointment',
-      message: 'Time for your dentist appointment!',
+      instruction: 'Remind the user about their dentist appointment',
       run_at: '2025-03-05T09:00:00',
     })
 
     expect(result.output).toContain('one-shot')
-    expect(result.output).toContain('static-message')
     expect(result.output).toContain('Dentist appointment')
     const schedule = (result.details as any).schedule
     expect(schedule.run_at).toBe('2025-03-05T09:00:00')
     expect(schedule.cron_expression).toBeNull()
-    expect(schedule.prompt).toBeNull()
+    expect(schedule.prompt).toBe('Remind the user about their dentist appointment')
     expect(schedule.chat_id).toBe(TEST_CHAT_ID)
   })
 
@@ -63,7 +62,7 @@ describe('schedule_create', () => {
     const tool = createScheduleCreateTool(db, TEST_CHAT_ID, TEST_TZ, TEST_API_KEY)
     const result = await tool.execute('t1', {
       description: 'Weekly standup',
-      message: 'Standup time!',
+      instruction: 'Remind about standup',
       cron_expression: '0 9 * * 1',
     })
 
@@ -76,7 +75,7 @@ describe('schedule_create', () => {
     const tool = createScheduleCreateTool(db, TEST_CHAT_ID, TEST_TZ, TEST_API_KEY)
     const result = await tool.execute('t1', {
       description: 'No time',
-      message: 'When?',
+      instruction: 'When?',
     })
 
     expect(result.output).toContain('Please provide')
@@ -86,7 +85,7 @@ describe('schedule_create', () => {
     const tool = createScheduleCreateTool(db, TEST_CHAT_ID, TEST_TZ, TEST_API_KEY)
     const result = await tool.execute('t1', {
       description: 'Z-stripped',
-      message: 'Hello',
+      instruction: 'Hello',
       run_at: '2025-03-05T09:00:00Z',
     })
 
@@ -98,7 +97,7 @@ describe('schedule_create', () => {
     const tool = createScheduleCreateTool(db, TEST_CHAT_ID, TEST_TZ, TEST_API_KEY)
     const result = await tool.execute('t1', {
       description: 'Offset-stripped',
-      message: 'Hello',
+      instruction: 'Hello',
       run_at: '2025-03-05T09:00:00-08:00',
     })
 
@@ -106,19 +105,19 @@ describe('schedule_create', () => {
     expect(schedule.run_at).toBe('2025-03-05T09:00:00')
   })
 
-  it('deduplicates one-shot schedules with same run_at and message', async () => {
+  it('deduplicates one-shot schedules with same run_at and instruction', async () => {
     const tool = createScheduleCreateTool(db, TEST_CHAT_ID, TEST_TZ, TEST_API_KEY)
 
     const first = await tool.execute('t1', {
       description: 'Dentist',
-      message: 'Go to dentist',
+      instruction: 'Go to dentist',
       run_at: '2025-03-05T09:00:00',
     })
     expect(first.output).toContain('Created')
 
     const second = await tool.execute('t2', {
       description: 'Dentist again',
-      message: 'Go to dentist',
+      instruction: 'Go to dentist',
       run_at: '2025-03-05T09:00:00',
     })
     expect(second.output).toContain('already exists')
@@ -131,38 +130,38 @@ describe('schedule_create', () => {
 
     await tool.execute('t1', {
       description: 'Course reminder',
-      message: 'FrontEndMasters Course Reminder',
+      instruction: 'FrontEndMasters Course Reminder',
       run_at: '2025-03-05T09:00:00',
     })
 
     const second = await tool.execute('t2', {
       description: 'Course reminder',
-      message: 'frontend masters  course reminder',
+      instruction: 'frontend masters  course reminder',
       run_at: '2025-03-05T09:00:00',
     })
     expect(second.output).toContain('already exists')
     expect((second.details as any).deduplicated).toBe(true)
   })
 
-  it('deduplicates rephrased messages via Levenshtein similarity', async () => {
+  it('deduplicates rephrased instructions via Levenshtein similarity', async () => {
     const tool = createScheduleCreateTool(db, TEST_CHAT_ID, TEST_TZ, TEST_API_KEY)
 
     await tool.execute('t1', {
       description: 'Dentist',
-      message: 'Time for your dentist appointment!',
+      instruction: 'Time for your dentist appointment!',
       run_at: '2025-03-05T09:00:00',
     })
 
     const second = await tool.execute('t2', {
       description: 'Dentist',
-      message: "Don't forget your dentist appointment!",
+      instruction: "Don't forget your dentist appointment!",
       run_at: '2025-03-05T09:00:00',
     })
     expect(second.output).toContain('already exists')
     expect((second.details as any).deduplicated).toBe(true)
   })
 
-  it('allows different messages at the same time', async () => {
+  it('allows different instructions at the same time', async () => {
     // First call has no candidates (empty DB), no embedding calls.
     // Second call: 2 embeddings (new desc + 1 existing candidate) — orthogonal vectors.
     mockGenerateEmbedding
@@ -172,14 +171,14 @@ describe('schedule_create', () => {
 
     const first = await tool.execute('t1', {
       description: 'Do laundry',
-      message: 'Do laundry',
+      instruction: 'Remind about laundry',
       run_at: '2025-03-05T09:00:00',
     })
     expect(first.output).toContain('Created')
 
     const second = await tool.execute('t2', {
       description: 'Call mom',
-      message: 'Call mom',
+      instruction: 'Remind to call mom',
       run_at: '2025-03-05T09:00:00',
     })
     expect(second.output).toContain('Created')
@@ -194,14 +193,14 @@ describe('schedule_create', () => {
 
     const first = await tool.execute('t1', {
       description: 'McBride trip for Milo sleepover',
-      message: 'McBride trip for Milo sleepover',
+      instruction: 'Remind about McBride trip for Milo sleepover',
       run_at: '2026-03-01T10:30:00',
     })
     expect(first.output).toContain('Created')
 
     const second = await tool.execute('t2', {
       description: 'Pickup Milo from McBride sleepover',
-      message: 'Pickup Milo from McBride sleepover',
+      instruction: 'Remind to pickup Milo from McBride sleepover',
       run_at: '2026-03-01T10:30:00',
     })
     expect(second.output).toContain('already exists')
@@ -209,19 +208,19 @@ describe('schedule_create', () => {
     expect((second.details as any).schedule.id).toBe((first.details as any).schedule.id)
   })
 
-  it('deduplicates recurring schedules with same cron and message', async () => {
+  it('deduplicates recurring schedules with same cron and instruction', async () => {
     const tool = createScheduleCreateTool(db, TEST_CHAT_ID, TEST_TZ, TEST_API_KEY)
 
     const first = await tool.execute('t1', {
       description: 'Daily standup',
-      message: 'Standup time!',
+      instruction: 'Standup time!',
       cron_expression: '0 9 * * *',
     })
     expect(first.output).toContain('Created')
 
     const second = await tool.execute('t2', {
       description: 'Morning standup',
-      message: 'standup time!',
+      instruction: 'standup time!',
       cron_expression: '0 9 * * *',
     })
     expect(second.output).toContain('already exists')
@@ -234,95 +233,39 @@ describe('schedule_create', () => {
 
     await tool1.execute('t1', {
       description: 'Reminder',
-      message: 'Hey',
+      instruction: 'Hey',
       run_at: '2025-03-05T09:00:00',
     })
 
     const result = await tool2.execute('t2', {
       description: 'Reminder',
-      message: 'Hey',
+      instruction: 'Hey',
       run_at: '2025-03-05T09:00:00',
     })
     expect(result.output).toContain('Created')
   })
 
-  // ── Prompt-based schedules ──────────────────────────────────────
+  it('deduplicates against legacy schedules using prompt ?? message fallback', async () => {
+    // Insert a legacy schedule with message only (no prompt)
+    await db.insertInto('schedules' as any).values({
+      id: 'legacy-1',
+      description: 'Take out trash',
+      message: 'Take out the trash',
+      prompt: null,
+      chat_id: TEST_CHAT_ID,
+      cron_expression: null,
+      run_at: '2025-03-05T09:00:00',
+      active: 1,
+    }).execute()
 
-  it('creates a prompt-based schedule', async () => {
     const tool = createScheduleCreateTool(db, TEST_CHAT_ID, TEST_TZ, TEST_API_KEY)
     const result = await tool.execute('t1', {
-      description: 'Weather check',
-      prompt: 'Check the weather and alert if below freezing',
-      cron_expression: '0 7 * * *',
-    })
-
-    expect(result.output).toContain('agent-prompt')
-    expect(result.output).toContain('recurring')
-    const schedule = (result.details as any).schedule
-    expect(schedule.prompt).toBe('Check the weather and alert if below freezing')
-    expect(schedule.message).toBe('Weather check') // defaults to description
-  })
-
-  it('rejects when both message and prompt provided', async () => {
-    const tool = createScheduleCreateTool(db, TEST_CHAT_ID, TEST_TZ, TEST_API_KEY)
-    const result = await tool.execute('t1', {
-      description: 'Conflict',
-      message: 'static msg',
-      prompt: 'agent prompt',
+      description: 'Trash reminder',
+      instruction: 'Take out the trash',
       run_at: '2025-03-05T09:00:00',
     })
-
-    expect(result.output).toContain('not both')
-  })
-
-  it('rejects when neither message nor prompt provided', async () => {
-    const tool = createScheduleCreateTool(db, TEST_CHAT_ID, TEST_TZ, TEST_API_KEY)
-    const result = await tool.execute('t1', {
-      description: 'Empty',
-      run_at: '2025-03-05T09:00:00',
-    })
-
-    expect(result.output).toContain('message')
-    expect(result.output).toContain('prompt')
-  })
-
-  it('does not dedup across static and prompt modes', async () => {
-    const tool = createScheduleCreateTool(db, TEST_CHAT_ID, TEST_TZ, TEST_API_KEY)
-
-    const first = await tool.execute('t1', {
-      description: 'Weather check',
-      message: 'Check the weather',
-      cron_expression: '0 7 * * *',
-    })
-    expect(first.output).toContain('Created')
-
-    const second = await tool.execute('t2', {
-      description: 'Weather check',
-      prompt: 'Check the weather',
-      cron_expression: '0 7 * * *',
-    })
-    expect(second.output).toContain('Created')
-    // Both should exist as separate schedules
-    expect((first.details as any).schedule.id).not.toBe((second.details as any).schedule.id)
-  })
-
-  it('deduplicates prompt-based schedules with same prompt and time', async () => {
-    const tool = createScheduleCreateTool(db, TEST_CHAT_ID, TEST_TZ, TEST_API_KEY)
-
-    const first = await tool.execute('t1', {
-      description: 'Weather check',
-      prompt: 'Check the weather and alert if cold',
-      cron_expression: '0 7 * * *',
-    })
-    expect(first.output).toContain('Created')
-
-    const second = await tool.execute('t2', {
-      description: 'Morning weather',
-      prompt: 'Check the weather and alert if cold',
-      cron_expression: '0 7 * * *',
-    })
-    expect(second.output).toContain('already exists')
-    expect((second.details as any).deduplicated).toBe(true)
+    expect(result.output).toContain('already exists')
+    expect((result.details as any).deduplicated).toBe(true)
   })
 })
 
@@ -331,12 +274,12 @@ describe('schedule_list', () => {
     const create = createScheduleCreateTool(db, TEST_CHAT_ID, TEST_TZ, TEST_API_KEY)
     await create.execute('t1', {
       description: 'Reminder 1',
-      message: 'Hey',
+      instruction: 'Hey',
       run_at: '2025-04-01T10:00:00',
     })
     await create.execute('t2', {
       description: 'Reminder 2',
-      message: 'Ho',
+      instruction: 'Ho',
       cron_expression: '0 8 * * *',
     })
 
@@ -351,7 +294,7 @@ describe('schedule_list', () => {
     const create = createScheduleCreateTool(db, TEST_CHAT_ID, 'America/Vancouver', TEST_API_KEY)
     await create.execute('t1', {
       description: 'Reminder',
-      message: 'Hey',
+      instruction: 'Hey',
       run_at: '2025-04-01T10:00:00',
     })
 
@@ -368,29 +311,19 @@ describe('schedule_list', () => {
     expect(result.output).toContain('No scheduled reminders')
   })
 
-  it('shows [agent] badge for prompt-based schedules', async () => {
+  it('shows [agent] badge for schedules with prompt', async () => {
     const create = createScheduleCreateTool(db, TEST_CHAT_ID, TEST_TZ, TEST_API_KEY)
     await create.execute('t1', {
       description: 'Weather check',
-      prompt: 'Check weather',
+      instruction: 'Check weather',
       cron_expression: '0 7 * * *',
-    })
-    await create.execute('t2', {
-      description: 'Plain reminder',
-      message: 'Hey',
-      run_at: '2025-04-01T10:00:00',
     })
 
     const list = createScheduleListTool(db, TEST_TZ)
     const result = await list.execute('l1', {})
 
+    // All new schedules have prompt set, so they all show [agent]
     expect(result.output).toContain('[agent]')
-    // Only the prompt-based one should have [agent]
-    const lines = result.output.split('\n')
-    const agentLine = lines.find((l: string) => l.includes('[agent]'))
-    const plainLine = lines.find((l: string) => l.includes('Plain reminder'))
-    expect(agentLine).toContain('Weather check')
-    expect(plainLine).not.toContain('[agent]')
   })
 })
 
@@ -399,7 +332,7 @@ describe('schedule_cancel', () => {
     const create = createScheduleCreateTool(db, TEST_CHAT_ID, TEST_TZ, TEST_API_KEY)
     const createResult = await create.execute('t1', {
       description: 'Cancel me',
-      message: 'Bye',
+      instruction: 'Bye',
       run_at: '2025-04-01T10:00:00',
     })
     const scheduleId = (createResult.details as any).schedule.id

@@ -12,3 +12,4 @@ target/
 .direnv/
 .plans/
 .blog/drafts/
+rules/
