@@ -1,6 +1,6 @@
 import { defineConfig } from 'astro/config'
 import starlight from '@astrojs/starlight'
-
+import starlightLlmsTxt from 'starlight-llms-txt'
 import react from '@astrojs/react'
 
 export default defineConfig({
@@ -24,7 +24,7 @@ export default defineConfig({
         { label: 'Guides', autogenerate: { directory: 'guides' } },
         { label: 'Knowledge Graph', link: '/graph/' },
       ],
-      plugins: [],
+      plugins: [starlightLlmsTxt({ rawContent: true })],
     }),
     react(),
   ],
