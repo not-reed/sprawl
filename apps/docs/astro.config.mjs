@@ -1,10 +1,10 @@
 import { defineConfig } from 'astro/config'
 import starlight from '@astrojs/starlight'
-import starlightLlmsTxt from 'starlight-llms-txt'
+
 import react from '@astrojs/react'
 
 export default defineConfig({
-  site: 'http://localhost:4321',
+  site: 'https://sprawl.pages.dev',
   integrations: [
     starlight({
       title: 'Sprawl',
@@ -24,7 +24,7 @@ export default defineConfig({
         { label: 'Guides', autogenerate: { directory: 'guides' } },
         { label: 'Knowledge Graph', link: '/graph/' },
       ],
-      plugins: [starlightLlmsTxt()],
+      plugins: [],
     }),
     react(),
   ],
