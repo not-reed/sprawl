@@ -1,10 +1,10 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { Layout } from './components/Layout'
-import { CampaignList } from './components/CampaignList'
-import { CampaignView } from './components/CampaignView'
-import { PlayView } from './components/PlayView'
-import { VoiceSettings } from './components/VoiceSettings'
-import { TtsDebug } from './components/TtsDebug'
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Layout } from "./components/Layout";
+import { CampaignList } from "./components/CampaignList";
+import { CampaignView } from "./components/CampaignView";
+import { PlayView } from "./components/PlayView";
+import { VoiceSettings } from "./components/VoiceSettings";
+import { TtsDebug } from "./components/TtsDebug";
 
 export function App() {
   return (
@@ -19,5 +19,5 @@ export function App() {
         </Route>
       </Routes>
     </BrowserRouter>
-  )
+  );
 }

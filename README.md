@@ -7,9 +7,9 @@
 ╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝ ╚══╝╚══╝ ╚══════╝
 ```
 
-> *"The Sprawl was a long strange way, home to millions, most of them sleeping."*
+> _"The Sprawl was a long strange way, home to millions, most of them sleeping."_
 >
-> -- William Gibson, *Neuromancer*
+> -- William Gibson, _Neuromancer_
 
 ---
 
@@ -83,19 +83,19 @@ Terminal trading dashboard. Displays prices, news feeds, signals from Cortex, an
 
 ## Shared ICE
 
-| Package | Description |
-|---|---|
+| Package       | Description                                                                            |
+| ------------- | -------------------------------------------------------------------------------------- |
 | `@repo/cairn` | Memory substrate -- observer/reflector, embeddings, graph extraction, context building |
-| `@repo/db` | Shared Kysely database factory + migration runner |
+| `@repo/db`    | Shared Kysely database factory + migration runner                                      |
 
 ## Construct Toolbox
 
-| Pack | Tools |
-|------|-------|
+| Pack                     | Tools                                                                                                                                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **core** (always loaded) | `memory_store`, `memory_recall`, `memory_forget`, `memory_graph`, `schedule_create`, `schedule_list`, `schedule_cancel`, `secret_manage`, `identity_read`, `identity_update`, `usage_stats` |
-| **self** | `self_read_source`, `self_edit_source`, `self_run_tests`, `self_view_logs`, `self_deploy`, `self_status`, `extension_reload` |
-| **web** | `web_search`, `web_read` |
-| **telegram** | `telegram_react`, `telegram_reply_to`, `telegram_pin`, `telegram_unpin`, `telegram_get_pinned` |
+| **self**                 | `self_read_source`, `self_edit_source`, `self_run_tests`, `self_view_logs`, `self_deploy`, `self_status`, `extension_reload`                                                                |
+| **web**                  | `web_search`, `web_read`                                                                                                                                                                    |
+| **telegram**             | `telegram_react`, `telegram_reply_to`, `telegram_pin`, `telegram_unpin`, `telegram_get_pinned`                                                                                              |
 
 Tool packs are semantically selected per message via embedding similarity. Core always loads; others activate when relevant.
 
@@ -257,8 +257,8 @@ sprawl/
 
 ---
 
-> *"Night City was like a deranged experiment in social Darwinism, designed by a bored researcher who kept one thumb permanently on the fast-forward button."*
+> _"Night City was like a deranged experiment in social Darwinism, designed by a bored researcher who kept one thumb permanently on the fast-forward button."_
 >
-> -- William Gibson, *Neuromancer*
+> -- William Gibson, _Neuromancer_
 
 The sprawl remembers. The sprawl watches. The sprawl trades on what it knows. And if you need to see what it sees, there's a deck for that.

@@ -14,10 +14,11 @@
   --sl-color-black: #12121a;
   --sl-color-bg-nav: var(--sl-color-gray-6);
   --sl-color-bg-sidebar: var(--sl-color-black);
-  --sl-font-system: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+  --sl-font-system:
+    ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, "DejaVu Sans Mono", monospace;
 }
 
-[data-theme='light'] {
+[data-theme="light"] {
   --sl-color-accent-low: #ede9fe;
   --sl-color-accent: #6d28d9;
   --sl-color-accent-high: #3b0764;
@@ -36,7 +37,7 @@
 }
 
 /* Sidebar active link glow */
-[aria-current='page'] {
+[aria-current="page"] {
   text-shadow: 0 0 8px rgba(124, 108, 240, 0.3);
 }
 

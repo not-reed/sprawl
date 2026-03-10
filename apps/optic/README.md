@@ -7,7 +7,7 @@
  ╚═════╝ ╚═╝        ╚═╝   ╚═╝ ╚═════╝
 ```
 
-> *All the data in the world lives behind glass. The trick is knowing which pane to look through.*
+> _All the data in the world lives behind glass. The trick is knowing which pane to look through._
 
 ---
 
@@ -82,18 +82,18 @@ Always visible when synapse is connected. Shows NAV, cash, drawdown %, return vs
 
 ## Keybindings
 
-| Key | Action |
-|-----|--------|
-| `q` | Quit |
-| `r` | Force refresh |
-| `Tab` | Cycle focused panel |
-| `j`/`k` | Scroll up/down in focused panel |
-| `Enter` | Detail popup (news, signals) |
-| `c` | Cycle chart token (market mode) |
-| `a` | Queue analysis command (market mode) |
-| `o` | Open URL in browser (news detail popup) |
-| `1` | Switch to Market mode |
-| `2` | Switch to Trading mode |
+| Key     | Action                                  |
+| ------- | --------------------------------------- |
+| `q`     | Quit                                    |
+| `r`     | Force refresh                           |
+| `Tab`   | Cycle focused panel                     |
+| `j`/`k` | Scroll up/down in focused panel         |
+| `Enter` | Detail popup (news, signals)            |
+| `c`     | Cycle chart token (market mode)         |
+| `a`     | Queue analysis command (market mode)    |
+| `o`     | Open URL in browser (news detail popup) |
+| `1`     | Switch to Market mode                   |
+| `2`     | Switch to Trading mode                  |
 
 ## Usage
 
@@ -117,4 +117,4 @@ Auto-refreshes every 5 seconds. Both databases opened read-only with WAL mode.
 
 ---
 
-> *Green text on black glass. Everything the system knows, one refresh away.*
+> _Green text on black glass. Everything the system knows, one refresh away._

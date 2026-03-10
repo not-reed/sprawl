@@ -7,14 +7,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/db": "workspace:*",
     "@repo/cairn": "workspace:*",
+    "@repo/db": "workspace:*",
     "@repo/env": "workspace:*",
     "@repo/log": "workspace:*",
-"croner": "^10.0.1",
+    "croner": "^10.0.1",
+    "fast-xml-parser": "^5.2.0",
     "kysely": "^0.28.11",
     "nanoid": "^5.1.6",
-    "zod": "^4.3.6",
-    "fast-xml-parser": "^5.2.0"
+    "zod": "^4.3.6"
   }
 }

@@ -32,30 +32,30 @@ React 19 SPA with React Router. Three views:
 
 ### Components
 
-| Component | Role |
-|-----------|------|
-| `GraphView.tsx` | D3-force canvas rendering, zoom/pan, node selection |
-| `GraphControls.tsx` | Search, layout controls |
-| `GraphDetail.tsx` | Selected node/edge detail panel |
-| `NodeTooltip.tsx` | Hover tooltip for graph nodes |
-| `MemoryBrowser.tsx` | Memory list with search |
-| `MemoryCard.tsx` | Individual memory display |
-| `ObservationTimeline.tsx` | Observation list with generation/priority display |
-| `SearchBar.tsx` | Shared search input |
-| `Layout.tsx` | App shell with navigation |
+| Component                 | Role                                                |
+| ------------------------- | --------------------------------------------------- |
+| `GraphView.tsx`           | D3-force canvas rendering, zoom/pan, node selection |
+| `GraphControls.tsx`       | Search, layout controls                             |
+| `GraphDetail.tsx`         | Selected node/edge detail panel                     |
+| `NodeTooltip.tsx`         | Hover tooltip for graph nodes                       |
+| `MemoryBrowser.tsx`       | Memory list with search                             |
+| `MemoryCard.tsx`          | Individual memory display                           |
+| `ObservationTimeline.tsx` | Observation list with generation/priority display   |
+| `SearchBar.tsx`           | Shared search input                                 |
+| `Layout.tsx`              | App shell with navigation                           |
 
 ## Key files
 
-| File | Role |
-|------|------|
-| `src/server.ts` | Hono app setup, middleware, routing |
-| `src/env.ts` | DATABASE_URL + PORT config |
-| `src/routes/memories.ts` | Memory search/list/detail API |
-| `src/routes/graph.ts` | Graph query API |
-| `src/routes/observations.ts` | Observation timeline API |
-| `src/routes/stats.ts` | Stats aggregation API |
-| `web/src/App.tsx` | React router setup |
-| `web/src/components/GraphView.tsx` | D3-force graph visualization |
+| File                               | Role                                |
+| ---------------------------------- | ----------------------------------- |
+| `src/server.ts`                    | Hono app setup, middleware, routing |
+| `src/env.ts`                       | DATABASE_URL + PORT config          |
+| `src/routes/memories.ts`           | Memory search/list/detail API       |
+| `src/routes/graph.ts`              | Graph query API                     |
+| `src/routes/observations.ts`       | Observation timeline API            |
+| `src/routes/stats.ts`              | Stats aggregation API               |
+| `web/src/App.tsx`                  | React router setup                  |
+| `web/src/components/GraphView.tsx` | D3-force graph visualization        |
 
 ## Integration points
 

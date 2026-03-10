@@ -13,13 +13,13 @@ The extension system also manages three **identity files** (SOUL.md, IDENTITY.md
 
 ## Key Files
 
-| File | Role |
-|------|------|
-| `src/extensions/index.ts` | Singleton registry, `initExtensions()`, `reloadExtensions()`, selection helpers |
-| `src/extensions/loader.ts` | File loading: identity files, skills (Markdown), dynamic tools (TypeScript via jiti) |
-| `src/extensions/embeddings.ts` | Embedding caches for skills and dynamic packs, selection functions |
-| `src/extensions/secrets.ts` | Secret management: store, get, list, delete, env sync, secrets map builder |
-| `src/extensions/types.ts` | TypeScript interfaces for Skill, DynamicToolExport, ExtensionRegistry, etc. |
+| File                           | Role                                                                                 |
+| ------------------------------ | ------------------------------------------------------------------------------------ |
+| `src/extensions/index.ts`      | Singleton registry, `initExtensions()`, `reloadExtensions()`, selection helpers      |
+| `src/extensions/loader.ts`     | File loading: identity files, skills (Markdown), dynamic tools (TypeScript via jiti) |
+| `src/extensions/embeddings.ts` | Embedding caches for skills and dynamic packs, selection functions                   |
+| `src/extensions/secrets.ts`    | Secret management: store, get, list, delete, env sync, secrets map builder           |
+| `src/extensions/types.ts`      | TypeScript interfaces for Skill, DynamicToolExport, ExtensionRegistry, etc.          |
 
 ## Extensions Directory Layout
 
@@ -41,6 +41,7 @@ $EXTENSIONS_DIR/
 ```
 
 The default `EXTENSIONS_DIR` is:
+
 - **Development**: `./data` (relative to project root)
 - **Production**: `$XDG_DATA_HOME/construct/` (typically `~/.local/share/construct/`)
 
@@ -48,15 +49,16 @@ The default `EXTENSIONS_DIR` is:
 
 Three Markdown files injected into the system prompt:
 
-| File | Purpose | System Prompt Section |
-|------|---------|----------------------|
-| `SOUL.md` | Personality traits, values, communication anti-patterns | `## Soul` |
-| `IDENTITY.md` | Name, creature type, visual description, pronouns | `## Identity` |
-| `USER.md` | Human's name, location, preferences, interests, schedule | `## User` |
+| File          | Purpose                                                  | System Prompt Section |
+| ------------- | -------------------------------------------------------- | --------------------- |
+| `SOUL.md`     | Personality traits, values, communication anti-patterns  | `## Soul`             |
+| `IDENTITY.md` | Name, creature type, visual description, pronouns        | `## Identity`         |
+| `USER.md`     | Human's name, location, preferences, interests, schedule | `## User`             |
 
 These are loaded by `loadIdentityFiles()` in `src/extensions/loader.ts` and stored in the `ExtensionRegistry.identity` field. They are read/written by the `identity_read` and `identity_update` tools.
 
 When an identity file is updated via `identity_update`, the tool:
+
 1. Writes the new content to disk
 2. Calls `invalidateSystemPromptCache()` to clear the cached system prompt
 3. Calls `reloadExtensions()` to refresh the registry
@@ -89,13 +91,13 @@ When the user asks for a standup or morning briefing:
 
 ### Frontmatter Fields
 
-| Field | Required | Description |
-|-------|:---:|-------------|
-| `name` | Yes | Unique skill name |
-| `description` | Yes | Short description (used for embedding) |
-| `requires.secrets` | No | Secret keys that must exist in the `secrets` table |
-| `requires.env` | No | Environment variables that must be set |
-| `requires.bins` | No | Binary executables needed (logged but not enforced) |
+| Field              | Required | Description                                         |
+| ------------------ | :------: | --------------------------------------------------- |
+| `name`             |   Yes    | Unique skill name                                   |
+| `description`      |   Yes    | Short description (used for embedding)              |
+| `requires.secrets` |    No    | Secret keys that must exist in the `secrets` table  |
+| `requires.env`     |    No    | Environment variables that must be set              |
+| `requires.bins`    |    No    | Binary executables needed (logged but not enforced) |
 
 ### How Skills Are Selected
 
@@ -118,6 +120,7 @@ When the user asks for a standup...
 ### Requirement Checking
 
 `checkRequirements()` in `src/extensions/loader.ts` validates:
+
 - `requires.env` -- checks `process.env`
 - `requires.secrets` -- checks against available secrets from the database
 - `requires.bins` -- logged only (not enforced)
@@ -133,31 +136,32 @@ Dynamic tools are TypeScript files under `$EXTENSIONS_DIR/tools/`. They are load
 A dynamic tool file must export:
 
 ```typescript
-import { Type, type Static } from '@sinclair/typebox'
+import { Type, type Static } from "@sinclair/typebox";
 
 // Optional: declare requirements
 export const meta = {
   requires: {
-    secrets: ['OPENWEATHERMAP_API_KEY'],
+    secrets: ["OPENWEATHERMAP_API_KEY"],
   },
-}
+};
 
 // Default export: either a tool object or a factory function
 export default (ctx: DynamicToolContext) => ({
-  name: 'weather_current',
-  description: 'Get current weather for a location',
+  name: "weather_current",
+  description: "Get current weather for a location",
   parameters: Type.Object({
-    location: Type.String({ description: 'City name' }),
+    location: Type.String({ description: "City name" }),
   }),
   execute: async (_id: string, args: { location: string }) => {
-    const apiKey = ctx.secrets.get('OPENWEATHERMAP_API_KEY')
+    const apiKey = ctx.secrets.get("OPENWEATHERMAP_API_KEY");
     // ... fetch weather ...
-    return { output: `Weather in ${args.location}: ...` }
+    return { output: `Weather in ${args.location}: ...` };
   },
-})
+});
 ```
 
 The default export can be:
+
 - A **factory function** `(ctx: DynamicToolContext) => InternalTool` -- receives secrets and context
 - A **plain tool object** `InternalTool` -- for tools that don't need secrets
 
@@ -165,7 +169,7 @@ The default export can be:
 
 ```typescript
 interface DynamicToolContext {
-  secrets: Map<string, string>   // All secrets from the secrets table
+  secrets: Map<string, string>; // All secrets from the secrets table
 }
 ```
 
@@ -198,9 +202,9 @@ The singleton registry holds all loaded extension data:
 
 ```typescript
 interface ExtensionRegistry {
-  identity: IdentityFiles       // { soul, identity, user } -- string | null each
-  skills: Skill[]               // Parsed skill objects
-  dynamicPacks: ToolPack[]      // Dynamic tool packs (same ToolPack type as builtins)
+  identity: IdentityFiles; // { soul, identity, user } -- string | null each
+  skills: Skill[]; // Parsed skill objects
+  dynamicPacks: ToolPack[]; // Dynamic tool packs (same ToolPack type as builtins)
 }
 ```
 

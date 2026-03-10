@@ -42,10 +42,12 @@ Cortex signals ──> dedup ──> filter ──> risk check ──> size ─�
 ### Risk management (`apps/synapse/src/engine/risk.ts`)
 
 Per-position:
+
 - **Stop-loss** -- Configurable percentage below entry (default: 8%). Triggers automatic close.
 - **Take-profit** -- Configurable percentage above entry (default: 20%). Triggers automatic close.
 
 Portfolio-level:
+
 - **Drawdown halt** -- If portfolio drops below threshold from high water mark (default: 15%), close all positions and halt trading
 - **Exposure limit** -- Max allocation to a single token (default: 25% of NAV)
 - **Max open positions** -- Cap on concurrent positions (default: 8)
@@ -62,21 +64,21 @@ Portfolio-level:
 
 ## Key files
 
-| File | Role |
-|------|------|
-| `src/main.ts` | Entry point, boot sequence |
-| `src/env.ts` | All config: balance, intervals, risk params, sizing |
-| `src/status.ts` | CLI portfolio summary |
-| `src/types.ts` | Executor interface |
-| `src/cortex/reader.ts` | Read-only Cortex DB access (signals, prices, tokens) |
-| `src/engine/loop.ts` | Signal poll + risk check cron jobs |
-| `src/engine/executor.ts` | PaperExecutor (simulated fills) |
-| `src/engine/signal-filter.ts` | Confidence filtering, cooldown |
-| `src/engine/position-sizer.ts` | Confidence-scaled allocation |
-| `src/engine/risk.ts` | Stop-loss, take-profit, drawdown, exposure |
-| `src/engine/pricing.ts` | Price fetching from Cortex |
-| `src/portfolio/tracker.ts` | Mark-to-market, portfolio recalc, snapshots |
-| `src/db/schema.ts` | positions, trades, signal_log, risk_events, portfolio_state, portfolio_snapshots |
+| File                           | Role                                                                             |
+| ------------------------------ | -------------------------------------------------------------------------------- |
+| `src/main.ts`                  | Entry point, boot sequence                                                       |
+| `src/env.ts`                   | All config: balance, intervals, risk params, sizing                              |
+| `src/status.ts`                | CLI portfolio summary                                                            |
+| `src/types.ts`                 | Executor interface                                                               |
+| `src/cortex/reader.ts`         | Read-only Cortex DB access (signals, prices, tokens)                             |
+| `src/engine/loop.ts`           | Signal poll + risk check cron jobs                                               |
+| `src/engine/executor.ts`       | PaperExecutor (simulated fills)                                                  |
+| `src/engine/signal-filter.ts`  | Confidence filtering, cooldown                                                   |
+| `src/engine/position-sizer.ts` | Confidence-scaled allocation                                                     |
+| `src/engine/risk.ts`           | Stop-loss, take-profit, drawdown, exposure                                       |
+| `src/engine/pricing.ts`        | Price fetching from Cortex                                                       |
+| `src/portfolio/tracker.ts`     | Mark-to-market, portfolio recalc, snapshots                                      |
+| `src/db/schema.ts`             | positions, trades, signal_log, risk_events, portfolio_state, portfolio_snapshots |
 
 ## Database tables
 

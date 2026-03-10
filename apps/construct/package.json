@@ -9,12 +9,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/db": "workspace:*",
-    "@repo/cairn": "workspace:*",
-    "@repo/env": "workspace:*",
-    "@repo/log": "workspace:*",
     "@mariozechner/pi-agent-core": "^0.54.2",
     "@mariozechner/pi-ai": "^0.54.2",
+    "@repo/cairn": "workspace:*",
+    "@repo/db": "workspace:*",
+    "@repo/env": "workspace:*",
+    "@repo/log": "workspace:*",
     "@sinclair/typebox": "^0.34.48",
     "citty": "^0.2.1",
     "croner": "^10.0.1",

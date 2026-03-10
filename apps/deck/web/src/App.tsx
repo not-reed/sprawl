@@ -1,8 +1,8 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { Layout } from './components/Layout'
-import { GraphView } from './components/GraphView'
-import { MemoryBrowser } from './components/MemoryBrowser'
-import { ObservationTimeline } from './components/ObservationTimeline'
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Layout } from "./components/Layout";
+import { GraphView } from "./components/GraphView";
+import { MemoryBrowser } from "./components/MemoryBrowser";
+import { ObservationTimeline } from "./components/ObservationTimeline";
 
 export function App() {
   return (
@@ -15,5 +15,5 @@ export function App() {
         </Route>
       </Routes>
     </BrowserRouter>
-  )
+  );
 }

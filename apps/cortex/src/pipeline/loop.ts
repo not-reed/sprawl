@@ -1,10 +1,10 @@
-import { Cron } from 'croner'
-import type { Kysely } from 'kysely'
-import { MemoryManager } from '@repo/cairn'
-import type { Database } from '../db/schema.js'
-import { fetchPrices } from '../ingest/prices.js'
-import { fetchNews } from '../ingest/news.js'
-import { env } from '../env.js'
+import { Cron } from "croner";
+import type { Kysely } from "kysely";
+import { MemoryManager } from "@repo/cairn";
+import type { Database } from "../db/schema.js";
+import { fetchPrices } from "../ingest/prices.js";
+import { fetchNews } from "../ingest/news.js";
+import { env } from "../env.js";
 import {
   getActiveTokens,
   insertPriceSnapshot,
@@ -13,88 +13,107 @@ import {
   saveMessage,
   getPendingCommands,
   markCommandComplete,
-} from '../db/queries.js'
-import { analyzeAllTokens } from './analyzer.js'
-import type { PriceData } from '../ingest/types.js'
+} from "../db/queries.js";
+import { analyzeAllTokens } from "./analyzer.js";
+import type { PriceData } from "../ingest/types.js";
 
-const jobs: Cron[] = []
+const jobs: Cron[] = [];
 
 // Conversation IDs are cached after first creation
-let priceConvId: string | null = null
-let newsConvId: string | null = null
+let priceConvId: string | null = null;
+let newsConvId: string | null = null;
 
 export interface LoopContext {
-  db: Kysely<Database>
-  memory: MemoryManager
-  log: (msg: string) => void
-}
-
-export function startLoop(ctx: LoopContext): void {
-  const { db, memory, log } = ctx
-
-  // Price ingestion
-  const priceJob = new Cron(`*/${Math.max(1, Math.floor(env.PRICE_INTERVAL / 60))} * * * *`, async () => {
-    try {
-      await ingestPrices(db, memory, log)
-    } catch (err) {
-      log(`Price ingestion error: ${err}`)
-    }
-  })
-  jobs.push(priceJob)
-
-  // News ingestion
-  const newsJob = new Cron(`*/${Math.max(1, Math.floor(env.NEWS_INTERVAL / 60))} * * * *`, async () => {
-    try {
-      await ingestNews(db, memory, log)
-    } catch (err) {
-      log(`News ingestion error: ${err}`)
-    }
-  })
-  jobs.push(newsJob)
-
-  // Signal generation
-  const signalJob = new Cron(`*/${Math.max(1, Math.floor(env.SIGNAL_INTERVAL / 60))} * * * *`, async () => {
-    try {
-      await analyzeAllTokens(db, memory, log)
-    } catch (err) {
-      log(`Signal generation error: ${err}`)
-    }
-  })
-  jobs.push(signalJob)
-
-  // Command queue polling
-  const commandJob = new Cron('*/10 * * * * *', async () => {
-    try {
-      await processCommandQueue(db, memory, log)
-    } catch (err) {
-      log(`Command queue error: ${err}`)
-    }
-  })
-  jobs.push(commandJob)
-
-  log(`Pipeline started: prices every ${env.PRICE_INTERVAL}s, news every ${env.NEWS_INTERVAL}s, signals every ${env.SIGNAL_INTERVAL}s, commands every 10s`)
-}
-
-export function stopLoop(): void {
-  for (const job of jobs) {
-    job.stop()
-  }
-  jobs.length = 0
+  db: Kysely<Database>;
+  memory: MemoryManager;
+  log: (msg: string) => void;
 }
 
 /**
- * Run a single price ingestion cycle. Exported for manual triggering.
+ * Start the cortex daemon loop: cron jobs for price ingestion, news ingestion,
+ * signal generation, and command queue polling.
+ * Call {@link stopLoop} to cancel all jobs.
+ */
+export function startLoop(ctx: LoopContext): void {
+  const { db, memory, log } = ctx;
+
+  // Price ingestion
+  const priceJob = new Cron(
+    `*/${Math.max(1, Math.floor(env.PRICE_INTERVAL / 60))} * * * *`,
+    async () => {
+      try {
+        await ingestPrices(db, memory, log);
+      } catch (err) {
+        log(`Price ingestion error: ${err}`);
+      }
+    },
+  );
+  jobs.push(priceJob);
+
+  // News ingestion
+  const newsJob = new Cron(
+    `*/${Math.max(1, Math.floor(env.NEWS_INTERVAL / 60))} * * * *`,
+    async () => {
+      try {
+        await ingestNews(db, memory, log);
+      } catch (err) {
+        log(`News ingestion error: ${err}`);
+      }
+    },
+  );
+  jobs.push(newsJob);
+
+  // Signal generation
+  const signalJob = new Cron(
+    `*/${Math.max(1, Math.floor(env.SIGNAL_INTERVAL / 60))} * * * *`,
+    async () => {
+      try {
+        await analyzeAllTokens(db, memory, log);
+      } catch (err) {
+        log(`Signal generation error: ${err}`);
+      }
+    },
+  );
+  jobs.push(signalJob);
+
+  // Command queue polling
+  const commandJob = new Cron("*/10 * * * * *", async () => {
+    try {
+      await processCommandQueue(db, memory, log);
+    } catch (err) {
+      log(`Command queue error: ${err}`);
+    }
+  });
+  jobs.push(commandJob);
+
+  log(
+    `Pipeline started: prices every ${env.PRICE_INTERVAL}s, news every ${env.NEWS_INTERVAL}s, signals every ${env.SIGNAL_INTERVAL}s, commands every 10s`,
+  );
+}
+
+/** Stop all running cron jobs started by {@link startLoop}. */
+export function stopLoop(): void {
+  for (const job of jobs) {
+    job.stop();
+  }
+  jobs.length = 0;
+}
+
+/**
+ * Run a single price ingestion cycle: fetch from CoinGecko, store snapshots,
+ * and feed composed price messages through the cairn memory pipeline.
+ * Exported for manual triggering and backfill use.
  */
 export async function ingestPrices(
   db: Kysely<Database>,
   memory: MemoryManager,
   log: (msg: string) => void,
 ): Promise<PriceData[]> {
-  const tokens = await getActiveTokens(db)
-  if (tokens.length === 0) return []
+  const tokens = await getActiveTokens(db);
+  if (tokens.length === 0) return [];
 
-  const tokenIds = tokens.map((t) => t.id)
-  const prices = await fetchPrices(tokenIds)
+  const tokenIds = tokens.map((t) => t.id);
+  const prices = await fetchPrices(tokenIds);
 
   // Store snapshots
   for (const p of prices) {
@@ -105,44 +124,46 @@ export async function ingestPrices(
       volume_24h: p.volume24h,
       change_24h: p.change24h,
       change_7d: p.change7d,
-    })
+    });
   }
 
   // Compose and save message for cairn
   if (prices.length > 0) {
     if (!priceConvId) {
-      priceConvId = await getOrCreateConversation(db, 'cortex', 'prices')
+      priceConvId = await getOrCreateConversation(db, "cortex", "prices");
     }
 
-    const msg = composePriceMessage(prices, tokens)
+    const msg = composePriceMessage(prices, tokens);
     await saveMessage(db, {
       conversation_id: priceConvId,
-      role: 'user',
+      role: "user",
       content: msg,
-    })
+    });
 
     // Run cairn pipeline
-    await memory.runObserver(priceConvId)
-    await memory.promoteObservations(priceConvId)
-    await memory.runReflector(priceConvId)
+    await memory.runObserver(priceConvId);
+    await memory.promoteObservations(priceConvId);
+    await memory.runReflector(priceConvId);
   }
 
-  log(`Ingested prices for ${prices.length} tokens`)
-  return prices
+  log(`Ingested prices for ${prices.length} tokens`);
+  return prices;
 }
 
 /**
- * Run a single news ingestion cycle. Exported for manual triggering.
+ * Run a single news ingestion cycle: fetch from CryptoPanic + CryptoCompare,
+ * deduplicate by external_id, and feed through the cairn memory pipeline.
+ * @returns Number of newly inserted articles.
  */
 export async function ingestNews(
   db: Kysely<Database>,
   memory: MemoryManager,
   log: (msg: string) => void,
 ): Promise<number> {
-  const tokens = await getActiveTokens(db)
-  const currencies = tokens.map((t) => t.symbol).join(',')
-  const news = await fetchNews(env.CRYPTOPANIC_API_KEY, currencies, env.CRYPTOCOMPARE_API_KEY, log)
-  let newCount = 0
+  const activeTokens = await getActiveTokens(db);
+  const currencies = activeTokens.map((t) => t.symbol).join(",");
+  const news = await fetchNews(env.CRYPTOPANIC_API_KEY, currencies, env.CRYPTOCOMPARE_API_KEY, log);
+  let newCount = 0;
 
   for (const item of news) {
     const inserted = await insertNewsItem(db, {
@@ -151,38 +172,37 @@ export async function ingestNews(
       url: item.url,
       source: item.source,
       published_at: item.publishedAt,
-      tokens_mentioned: item.tokensMentioned.length > 0
-        ? JSON.stringify(item.tokensMentioned)
-        : null,
-    })
-    if (inserted) newCount++
+      tokens_mentioned:
+        item.tokensMentioned.length > 0 ? JSON.stringify(item.tokensMentioned) : null,
+    });
+    if (inserted) newCount++;
   }
 
   // Compose and save message for cairn
   if (newCount > 0) {
     if (!newsConvId) {
-      newsConvId = await getOrCreateConversation(db, 'cortex', 'news')
+      newsConvId = await getOrCreateConversation(db, "cortex", "news");
     }
 
-    const tokens = await getActiveTokens(db)
+    const tokens = await getActiveTokens(db);
     const msg = composeNewsMessage(
       news.slice(0, 10),
       tokens.map((t) => t.symbol),
-    )
+    );
     await saveMessage(db, {
       conversation_id: newsConvId,
-      role: 'user',
+      role: "user",
       content: msg,
-    })
+    });
 
     // Run cairn pipeline
-    await memory.runObserver(newsConvId)
-    await memory.promoteObservations(newsConvId)
-    await memory.runReflector(newsConvId)
+    await memory.runObserver(newsConvId);
+    await memory.promoteObservations(newsConvId);
+    await memory.runReflector(newsConvId);
   }
 
-  log(`Ingested ${newCount} new articles (${news.length} total fetched)`)
-  return newCount
+  log(`Ingested ${newCount} new articles (${news.length} total fetched)`);
+  return newCount;
 }
 
 // ── Command Queue ───────────────────────────────────────────────────────
@@ -192,19 +212,19 @@ async function processCommandQueue(
   memory: MemoryManager,
   log: (msg: string) => void,
 ): Promise<void> {
-  const pending = await getPendingCommands(db)
-  if (pending.length === 0) return
+  const pending = await getPendingCommands(db);
+  if (pending.length === 0) return;
 
   for (const cmd of pending) {
     switch (cmd.command) {
-      case 'analyze':
-        log(`Executing queued analyze command (${cmd.id})`)
-        await analyzeAllTokens(db, memory, log)
-        break
+      case "analyze":
+        log(`Executing queued analyze command (${cmd.id})`);
+        await analyzeAllTokens(db, memory, log);
+        break;
       default:
-        log(`Unknown command: ${cmd.command}`)
+        log(`Unknown command: ${cmd.command}`);
     }
-    await markCommandComplete(db, cmd.id)
+    await markCommandComplete(db, cmd.id);
   }
 }
 
@@ -214,53 +234,51 @@ function composePriceMessage(
   prices: PriceData[],
   tokens: Array<{ id: string; symbol: string }>,
 ): string {
-  const now = new Date().toISOString().slice(0, 16).replace('T', ' ')
-  const symbolMap = new Map(tokens.map((t) => [t.id, t.symbol]))
+  const now = new Date().toISOString().slice(0, 16).replace("T", " ");
+  const symbolMap = new Map(tokens.map((t) => [t.id, t.symbol]));
 
   const lines = prices.map((p) => {
-    const sym = symbolMap.get(p.tokenId) ?? p.tokenId
-    const price = formatUsd(p.priceUsd)
-    const parts = [`${sym} ${price}`]
-    if (p.change24h != null) parts.push(`${formatPct(p.change24h)} 24h`)
-    if (p.change7d != null) parts.push(`${formatPct(p.change7d)} 7d`)
-    if (p.volume24h != null) parts.push(`vol ${formatCompact(p.volume24h)}`)
-    return parts.join(', ')
-  })
+    const sym = symbolMap.get(p.tokenId) ?? p.tokenId;
+    const price = formatUsd(p.priceUsd);
+    const parts = [`${sym} ${price}`];
+    if (p.change24h != null) parts.push(`${formatPct(p.change24h)} 24h`);
+    if (p.change7d != null) parts.push(`${formatPct(p.change7d)} 7d`);
+    if (p.volume24h != null) parts.push(`vol ${formatCompact(p.volume24h)}`);
+    return parts.join(", ");
+  });
 
-  return `[${now}] ${lines.join('. ')}.`
+  return `[${now}] ${lines.join(". ")}.`;
 }
 
 export function composeNewsMessage(
   news: Array<{ title: string; source: string; tokensMentioned: string[] }>,
   _trackedSymbols: string[],
 ): string {
-  const now = new Date().toISOString().slice(0, 16).replace('T', ' ')
+  const now = new Date().toISOString().slice(0, 16).replace("T", " ");
   const lines = news.map((n) => {
-    const tokens = n.tokensMentioned.length > 0
-      ? ` Tokens: ${n.tokensMentioned.join(', ')}.`
-      : ''
-    return `- ${n.title} (${n.source})${tokens}`
-  })
+    const tokens = n.tokensMentioned.length > 0 ? ` Tokens: ${n.tokensMentioned.join(", ")}.` : "";
+    return `- ${n.title} (${n.source})${tokens}`;
+  });
 
-  return `[${now}] News:\n${lines.join('\n')}`
+  return `[${now}] News:\n${lines.join("\n")}`;
 }
 
 // ── Formatting Helpers ──────────────────────────────────────────────────
 
 function formatUsd(n: number): string {
-  if (n >= 1000) return `$${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
-  if (n >= 1) return `$${n.toFixed(2)}`
-  return `$${n.toPrecision(4)}`
+  if (n >= 1000) return `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+  if (n >= 1) return `$${n.toFixed(2)}`;
+  return `$${n.toPrecision(4)}`;
 }
 
 function formatPct(n: number): string {
-  const sign = n >= 0 ? '+' : ''
-  return `${sign}${n.toFixed(1)}%`
+  const sign = n >= 0 ? "+" : "";
+  return `${sign}${n.toFixed(1)}%`;
 }
 
 function formatCompact(n: number): string {
-  if (n >= 1e12) return `$${(n / 1e12).toFixed(1)}T`
-  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`
-  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`
-  return `$${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+  if (n >= 1e12) return `$${(n / 1e12).toFixed(1)}T`;
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+  return `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }

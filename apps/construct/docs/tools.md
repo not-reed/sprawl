@@ -11,13 +11,13 @@ Construct's tools are organized into **packs** -- logical groups of related tool
 
 ## Key Files
 
-| File | Role |
-|------|------|
-| `src/tools/packs.ts` | Pack definitions, embedding cache, selection logic, `InternalTool` and `ToolPack` types |
-| `src/tools/core/` | Core pack: memory, schedule, secret, identity, usage tools |
-| `src/tools/self/` | Self pack: source read/edit, test, deploy, logs, status, extension reload |
-| `src/tools/web/` | Web pack: web page reading, web search |
-| `src/tools/telegram/` | Telegram pack: react, reply-to, pin/unpin, get-pinned, ask |
+| File                  | Role                                                                                    |
+| --------------------- | --------------------------------------------------------------------------------------- |
+| `src/tools/packs.ts`  | Pack definitions, embedding cache, selection logic, `InternalTool` and `ToolPack` types |
+| `src/tools/core/`     | Core pack: memory, schedule, secret, identity, usage tools                              |
+| `src/tools/self/`     | Self pack: source read/edit, test, deploy, logs, status, extension reload               |
+| `src/tools/web/`      | Web pack: web page reading, web search                                                  |
+| `src/tools/telegram/` | Telegram pack: react, reply-to, pin/unpin, get-pinned, ask                              |
 
 ## How Tools Are Defined
 
@@ -25,13 +25,10 @@ Every tool follows the `InternalTool<T>` interface:
 
 ```typescript
 interface InternalTool<T extends TSchema> {
-  name: string
-  description: string
-  parameters: T               // TypeBox JSON Schema
-  execute: (
-    toolCallId: string,
-    args: unknown,
-  ) => Promise<{ output: string; details?: unknown }>
+  name: string;
+  description: string;
+  parameters: T; // TypeBox JSON Schema
+  execute: (toolCallId: string, args: unknown) => Promise<{ output: string; details?: unknown }>;
 }
 ```
 
@@ -39,19 +36,19 @@ Tools are created by **factory functions** that receive a `ToolContext`:
 
 ```typescript
 interface ToolContext {
-  db: Kysely<Database>        // Database connection
-  chatId: string              // Current chat identifier
-  apiKey: string              // OpenRouter API key
-  projectRoot: string         // Absolute path to project root
-  dbPath: string              // Path to SQLite database file
-  timezone: string            // User's configured timezone
-  tavilyApiKey?: string       // Tavily API key (for web search)
-  logFile?: string            // Path to log file
-  isDev: boolean              // Development mode flag
-  extensionsDir?: string      // Extensions directory path
-  telegram?: TelegramContext  // Telegram bot + chat context (absent in CLI)
-  memoryManager?: MemoryManager // Cairn memory manager instance
-  embeddingModel?: string     // Embedding model override
+  db: Kysely<Database>; // Database connection
+  chatId: string; // Current chat identifier
+  apiKey: string; // OpenRouter API key
+  projectRoot: string; // Absolute path to project root
+  dbPath: string; // Path to SQLite database file
+  timezone: string; // User's configured timezone
+  tavilyApiKey?: string; // Tavily API key (for web search)
+  logFile?: string; // Path to log file
+  isDev: boolean; // Development mode flag
+  extensionsDir?: string; // Extensions directory path
+  telegram?: TelegramContext; // Telegram bot + chat context (absent in CLI)
+  memoryManager?: MemoryManager; // Cairn memory manager instance
+  embeddingModel?: string; // Embedding model override
 }
 ```
 
@@ -63,21 +60,21 @@ A pack groups related tool factories under a name and description:
 
 ```typescript
 interface ToolPack {
-  name: string
-  description: string
-  alwaysLoad: boolean         // If true, skip embedding similarity check
-  factories: ToolFactory[]    // Functions that create tools from ToolContext
+  name: string;
+  description: string;
+  alwaysLoad: boolean; // If true, skip embedding similarity check
+  factories: ToolFactory[]; // Functions that create tools from ToolContext
 }
 ```
 
 ### Built-in Packs
 
-| Pack | `alwaysLoad` | Tools | Description |
-|------|:---:|-------|-------------|
-| **core** | Yes | `memory_store`, `memory_recall`, `memory_forget`, `memory_graph`, `schedule_create`, `schedule_list`, `schedule_cancel`, `secret_store`, `secret_list`, `secret_delete`, `usage_stats`, `identity_read`, `identity_update` | Long-term memory, scheduling, secrets, identity management |
-| **web** | No | `web_read`, `web_search` | Read web pages (via Jina Reader), search the web (via Tavily) |
-| **self** | No | `self_read_source`, `self_edit_source`, `self_run_tests`, `self_view_logs`, `self_deploy`, `self_system_status`, `extension_reload` | Self-modification, diagnostics, deployment |
-| **telegram** | Yes | `telegram_react`, `telegram_reply_to`, `telegram_pin`, `telegram_unpin`, `telegram_get_pinned`, `telegram_ask` | Telegram-specific message interactions |
+| Pack         | `alwaysLoad` | Tools                                                                                                                                                                                                                      | Description                                                   |
+| ------------ | :----------: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| **core**     |     Yes      | `memory_store`, `memory_recall`, `memory_forget`, `memory_graph`, `schedule_create`, `schedule_list`, `schedule_cancel`, `secret_store`, `secret_list`, `secret_delete`, `usage_stats`, `identity_read`, `identity_update` | Long-term memory, scheduling, secrets, identity management    |
+| **web**      |      No      | `web_read`, `web_search`                                                                                                                                                                                                   | Read web pages (via Jina Reader), search the web (via Tavily) |
+| **self**     |      No      | `self_read_source`, `self_edit_source`, `self_run_tests`, `self_view_logs`, `self_deploy`, `self_system_status`, `extension_reload`                                                                                        | Self-modification, diagnostics, deployment                    |
+| **telegram** |     Yes      | `telegram_react`, `telegram_reply_to`, `telegram_pin`, `telegram_unpin`, `telegram_get_pinned`, `telegram_ask`                                                                                                             | Telegram-specific message interactions                        |
 
 ### Pack Selection Algorithm
 
@@ -107,10 +104,11 @@ At message time, `selectPacks()` compares the user message embedding against pac
 **memory_store** -- Stores a memory with optional category and tags. Generates an embedding in the background (non-blocking) for future semantic search.
 
 **memory_recall** -- Searches memories using a three-tier hybrid approach:
+
 1. FTS5 full-text search on the `memories_fts` virtual table
 2. Embedding cosine similarity (threshold 0.3) against all memories with embeddings
 3. LIKE keyword fallback
-Results are merged and deduplicated.
+   Results are merged and deduplicated.
 
 **memory_forget** -- Soft-deletes (archives) a memory by ID, or searches for candidates if given a query.
 
@@ -145,6 +143,7 @@ Results are merged and deduplicated.
 **self_view_logs** -- Reads from the log file (with optional `since` and `grep` filtering) or falls back to `journalctl` for the systemd service.
 
 **self_deploy** -- Full deployment pipeline:
+
 1. Typecheck (`tsc --noEmit`)
 2. Test (`vitest run`)
 3. Git tag backup (`pre-deploy-TIMESTAMP`)
@@ -176,14 +175,14 @@ All Telegram tools require a `TelegramContext` (so they return null from CLI).
 Tool parameters use `@sinclair/typebox` for JSON Schema generation:
 
 ```typescript
-import { Type, type Static } from '@sinclair/typebox'
+import { Type, type Static } from "@sinclair/typebox";
 
 const Params = Type.Object({
-  query: Type.String({ description: 'Search query' }),
-  limit: Type.Optional(Type.Number({ description: 'Max results' })),
-})
+  query: Type.String({ description: "Search query" }),
+  limit: Type.Optional(Type.Number({ description: "Max results" })),
+});
 
-type Input = Static<typeof Params>
+type Input = Static<typeof Params>;
 ```
 
 TypeBox schemas are passed directly to pi-agent-core, which uses them for LLM function calling.
@@ -194,9 +193,9 @@ Telegram tools like `telegram_react` and `telegram_reply_to` don't perform their
 
 ```typescript
 interface TelegramSideEffects {
-  reactToUser?: string        // Emoji to react with
-  replyToMessageId?: number   // Message ID to reply to
-  suppressText?: boolean      // Skip sending text reply
+  reactToUser?: string; // Emoji to react with
+  replyToMessageId?: number; // Message ID to reply to
+  suppressText?: boolean; // Skip sending text reply
 }
 ```
 

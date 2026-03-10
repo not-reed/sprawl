@@ -1,4 +1,4 @@
-import type { Skill } from './extensions/types.js'
+import type { Skill } from "./extensions/types.js";
 
 /**
  * Base system prompt — static part that enables prompt caching.
@@ -56,22 +56,22 @@ SOUL.md, IDENTITY.md, and USER.md are living documents — update them as the re
 - Extensions are for integrations, experiments, and personal workflows
 - After creating or editing extension files, call extension_reload to activate changes.
 - Native source (src/) is for core capabilities needing deep system access
-`
+`;
 
 /** Identity files for system prompt injection */
 interface IdentityInput {
-  soul?: string | null
-  identity?: string | null
-  user?: string | null
+  soul?: string | null;
+  identity?: string | null;
+  user?: string | null;
 }
 
 /** Cached system prompt (base + identity files) */
-let cachedPrompt: string | null = null
-let cachedKey: string | null = null
+let cachedPrompt: string | null = null;
+let cachedKey: string | null = null;
 
 function identityCacheKey(id?: IdentityInput | null): string {
-  if (!id) return ''
-  return `${id.soul ?? ''}|${id.identity ?? ''}|${id.user ?? ''}`
+  if (!id) return "";
+  return `${id.soul ?? ""}|${id.identity ?? ""}|${id.user ?? ""}`;
 }
 
 /**
@@ -79,49 +79,49 @@ function identityCacheKey(id?: IdentityInput | null): string {
  * Caches the result until invalidated.
  */
 export function getSystemPrompt(identity?: IdentityInput | null): string {
-  const key = identityCacheKey(identity)
+  const key = identityCacheKey(identity);
   if (cachedPrompt !== null && key === cachedKey) {
-    return cachedPrompt
+    return cachedPrompt;
   }
 
-  cachedKey = key
-  let prompt = BASE_SYSTEM_PROMPT
+  cachedKey = key;
+  let prompt = BASE_SYSTEM_PROMPT;
 
   if (identity?.identity) {
-    prompt += `\n## Identity\n${identity.identity}\n`
+    prompt += `\n## Identity\n${identity.identity}\n`;
   }
   if (identity?.user) {
-    prompt += `\n## User\n${identity.user}\n`
+    prompt += `\n## User\n${identity.user}\n`;
   }
   if (identity?.soul) {
-    prompt += `\n## Soul\n${identity.soul}\n`
+    prompt += `\n## Soul\n${identity.soul}\n`;
   }
 
-  cachedPrompt = prompt
-  return cachedPrompt
+  cachedPrompt = prompt;
+  return cachedPrompt;
 }
 
 /** Invalidate the cached system prompt. Called on extension reload. */
 export function invalidateSystemPromptCache(): void {
-  cachedPrompt = null
-  cachedKey = null
+  cachedPrompt = null;
+  cachedKey = null;
 }
 
 /**
  * Format current date+time in the configured timezone using Intl (built-in, no deps).
  */
 export function formatNow(timezone: string): string {
-  const now = new Date()
-  return now.toLocaleString('en-US', {
+  const now = new Date();
+  return now.toLocaleString("en-US", {
     timeZone: timezone,
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
     hour12: true,
-  })
+  });
 }
 
 /**
@@ -131,66 +131,68 @@ export function formatNow(timezone: string): string {
  * pattern recognition and selected skills.
  */
 export function buildContextPreamble(context: {
-  timezone: string
-  source: string
-  dev?: boolean
-  observations?: string
-  recentMemories?: Array<{ content: string; category: string; created_at: string }>
-  relevantMemories?: Array<{ content: string; category: string; score?: number }>
-  skills?: Skill[]
-  replyContext?: string
+  timezone: string;
+  source: string;
+  dev?: boolean;
+  observations?: string;
+  recentMemories?: Array<{ content: string; category: string; created_at: string }>;
+  relevantMemories?: Array<{ content: string; category: string; score?: number }>;
+  skills?: Skill[];
+  replyContext?: string;
 }): string {
-  const now = new Date()
-  const time = now.toLocaleString('en-US', {
+  const now = new Date();
+  const time = now.toLocaleString("en-US", {
     timeZone: context.timezone,
-    hour: 'numeric',
-    minute: '2-digit',
+    hour: "numeric",
+    minute: "2-digit",
     hour12: true,
-  })
-  const date = now.toLocaleString('en-US', {
+  });
+  const date = now.toLocaleString("en-US", {
     timeZone: context.timezone,
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
-  const envLabel = context.dev ? ' | DEV MODE' : ''
-  let preamble = `[Current time: ${time} | ${date} | ${context.timezone} | ${context.source}${envLabel}]\n`
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const envLabel = context.dev ? " | DEV MODE" : "";
+  let preamble = `[Current time: ${time} | ${date} | ${context.timezone} | ${context.source}${envLabel}]\n`;
 
   if (context.dev) {
-    preamble += '[Running in development — hot reload is active, self_deploy is disabled]\n'
+    preamble += "[Running in development — hot reload is active, self_deploy is disabled]\n";
   }
 
   if (context.observations) {
-    preamble += '\n[Conversation observations — compressed context from earlier in this conversation]\n'
-    preamble += context.observations + '\n'
+    preamble +=
+      "\n[Conversation observations — compressed context from earlier in this conversation]\n";
+    preamble += context.observations + "\n";
   }
 
   if (context.recentMemories && context.recentMemories.length > 0) {
-    preamble += '\n[Recent memories — use these for context, pattern recognition, and continuity]\n'
+    preamble +=
+      "\n[Recent memories — use these for context, pattern recognition, and continuity]\n";
     for (const m of context.recentMemories) {
-      preamble += `- (${m.category}) ${m.content}\n`
+      preamble += `- (${m.category}) ${m.content}\n`;
     }
   }
 
   if (context.relevantMemories && context.relevantMemories.length > 0) {
-    preamble += '\n[Potentially relevant memories]\n'
+    preamble += "\n[Potentially relevant memories]\n";
     for (const m of context.relevantMemories) {
-      const score = m.score !== undefined ? ` (${(m.score * 100).toFixed(0)}% match)` : ''
-      preamble += `- (${m.category}) ${m.content}${score}\n`
+      const score = m.score !== undefined ? ` (${(m.score * 100).toFixed(0)}% match)` : "";
+      preamble += `- (${m.category}) ${m.content}${score}\n`;
     }
   }
 
   if (context.skills && context.skills.length > 0) {
-    preamble += '\n[Active skills — follow these instructions when relevant]\n'
+    preamble += "\n[Active skills — follow these instructions when relevant]\n";
     for (const skill of context.skills) {
-      preamble += `\n### ${skill.name}\n${skill.body}\n`
+      preamble += `\n### ${skill.name}\n${skill.body}\n`;
     }
   }
 
   if (context.replyContext) {
-    preamble += `\n[Replying to: "${context.replyContext.slice(0, 300)}"]\n`
+    preamble += `\n[Replying to: "${context.replyContext.slice(0, 300)}"]\n`;
   }
 
-  return preamble + '\n'
+  return preamble + "\n";
 }

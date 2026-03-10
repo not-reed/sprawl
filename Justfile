@@ -17,6 +17,27 @@ construct-dev:
 deck-dev instance:
     node --env-file=.env.{{instance}} --import=tsx apps/deck/src/server.ts
 
+# --- Lint / Format ---
+
+# Run oxlint
+lint:
+    npx oxlint
+
+# Fix lint issues
+lint-fix:
+    npx oxlint --fix
+
+# Format all files
+fmt:
+    npx oxfmt --write .
+
+# Check formatting (no writes)
+fmt-check:
+    npx oxfmt --check .
+
+# Run all checks (typecheck + lint + format + test)
+check: typecheck lint fmt-check test
+
 # --- Test ---
 
 # Run all tests

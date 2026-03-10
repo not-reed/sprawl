@@ -7,7 +7,7 @@
 ╚══════╝   ╚═╝   ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝     ╚══════╝╚══════╝
 ```
 
-> *A synapse fires. The gap between signal and action narrows to nothing. Thought becomes movement.*
+> _A synapse fires. The gap between signal and action narrows to nothing. Thought becomes movement._
 
 ---
 
@@ -69,12 +69,12 @@ Defaults to 25% max per position. A 0.60 confidence signal on a $10k portfolio a
 
 The risk loop runs every 30 seconds. It fetches fresh prices from cortex, updates every open position, then enforces:
 
-| Rule | Default | Effect |
-|---|---|---|
-| **Stop-loss** | 5% (short) / 8% (long) | Close position, realize loss |
-| **Take-profit** | 20% | Close position, realize gain |
-| **Max drawdown** | 15% from high-water mark | Close ALL positions, halt trading |
-| **Max positions** | 8 | Block new entries |
+| Rule              | Default                  | Effect                            |
+| ----------------- | ------------------------ | --------------------------------- |
+| **Stop-loss**     | 5% (short) / 8% (long)   | Close position, realize loss      |
+| **Take-profit**   | 20%                      | Close position, realize gain      |
+| **Max drawdown**  | 15% from high-water mark | Close ALL positions, halt trading |
+| **Max positions** | 8                        | Block new entries                 |
 
 Drawdown halt is the kill switch. If the portfolio drops 15% from peak, everything closes and the engine stops opening new positions. Impulse control for algorithms.
 
@@ -142,27 +142,27 @@ just test-synapse             # run tests
 
 ## Environment
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `DATABASE_URL` | `./data/synapse.db` | Synapse's own database |
-| `CORTEX_DATABASE_URL` | `./data/cortex.db` | Read-only cortex connection |
-| `INITIAL_BALANCE_USD` | `10000` | Starting cash |
-| `POLL_INTERVAL` | `60` | Signal check interval (seconds) |
-| `RISK_CHECK_INTERVAL` | `30` | Risk check interval (seconds) |
-| `MIN_CONFIDENCE_SHORT` | `0.4` | Buy threshold (short-term signals) |
-| `MIN_CONFIDENCE_LONG` | `0.6` | Buy threshold (long-term signals) |
-| `MAX_POSITION_PCT` | `25` | Max portfolio % per position |
-| `MAX_PORTFOLIO_DRAWDOWN_PCT` | `15` | Halt threshold |
-| `STOP_LOSS_PCT` | `8` | Default stop-loss (long-term) |
-| `TAKE_PROFIT_PCT` | `20` | Take-profit target |
-| `MAX_OPEN_POSITIONS` | `8` | Position limit |
-| `SLIPPAGE_BPS` | `30` | Simulated slippage (basis points) |
-| `SIMULATED_GAS_USD` | `0.50` | Flat gas per trade |
+| Variable                     | Default             | Purpose                            |
+| ---------------------------- | ------------------- | ---------------------------------- |
+| `DATABASE_URL`               | `./data/synapse.db` | Synapse's own database             |
+| `CORTEX_DATABASE_URL`        | `./data/cortex.db`  | Read-only cortex connection        |
+| `INITIAL_BALANCE_USD`        | `10000`             | Starting cash                      |
+| `POLL_INTERVAL`              | `60`                | Signal check interval (seconds)    |
+| `RISK_CHECK_INTERVAL`        | `30`                | Risk check interval (seconds)      |
+| `MIN_CONFIDENCE_SHORT`       | `0.4`               | Buy threshold (short-term signals) |
+| `MIN_CONFIDENCE_LONG`        | `0.6`               | Buy threshold (long-term signals)  |
+| `MAX_POSITION_PCT`           | `25`                | Max portfolio % per position       |
+| `MAX_PORTFOLIO_DRAWDOWN_PCT` | `15`                | Halt threshold                     |
+| `STOP_LOSS_PCT`              | `8`                 | Default stop-loss (long-term)      |
+| `TAKE_PROFIT_PCT`            | `20`                | Take-profit target                 |
+| `MAX_OPEN_POSITIONS`         | `8`                 | Position limit                     |
+| `SLIPPAGE_BPS`               | `30`                | Simulated slippage (basis points)  |
+| `SIMULATED_GAS_USD`          | `0.50`              | Flat gas per trade                 |
 
 ---
 
-> *"He knew the edge. He'd been there before. The razor-Loss of control, the bleeding of options, the hard certainty that every move mattered."*
+> _"He knew the edge. He'd been there before. The razor-Loss of control, the bleeding of options, the hard certainty that every move mattered."_
 >
-> -- William Gibson, *Count Zero*
+> -- William Gibson, _Count Zero_
 
 Synapse doesn't predict. It reacts, sizes, and survives. The gap between signal and action, measured in basis points.

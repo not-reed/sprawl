@@ -6,39 +6,39 @@ import {
   forceCollide,
   type SimulationNodeDatum,
   type SimulationLinkDatum,
-} from 'd3-force'
-import type { GraphNode, GraphEdge } from './types'
+} from "d3-force";
+import type { GraphNode, GraphEdge } from "./types";
 
 export interface LayoutNode extends SimulationNodeDatum {
-  id: string
-  name: string
-  display_name: string
-  node_type: string
-  description: string | null
-  edgeCount: number
-  pinned: boolean
+  id: string;
+  name: string;
+  display_name: string;
+  node_type: string;
+  description: string | null;
+  edgeCount: number;
+  pinned: boolean;
 }
 
 export interface LayoutLink extends SimulationLinkDatum<LayoutNode> {
-  id: string
-  relation: string
-  weight: number
+  id: string;
+  relation: string;
+  weight: number;
 }
 
 const NODE_TYPE_COLORS: Record<string, string> = {
-  person: '#5b9cf5',
-  place: '#5bc49f',
-  concept: '#e8a656',
-  event: '#e070a0',
-  entity: '#888898',
-}
+  person: "#5b9cf5",
+  place: "#5bc49f",
+  concept: "#e8a656",
+  event: "#e070a0",
+  entity: "#888898",
+};
 
 export function getNodeColor(type: string): string {
-  return NODE_TYPE_COLORS[type] ?? NODE_TYPE_COLORS.entity
+  return NODE_TYPE_COLORS[type] ?? NODE_TYPE_COLORS.entity;
 }
 
 export function getNodeRadius(edgeCount: number): number {
-  return Math.max(4, Math.min(16, 4 + Math.sqrt(edgeCount) * 2))
+  return Math.max(4, Math.min(16, 4 + Math.sqrt(edgeCount) * 2));
 }
 
 export function createSimulation(
@@ -49,19 +49,22 @@ export function createSimulation(
 ) {
   const simulation = forceSimulation(nodes)
     .force(
-      'link',
+      "link",
       forceLink<LayoutNode, LayoutLink>(links)
         .id((d) => d.id)
         .distance(60)
         .strength((d) => Math.min(1, 0.3 + d.weight * 0.1)),
     )
-    .force('charge', forceManyBody().strength(-120).distanceMax(300))
-    .force('center', forceCenter(width / 2, height / 2).strength(0.05))
-    .force('collide', forceCollide<LayoutNode>((d) => getNodeRadius(d.edgeCount) + 2))
+    .force("charge", forceManyBody().strength(-120).distanceMax(300))
+    .force("center", forceCenter(width / 2, height / 2).strength(0.05))
+    .force(
+      "collide",
+      forceCollide<LayoutNode>((d) => getNodeRadius(d.edgeCount) + 2),
+    )
     .alphaDecay(0.02)
-    .velocityDecay(0.3)
+    .velocityDecay(0.3);
 
-  return simulation
+  return simulation;
 }
 
 export function buildLayoutData(
@@ -70,16 +73,16 @@ export function buildLayoutData(
   existingNodes?: Map<string, LayoutNode>,
 ): { nodes: LayoutNode[]; links: LayoutLink[] } {
   // Count edges per node
-  const edgeCounts = new Map<string, number>()
+  const edgeCounts = new Map<string, number>();
   for (const e of graphEdges) {
-    edgeCounts.set(e.source_id, (edgeCounts.get(e.source_id) ?? 0) + 1)
-    edgeCounts.set(e.target_id, (edgeCounts.get(e.target_id) ?? 0) + 1)
+    edgeCounts.set(e.source_id, (edgeCounts.get(e.source_id) ?? 0) + 1);
+    edgeCounts.set(e.target_id, (edgeCounts.get(e.target_id) ?? 0) + 1);
   }
 
-  const nodeSet = new Set(graphNodes.map((n) => n.id))
+  const nodeSet = new Set(graphNodes.map((n) => n.id));
 
   const nodes: LayoutNode[] = graphNodes.map((n) => {
-    const existing = existingNodes?.get(n.id)
+    const existing = existingNodes?.get(n.id);
     return {
       id: n.id,
       name: n.name,
@@ -94,8 +97,8 @@ export function buildLayoutData(
       vy: existing?.vy,
       fx: existing?.pinned ? existing.fx : undefined,
       fy: existing?.pinned ? existing.fy : undefined,
-    }
-  })
+    };
+  });
 
   // Only include edges where both endpoints exist
   const links: LayoutLink[] = graphEdges
@@ -106,7 +109,7 @@ export function buildLayoutData(
       target: e.target_id,
       relation: e.relation,
       weight: e.weight,
-    }))
+    }));
 
-  return { nodes, links }
+  return { nodes, links };
 }

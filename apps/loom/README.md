@@ -7,7 +7,7 @@
 ╚══════╝ ╚═════╝  ╚═════╝ ╚═╝     ╚═╝
 ```
 
-> *"Stories are spells. You cast them into the dark and something always answers."*
+> _"Stories are spells. You cast them into the dark and something always answers."_
 
 ---
 
@@ -56,10 +56,10 @@ Rules ingested at the top. Context assembled in the middle. Everything persisted
 
 ## Modes
 
-| Mode | Behavior |
-|------|----------|
-| **Play** | GM narrates in second person, adjudicates rules, calls for dice rolls, waits for results |
-| **Recap** | Player describes past events, GM acknowledges and asks clarifying questions |
+| Mode      | Behavior                                                                                 |
+| --------- | ---------------------------------------------------------------------------------------- |
+| **Play**  | GM narrates in second person, adjudicates rules, calls for dice rolls, waits for results |
+| **Recap** | Player describes past events, GM acknowledges and asks clarifying questions              |
 
 Switch modes mid-session. Recap to catch up on off-screen events, then flip to play and roll initiative.
 
@@ -168,23 +168,23 @@ just loom-start        # production (build web + start server)
 
 File: `.env.loom` (see `.env.loom.example`)
 
-| Variable | Purpose |
-|---|---|
-| `OPENROUTER_API_KEY` | LLM uplink (required) |
-| `OPENROUTER_MODEL` | Default: `google/gemini-3-flash-preview` |
-| `DATABASE_URL` | Default: `./data/loom.db` |
-| `PORT` | Default: `4900` |
-| `EMBEDDING_MODEL` | Default: `qwen/qwen3-embedding-4b` |
+| Variable              | Purpose                                           |
+| --------------------- | ------------------------------------------------- |
+| `OPENROUTER_API_KEY`  | LLM uplink (required)                             |
+| `OPENROUTER_MODEL`    | Default: `google/gemini-3-flash-preview`          |
+| `DATABASE_URL`        | Default: `./data/loom.db`                         |
+| `PORT`                | Default: `4900`                                   |
+| `EMBEDDING_MODEL`     | Default: `qwen/qwen3-embedding-4b`                |
 | `MEMORY_WORKER_MODEL` | Dedicated model for observer/reflector (optional) |
-| `TIMEZONE` | Default: `UTC` |
-| `RULES_DIR` | Default: `./rules` |
-| `TTS_ENABLED` | Enable Kokoro TTS (default: `false`) |
-| `KOKORO_URL` | Default: `http://localhost:8880` |
-| `KOKORO_VOICE` | Default: `af_heart` |
+| `TIMEZONE`            | Default: `UTC`                                    |
+| `RULES_DIR`           | Default: `./rules`                                |
+| `TTS_ENABLED`         | Enable Kokoro TTS (default: `false`)              |
+| `KOKORO_URL`          | Default: `http://localhost:8880`                  |
+| `KOKORO_VOICE`        | Default: `af_heart`                               |
 
 ---
 
-> *"The street finds its own uses for things -- and so does every table of players who ever house-ruled a critical hit."*
+> _"The street finds its own uses for things -- and so does every table of players who ever house-ruled a critical hit."_
 >
 > -- loosely after Gibson
 

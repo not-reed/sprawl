@@ -1,14 +1,14 @@
-import { SearchBar } from './SearchBar'
-import { MemoryCard } from './MemoryCard'
-import { useSearch } from '../hooks/useSearch'
-import { useApi } from '../hooks/useApi'
-import { api } from '../lib/api'
+import { SearchBar } from "./SearchBar";
+import { MemoryCard } from "./MemoryCard";
+import { useSearch } from "../hooks/useSearch";
+import { useApi } from "../hooks/useApi";
+import { api } from "../lib/api";
 
 export function MemoryBrowser() {
-  const { results, loading, hasSearched, search } = useSearch()
-  const { data: recent } = useApi(() => api.recentMemories(20), [])
+  const { results, loading, hasSearched, search } = useSearch();
+  const { data: recent } = useApi(() => api.recentMemories(20), []);
 
-  const displayMemories = hasSearched ? results : (recent?.results ?? [])
+  const displayMemories = hasSearched ? results : (recent?.results ?? []);
 
   return (
     <div className="page">
@@ -26,10 +26,8 @@ export function MemoryBrowser() {
         </div>
       )}
       <div className="memory-list">
-        {!loading && displayMemories.map((m) => (
-          <MemoryCard key={m.id} memory={m} />
-        ))}
+        {!loading && displayMemories.map((m) => <MemoryCard key={m.id} memory={m} />)}
       </div>
     </div>
-  )
+  );
 }

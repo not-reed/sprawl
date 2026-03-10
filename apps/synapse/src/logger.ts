@@ -1,4 +1,4 @@
-import { createLogger } from '@repo/log'
+import { createLogger } from "@repo/log";
 
-export const log = createLogger('synapse')
-export const engineLog = createLogger('synapse', 'engine')
+export const log = createLogger("synapse");
+export const engineLog = createLogger("synapse", "engine");

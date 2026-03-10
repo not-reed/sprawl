@@ -1,0 +1,11 @@
+pre-commit:
+  parallel: true
+  jobs:
+    - name: format check
+      run: just fmt-check
+
+    - name: lint
+      run: just lint
+
+    - name: typecheck
+      run: just typecheck

@@ -1,4 +1,6 @@
-import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
+export { DatabaseError, MigrationError } from "./errors.js";
+
+import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import {
   Kysely,
   type DatabaseConnection,
@@ -12,119 +14,138 @@ import {
   SqliteIntrospector,
   SqliteQueryCompiler,
   createQueryId,
-} from 'kysely'
+} from "kysely";
 
 /**
  * Kysely dialect adapter for Node.js built-in node:sqlite (DatabaseSync).
  * This avoids the need for better-sqlite3 and its native C++ compilation.
  */
 class NodeSqliteDriver implements Driver {
-  #db: DatabaseSync
+  #db: DatabaseSync;
 
   constructor(db: DatabaseSync) {
-    this.#db = db
+    this.#db = db;
   }
 
   async init(): Promise<void> {}
 
   async acquireConnection(): Promise<DatabaseConnection> {
-    return new NodeSqliteConnection(this.#db)
+    return new NodeSqliteConnection(this.#db);
   }
 
   async beginTransaction(connection: DatabaseConnection): Promise<void> {
-    await connection.executeQuery({ sql: 'BEGIN', parameters: [], query: { kind: 'RawNode' } as any, queryId: createQueryId() })
+    await connection.executeQuery({
+      sql: "BEGIN",
+      parameters: [],
+      query: { kind: "RawNode" } as any,
+      queryId: createQueryId(),
+    });
   }
 
   async commitTransaction(connection: DatabaseConnection): Promise<void> {
-    await connection.executeQuery({ sql: 'COMMIT', parameters: [], query: { kind: 'RawNode' } as any, queryId: createQueryId() })
+    await connection.executeQuery({
+      sql: "COMMIT",
+      parameters: [],
+      query: { kind: "RawNode" } as any,
+      queryId: createQueryId(),
+    });
   }
 
   async rollbackTransaction(connection: DatabaseConnection): Promise<void> {
-    await connection.executeQuery({ sql: 'ROLLBACK', parameters: [], query: { kind: 'RawNode' } as any, queryId: createQueryId() })
+    await connection.executeQuery({
+      sql: "ROLLBACK",
+      parameters: [],
+      query: { kind: "RawNode" } as any,
+      queryId: createQueryId(),
+    });
   }
 
   async releaseConnection(): Promise<void> {}
 
   async destroy(): Promise<void> {
-    this.#db.close()
+    this.#db.close();
   }
 }
 
 class NodeSqliteConnection implements DatabaseConnection {
-  #db: DatabaseSync
+  #db: DatabaseSync;
 
   constructor(db: DatabaseSync) {
-    this.#db = db
+    this.#db = db;
   }
 
   async executeQuery<R>(compiledQuery: CompiledQuery): Promise<QueryResult<R>> {
-    const { sql, parameters } = compiledQuery
-    const stmt = this.#db.prepare(sql)
+    const { sql, parameters } = compiledQuery;
+    const stmt = this.#db.prepare(sql);
 
     // Detect if this is a read or write query
-    const trimmed = sql.trimStart().toUpperCase()
+    const trimmed = sql.trimStart().toUpperCase();
     const isSelect =
-      trimmed.startsWith('SELECT') ||
-      trimmed.startsWith('PRAGMA') ||
-      (trimmed.startsWith('WITH') && !trimmed.match(/\b(INSERT|UPDATE|DELETE)\b/))
+      trimmed.startsWith("SELECT") ||
+      trimmed.startsWith("PRAGMA") ||
+      (trimmed.startsWith("WITH") && !trimmed.match(/\b(INSERT|UPDATE|DELETE)\b/));
 
-    const params = parameters as SQLInputValue[]
+    const params = parameters as SQLInputValue[];
 
     if (isSelect) {
-      const rows = stmt.all(...params) as R[]
-      return { rows }
+      const rows = stmt.all(...params) as R[];
+      return { rows };
     }
 
-    const result = stmt.run(...params)
+    const result = stmt.run(...params);
     return {
       rows: [],
       numAffectedRows: BigInt(result.changes),
-      insertId: result.lastInsertRowid !== undefined
-        ? BigInt(result.lastInsertRowid)
-        : undefined,
-    }
+      insertId: result.lastInsertRowid !== undefined ? BigInt(result.lastInsertRowid) : undefined,
+    };
   }
 
   streamQuery<R>(): AsyncIterableIterator<QueryResult<R>> {
-    throw new Error('node:sqlite does not support streaming')
+    throw new Error("node:sqlite does not support streaming");
   }
 }
 
 class NodeSqliteDialect implements Dialect {
-  #db: DatabaseSync
+  #db: DatabaseSync;
 
   constructor(db: DatabaseSync) {
-    this.#db = db
+    this.#db = db;
   }
 
   createDriver(): Driver {
-    return new NodeSqliteDriver(this.#db)
+    return new NodeSqliteDriver(this.#db);
   }
 
   createQueryCompiler(): QueryCompiler {
-    return new SqliteQueryCompiler()
+    return new SqliteQueryCompiler();
   }
 
   createAdapter(): DialectAdapterBase {
-    return new SqliteAdapter()
+    return new SqliteAdapter();
   }
 
   createIntrospector(db: Kysely<unknown>) {
-    return new SqliteIntrospector(db)
+    return new SqliteIntrospector(db);
   }
 }
 
+/**
+ * Create a Kysely instance backed by node:sqlite (DatabaseSync).
+ * Configures WAL mode, 5s busy timeout, and foreign keys.
+ * @param url - Path to the SQLite database file.
+ * @returns The Kysely instance and the underlying DatabaseSync handle.
+ */
 export function createDb<T>(url: string) {
-  const sqlite = new DatabaseSync(url)
+  const sqlite = new DatabaseSync(url);
 
   // WAL mode for concurrent read/write
-  sqlite.exec('PRAGMA journal_mode = WAL')
-  sqlite.exec('PRAGMA busy_timeout = 5000')
-  sqlite.exec('PRAGMA foreign_keys = ON')
+  sqlite.exec("PRAGMA journal_mode = WAL");
+  sqlite.exec("PRAGMA busy_timeout = 5000");
+  sqlite.exec("PRAGMA foreign_keys = ON");
 
   const db = new Kysely<T>({
     dialect: new NodeSqliteDialect(sqlite),
-  })
+  });
 
-  return { db, sqlite }
+  return { db, sqlite };
 }

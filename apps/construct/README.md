@@ -7,7 +7,7 @@
  ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝  ╚═════╝   ╚═╝
 ```
 
-> *The sky above the port was the color of television, tuned to a dead channel.*
+> _The sky above the port was the color of television, tuned to a dead channel._
 >
 > But down here, in the warm hum of silicon, something remembers.
 
@@ -44,17 +44,17 @@ Two jacks into the matrix. One signal path. Everything flows through `processMes
 
 ## Cyberspace Deck (Tech Stack)
 
-| Layer | ICE |
-|---|---|
-| **Runtime** | Node.js + tsx (runs on ARMv7 -- even the cheapest deck) |
-| **Agent Core** | `@mariozechner/pi-agent-core` |
-| **LLM Uplink** | OpenRouter (OpenAI-compatible wire protocol) |
-| **Flatline DB** | SQLite via `node:sqlite` + Kysely |
-| **Comms** | Grammy (Telegram long polling) |
-| **Terminal** | Citty (CLI REPL, one-shot, direct tool invocation) |
-| **Cron Daemon** | Croner (reminder scheduling) |
-| **Test Rig** | Vitest |
-| **Hot Load** | jiti (TypeScript tools, no compile step) |
+| Layer           | ICE                                                     |
+| --------------- | ------------------------------------------------------- |
+| **Runtime**     | Node.js + tsx (runs on ARMv7 -- even the cheapest deck) |
+| **Agent Core**  | `@mariozechner/pi-agent-core`                           |
+| **LLM Uplink**  | OpenRouter (OpenAI-compatible wire protocol)            |
+| **Flatline DB** | SQLite via `node:sqlite` + Kysely                       |
+| **Comms**       | Grammy (Telegram long polling)                          |
+| **Terminal**    | Citty (CLI REPL, one-shot, direct tool invocation)      |
+| **Cron Daemon** | Croner (reminder scheduling)                            |
+| **Test Rig**    | Vitest                                                  |
+| **Hot Load**    | jiti (TypeScript tools, no compile step)                |
 
 ## Neural Map
 
@@ -116,17 +116,17 @@ The construct can author its own extensions. It writes tools, loads them, uses t
 
 ## Environment
 
-| Variable | Purpose |
-|---|---|
-| `EXTENSIONS_DIR` | Path to extensions sprawl |
-| `EXT_*` | Auto-synced to secrets table on boot (prefix stripped) |
+| Variable         | Purpose                                                |
+| ---------------- | ------------------------------------------------------ |
+| `EXTENSIONS_DIR` | Path to extensions sprawl                              |
+| `EXT_*`          | Auto-synced to secrets table on boot (prefix stripped) |
 
 ---
 
-> *"He'd operated on an almost permanent adrenaline high, a byproduct of youth and proficiency,*
-> *jacked into a custom cyberspace deck that projected his disembodied consciousness*
-> *into the consensual hallucination that was the matrix."*
+> _"He'd operated on an almost permanent adrenaline high, a byproduct of youth and proficiency,_
+> _jacked into a custom cyberspace deck that projected his disembodied consciousness_
+> _into the consensual hallucination that was the matrix."_
 >
-> -- William Gibson, *Neuromancer*
+> -- William Gibson, _Neuromancer_
 
 The construct remembers so you don't have to.

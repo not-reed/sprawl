@@ -11,13 +11,13 @@ The agent system is the central intelligence of Construct. It takes a user messa
 
 ## Key Files
 
-| File | Role |
-|------|------|
-| `src/agent.ts` | `processMessage()` -- the main orchestration function |
-| `src/system-prompt.ts` | System prompt construction and context preamble |
-| `src/memory.ts` | `ConstructMemoryManager` -- Construct-specific memory facade (extends `@repo/cairn`) |
-| `src/tools/packs.ts` | Tool pack selection and instantiation |
-| `src/extensions/index.ts` | Extension registry (skills, dynamic tools, identity) |
+| File                      | Role                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------ |
+| `src/agent.ts`            | `processMessage()` -- the main orchestration function                                |
+| `src/system-prompt.ts`    | System prompt construction and context preamble                                      |
+| `src/memory.ts`           | `ConstructMemoryManager` -- Construct-specific memory facade (extends `@repo/cairn`) |
+| `src/tools/packs.ts`      | Tool pack selection and instantiation                                                |
+| `src/extensions/index.ts` | Extension registry (skills, dynamic tools, identity)                                 |
 
 Embeddings (`generateEmbedding`, `cosineSimilarity`) are provided by `@repo/cairn`. The core `MemoryManager` class also lives in `@repo/cairn` -- Construct subclasses it as `ConstructMemoryManager` in `src/memory.ts`.
 
@@ -30,10 +30,11 @@ async function processMessage(
   db: Kysely<Database>,
   message: string,
   opts: ProcessMessageOpts,
-): Promise<AgentResponse>
+): Promise<AgentResponse>;
 ```
 
 `ProcessMessageOpts` includes:
+
 - `source`: `'telegram'` or `'cli'`
 - `externalId`: The chat or session identifier (e.g., Telegram chat ID)
 - `chatId`: Telegram chat ID (used for tool context)
@@ -76,6 +77,7 @@ Every message is associated with a conversation identified by `(source, external
 A `ConstructMemoryManager` (subclass of Cairn's `MemoryManager`) is instantiated for the conversation with custom observer/reflector prompts and `expires_at` support. It uses the `MEMORY_WORKER_MODEL` env var to configure the worker LLM (if not set, LLM-powered memory features are disabled).
 
 `memoryManager.buildContext()` determines what conversation history the LLM sees:
+
 - **If observations exist**: Rendered observations become a stable text prefix (injected into the context preamble), and only un-observed messages (those after the watermark) are replayed as conversation turns. This keeps the context window bounded as conversations grow.
 - **If no observations yet**: Falls back to loading the last 20 raw messages (original behavior).
 
@@ -84,6 +86,7 @@ See [Memory System](/construct/memory/) for details on how observations are crea
 ### 3. Memory Context
 
 Two types of memories are injected:
+
 - **Recent memories** (10 most recent, regardless of relevance) -- for temporal continuity
 - **Relevant memories** (up to 5, filtered by embedding cosine similarity >= 0.4) -- for semantic relevance
 
@@ -92,6 +95,7 @@ Relevant memories that already appear in the recent set are deduplicated.
 ### 4. Embedding Generation
 
 The user's message is embedded using `generateEmbedding()` from `@repo/cairn`. This calls the OpenRouter embeddings endpoint with the configured `EMBEDDING_MODEL` (default `qwen/qwen3-embedding-4b`). The resulting vector is reused for:
+
 - Memory recall (semantic search)
 - Skill selection
 - Tool pack selection
@@ -126,6 +130,7 @@ The `buildContextPreamble()` function in `src/system-prompt.ts` creates a text b
 ### 7. System Prompt
 
 The system prompt is built by `getSystemPrompt()` in `src/system-prompt.ts`. It concatenates:
+
 1. `BASE_SYSTEM_PROMPT` -- Static rules about behavior, tool usage, Telegram interaction
 2. Identity section from `IDENTITY.md` (if loaded)
 3. User section from `USER.md` (if loaded)
@@ -140,6 +145,7 @@ Tool packs are selected based on embedding similarity (see [Tool System](/constr
 ### 9. Agent Execution
 
 A `pi-agent-core` `Agent` is instantiated with the system prompt and model. Conversation history is replayed via `agent.appendMessage()`. The agent subscribes to events for:
+
 - `message_update` -- Accumulates response text from `text_delta` events
 - `message_end` -- Captures usage statistics
 - `tool_execution_end` -- Records tool call names and results
@@ -149,6 +155,7 @@ The agent is then prompted with `preamble + message` and the function awaits `ag
 ### 10. Persistence and Post-Response Memory
 
 After the agent finishes:
+
 - The user's message is saved (already done before prompting)
 - The assistant's response is saved with any tool call records
 - LLM usage (input/output tokens, cost) is tracked in the `ai_usage` table
@@ -160,16 +167,17 @@ The function returns:
 
 ```typescript
 interface AgentResponse {
-  text: string                                          // The assistant's text response
-  toolCalls: Array<{ name: string; args: unknown; result: string }>  // Tools invoked
-  usage?: { input: number; output: number; cost: number }           // Token usage
-  messageId?: string                                    // Internal DB message ID
+  text: string; // The assistant's text response
+  toolCalls: Array<{ name: string; args: unknown; result: string }>; // Tools invoked
+  usage?: { input: number; output: number; cost: number }; // Token usage
+  messageId?: string; // Internal DB message ID
 }
 ```
 
 ## pi-agent-core Integration
 
 The project uses `@mariozechner/pi-agent-core` as the agent framework and `@mariozechner/pi-ai` for model access. The `Agent` class handles:
+
 - Multi-turn conversation management
 - Tool calling protocol with the LLM
 - Streaming text generation
@@ -183,19 +191,19 @@ The model is obtained via `getModel('openrouter', modelName)` from `@mariozechne
 ```typescript
 // Internal tool format
 interface InternalTool<T> {
-  name: string
-  description: string
-  parameters: T              // TypeBox schema
-  execute: (toolCallId: string, args: unknown) => Promise<{ output: string; details?: unknown }>
+  name: string;
+  description: string;
+  parameters: T; // TypeBox schema
+  execute: (toolCallId: string, args: unknown) => Promise<{ output: string; details?: unknown }>;
 }
 
 // Adapted to pi-agent format
 interface AgentTool<T> {
-  name: string
-  label: string              // name with underscores replaced by spaces
-  description: string
-  parameters: T
-  execute: (toolCallId: string, params: T) => Promise<AgentToolResult>
+  name: string;
+  label: string; // name with underscores replaced by spaces
+  description: string;
+  parameters: T;
+  execute: (toolCallId: string, params: T) => Promise<AgentToolResult>;
 }
 ```
 

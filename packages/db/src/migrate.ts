@@ -1,6 +1,7 @@
-import { FileMigrationProvider, Migrator, type Kysely } from 'kysely'
-import { promises as fs } from 'node:fs'
-import { join } from 'node:path'
+import { FileMigrationProvider, Migrator, type Kysely } from "kysely";
+import { MigrationError } from "./errors.js";
+import { promises as fs } from "node:fs";
+import { join } from "node:path";
 
 /**
  * Generic migration runner. Consumers provide the db instance and migration folder path.
@@ -14,20 +15,20 @@ export async function runMigrations(db: Kysely<any>, migrationFolder: string) {
       path: { join },
       migrationFolder,
     }),
-  })
+  });
 
-  const { error, results } = await migrator.migrateToLatest()
+  const { error, results } = await migrator.migrateToLatest();
 
   results?.forEach((it) => {
-    if (it.status === 'Success') {
-      console.log(`Migration "${it.migrationName}" was executed successfully`)
-    } else if (it.status === 'Error') {
-      console.error(`Failed to execute migration "${it.migrationName}"`)
+    if (it.status === "Success") {
+      console.log(`Migration "${it.migrationName}" was executed successfully`);
+    } else if (it.status === "Error") {
+      console.error(`Failed to execute migration "${it.migrationName}"`);
     }
-  })
+  });
 
   if (error) {
-    console.error('Failed to migrate', error)
-    throw error
+    console.error("Failed to migrate", error);
+    throw new MigrationError("Migration failed", { cause: error });
   }
 }

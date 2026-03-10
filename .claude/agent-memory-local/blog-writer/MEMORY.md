@@ -15,7 +15,7 @@
    - Notable: `generation` field tracks how many reflector rounds an observation has survived; SQLite rowid watermark trick for insertion-order safety
 
 3. **Three Ways to Find a Memory: FTS5, Embeddings, and Graph Traversal in a Personal AI**
-   - Topic: The memory *retrieval* side — passive vs. active retrieval, FTS5/embedding waterfall, graph expansion
+   - Topic: The memory _retrieval_ side — passive vs. active retrieval, FTS5/embedding waterfall, graph expansion
    - Key systems: `src/db/queries.ts` (`recallMemories`), `src/tools/core/memory-recall.ts`, `src/memory/graph/queries.ts`, `src/agent.ts` (passive injection), `src/system-prompt.ts` (preamble)
    - Angle: Three search modes (FTS5, cosine similarity, graph traversal) combined in a single retrieval pipeline; passive auto-injection vs. active tool-invoked recall
    - Notable: queryEmbedding is generated once and reused for both memory recall AND tool pack selection; matchType field (`fts5`/`embedding`/`graph`) lets agent reason about retrieval confidence

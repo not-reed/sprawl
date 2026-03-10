@@ -1,90 +1,91 @@
-import { Type, type Static } from '@sinclair/typebox'
-import { readFile, readdir, stat } from 'node:fs/promises'
-import { resolve, relative } from 'node:path'
+import { Type, type Static } from "@sinclair/typebox";
+import { readFile, readdir, stat } from "node:fs/promises";
+import { resolve, relative } from "node:path";
 
 const SelfReadParams = Type.Object({
   path: Type.String({
     description:
       'File path relative to project root (e.g. "apps/construct/src/agent.ts", "packages/cairn/src/index.ts") or extensions directory (e.g. "extensions/skills/standup.md"). Can also list a directory.',
   }),
-})
+});
 
-type SelfReadInput = Static<typeof SelfReadParams>
+type SelfReadInput = Static<typeof SelfReadParams>;
 
 export function createSelfReadTool(projectRoot: string, extensionsDir?: string) {
   return {
-    name: 'self_read_source',
+    name: "self_read_source",
     description:
-      'Read your own source files or extension files. Path must be within apps/, packages/, or extensions/ (skills, tools, SOUL.md).',
+      "Read your own source files or extension files. Path must be within apps/, packages/, or extensions/ (skills, tools, SOUL.md).",
     parameters: SelfReadParams,
     execute: async (_toolCallId: string, args: SelfReadInput) => {
       // Resolve extensions/ prefix against extensionsDir
-      let resolved: string
-      let displayPath: string
+      let resolved: string;
+      let displayPath: string;
 
-      if (args.path.startsWith('extensions/') && extensionsDir) {
-        const extRelative = args.path.slice('extensions/'.length)
-        resolved = resolve(extensionsDir, extRelative)
-        displayPath = args.path
+      if (args.path.startsWith("extensions/") && extensionsDir) {
+        const extRelative = args.path.slice("extensions/".length);
+        resolved = resolve(extensionsDir, extRelative);
+        displayPath = args.path;
 
         // Scope check: prevent path traversal out of extensions dir
-        if (!resolved.startsWith(resolve(extensionsDir) + '/') && resolved !== resolve(extensionsDir)) {
+        if (
+          !resolved.startsWith(resolve(extensionsDir) + "/") &&
+          resolved !== resolve(extensionsDir)
+        ) {
           return {
             output: `Access denied: "${args.path}" escapes the extensions directory.`,
-            details: { error: 'scope_violation' },
-          }
+            details: { error: "scope_violation" },
+          };
         }
       } else {
-        resolved = resolve(projectRoot, args.path)
-        const rel = relative(projectRoot, resolved)
-        displayPath = rel
+        resolved = resolve(projectRoot, args.path);
+        const rel = relative(projectRoot, resolved);
+        displayPath = rel;
 
         // Scope check: only allow apps/, packages/, and select config files
         const allowed =
-          rel.startsWith('apps/') ||
-          rel.startsWith('packages/') ||
-          rel === 'package.json' ||
-          rel === 'tsconfig.json' ||
-          rel === 'CLAUDE.md' ||
-          rel === 'PLAN.md' ||
-          rel === 'Justfile' ||
-          rel === 'pnpm-workspace.yaml'
+          rel.startsWith("apps/") ||
+          rel.startsWith("packages/") ||
+          rel === "package.json" ||
+          rel === "tsconfig.json" ||
+          rel === "CLAUDE.md" ||
+          rel === "PLAN.md" ||
+          rel === "Justfile" ||
+          rel === "pnpm-workspace.yaml";
 
-        if (!allowed || rel.startsWith('..')) {
+        if (!allowed || rel.startsWith("..")) {
           return {
             output: `Access denied: "${args.path}" is outside the allowed scope (src/, cli/, extensions/, config files).`,
-            details: { error: 'scope_violation' },
-          }
+            details: { error: "scope_violation" },
+          };
         }
       }
 
       try {
-        const info = await stat(resolved)
+        const info = await stat(resolved);
 
         if (info.isDirectory()) {
-          const entries = await readdir(resolved, { withFileTypes: true })
-          const listing = entries
-            .map((e) => `${e.isDirectory() ? 'd' : 'f'} ${e.name}`)
-            .join('\n')
+          const entries = await readdir(resolved, { withFileTypes: true });
+          const listing = entries.map((e) => `${e.isDirectory() ? "d" : "f"} ${e.name}`).join("\n");
           return {
             output: `Directory listing for ${displayPath}/:\n${listing}`,
-            details: { type: 'directory', entries: entries.map((e) => e.name) },
-          }
+            details: { type: "directory", entries: entries.map((e) => e.name) },
+          };
         }
 
-        const content = await readFile(resolved, 'utf-8')
-        const lines = content.split('\n')
+        const content = await readFile(resolved, "utf-8");
+        const lines = content.split("\n");
         return {
           output: `${displayPath} (${lines.length} lines):\n${content}`,
-          details: { type: 'file', path: displayPath, lines: lines.length },
-        }
+          details: { type: "file", path: displayPath, lines: lines.length },
+        };
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
+        const msg = err instanceof Error ? err.message : String(err);
         return {
           output: `Error reading "${args.path}": ${msg}`,
           details: { error: msg },
-        }
+        };
       }
     },
-  }
+  };
 }

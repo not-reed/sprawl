@@ -1,14 +1,14 @@
-import type { Observation, ContextWindow } from './types.js'
-import { estimateTokens } from './tokens.js'
+import type { Observation, ContextWindow } from "./types.js";
+import { estimateTokens } from "./tokens.js";
 
 /** Token budget for observation rendering. Tunable. */
-export const OBSERVATION_BUDGET = 8_000
+export const OBSERVATION_BUDGET = 8_000;
 
 export interface BudgetedObservations {
-  text: string
-  included: number
-  evicted: number
-  totalTokens: number
+  text: string;
+  included: number;
+  evicted: number;
+  totalTokens: number;
 }
 
 /**
@@ -16,17 +16,17 @@ export interface BudgetedObservations {
  * This becomes the stable, prompt-cacheable prefix before active messages.
  */
 export function renderObservations(observations: Observation[]): string {
-  if (observations.length === 0) return ''
+  if (observations.length === 0) return "";
 
   const lines = observations.map((o) => {
-    const priority = o.priority === 'high' ? '!' : o.priority === 'low' ? '~' : '-'
-    return `${priority} [${o.observation_date}] ${o.content}`
-  })
+    const priority = o.priority === "high" ? "!" : o.priority === "low" ? "~" : "-";
+    return `${priority} [${o.observation_date}] ${o.content}`;
+  });
 
-  return lines.join('\n')
+  return lines.join("\n");
 }
 
-const PRIORITY_RANK: Record<Observation['priority'], number> = { high: 3, medium: 2, low: 1 }
+const PRIORITY_RANK: Record<Observation["priority"], number> = { high: 3, medium: 2, low: 1 };
 
 /**
  * Render observations within a token budget.
@@ -38,35 +38,35 @@ export function renderObservationsWithBudget(
   budget: number = OBSERVATION_BUDGET,
 ): BudgetedObservations {
   if (observations.length === 0) {
-    return { text: '', included: 0, evicted: 0, totalTokens: 0 }
+    return { text: "", included: 0, evicted: 0, totalTokens: 0 };
   }
 
   // Sort by priority desc, then created_at desc (newest first) for greedy packing
-  const sorted = [...observations].sort((a, b) => {
-    const pDiff = PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority]
-    if (pDiff !== 0) return pDiff
-    return b.created_at.localeCompare(a.created_at)
-  })
+  const sorted = [...observations].toSorted((a, b) => {
+    const pDiff = PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority];
+    if (pDiff !== 0) return pDiff;
+    return b.created_at.localeCompare(a.created_at);
+  });
 
-  const included: Observation[] = []
-  let totalTokens = 0
+  const included: Observation[] = [];
+  let totalTokens = 0;
 
   for (const obs of sorted) {
-    const tokens = obs.token_count || estimateTokens(obs.content)
-    if (totalTokens + tokens > budget && included.length > 0) break
-    included.push(obs)
-    totalTokens += tokens
+    const tokens = obs.token_count || estimateTokens(obs.content);
+    if (totalTokens + tokens > budget && included.length > 0) break;
+    included.push(obs);
+    totalTokens += tokens;
   }
 
   // Re-sort included by created_at ASC for chronological rendering
-  included.sort((a, b) => a.created_at.localeCompare(b.created_at))
+  const ordered = included.toSorted((a, b) => a.created_at.localeCompare(b.created_at));
 
   return {
-    text: renderObservations(included),
+    text: renderObservations(ordered),
     included: included.length,
     evicted: observations.length - included.length,
     totalTokens,
-  }
+  };
 }
 
 /**
@@ -76,12 +76,12 @@ export function renderObservationsWithBudget(
 export function buildContextWindow(
   observations: Observation[],
   activeMessages: Array<{
-    role: string
-    content: string
+    role: string;
+    content: string;
   }>,
 ): ContextWindow {
   return {
     observations: renderObservations(observations),
     activeMessages,
-  }
+  };
 }

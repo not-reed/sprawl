@@ -10,4 +10,4 @@ export const SIMILARITY = {
   PACK_SELECTION: 0.3 as number,
   /** Skill selection threshold. Slightly higher to avoid false matches. */
   SKILL_SELECTION: 0.35 as number,
-}
+};

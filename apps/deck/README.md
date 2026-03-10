@@ -7,7 +7,7 @@
 ╚═════╝ ╚══════╝ ╚═════╝╚═╝  ╚═╝
 ```
 
-> *The matrix has its own landscape -- a drastic simplification of the human sensorium. But you can learn to read it.*
+> _The matrix has its own landscape -- a drastic simplification of the human sensorium. But you can learn to read it._
 
 ---
 
@@ -55,12 +55,12 @@ Node radius scales with edge count. Colors by type. Selected nodes glow. Labels 
 
 Full-text + semantic search over the memory store.
 
-| Mode | Engine | Speed |
-|---|---|---|
-| `auto` | Embedding + FTS fallback | Default |
-| `fts` | SQLite FTS5 | Fast |
+| Mode        | Engine                       | Speed    |
+| ----------- | ---------------------------- | -------- |
+| `auto`      | Embedding + FTS fallback     | Default  |
+| `fts`       | SQLite FTS5                  | Fast     |
 | `embedding` | OpenRouter cosine similarity | Semantic |
-| `keyword` | LIKE matching | Simple |
+| `keyword`   | LIKE matching                | Simple   |
 
 Memory cards expand to show content, metadata, tags, source. Click through to linked graph nodes. Jump to graph view with `?node=<id>`.
 
@@ -141,17 +141,17 @@ cd apps/deck/web && pnpm build  # build to web/dist/ (served by hono in prod)
 
 ## Environment
 
-| Variable | Purpose |
-|---|---|
-| `DATABASE_URL` | Path to any Cairn-backed SQLite database |
+| Variable             | Purpose                                          |
+| -------------------- | ------------------------------------------------ |
+| `DATABASE_URL`       | Path to any Cairn-backed SQLite database         |
 | `OPENROUTER_API_KEY` | Embedding search (optional -- falls back to FTS) |
-| `EMBEDDING_MODEL` | Default: `qwen/qwen3-embedding-4b` |
-| `PORT` | Default: `4800` |
+| `EMBEDDING_MODEL`    | Default: `qwen/qwen3-embedding-4b`               |
+| `PORT`               | Default: `4800`                                  |
 
 ---
 
-> *"He closed his eyes. Found the ridged face of the power stud. And in the bloodlit dark behind his eyes, silver phosphenes boiling in from the edge of space, hypnagogic images jerking past like film compiled from random frames."*
+> _"He closed his eyes. Found the ridged face of the power stud. And in the bloodlit dark behind his eyes, silver phosphenes boiling in from the edge of space, hypnagogic images jerking past like film compiled from random frames."_
 >
-> -- William Gibson, *Neuromancer*
+> -- William Gibson, _Neuromancer_
 
 Deck is the screen behind your eyes. The graph is already there. This just lets you see it.

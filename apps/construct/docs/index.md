@@ -71,14 +71,15 @@ Two-layer design for prompt caching:
 
 Tools are organized into **packs** -- groups selected per message by embedding similarity.
 
-| Pack | Always loaded | Tools |
-|------|---------------|-------|
-| `core` | Yes | memory_store, memory_recall, memory_forget, memory_graph, schedule_create, schedule_list, schedule_cancel, secret_store, secret_list, secret_delete, usage_stats, identity_read, identity_update |
-| `web` | No | web_read, web_search (requires `TAVILY_API_KEY`) |
-| `self` | No | self_read, self_edit, self_test, self_logs, self_deploy (prod only), self_status, extension_reload |
-| `telegram` | Yes (when ctx) | telegram_react, telegram_reply_to, telegram_pin, telegram_unpin, telegram_get_pinned, telegram_ask |
+| Pack       | Always loaded  | Tools                                                                                                                                                                                            |
+| ---------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `core`     | Yes            | memory_store, memory_recall, memory_forget, memory_graph, schedule_create, schedule_list, schedule_cancel, secret_store, secret_list, secret_delete, usage_stats, identity_read, identity_update |
+| `web`      | No             | web_read, web_search (requires `TAVILY_API_KEY`)                                                                                                                                                 |
+| `self`     | No             | self_read, self_edit, self_test, self_logs, self_deploy (prod only), self_status, extension_reload                                                                                               |
+| `telegram` | Yes (when ctx) | telegram_react, telegram_reply_to, telegram_pin, telegram_unpin, telegram_get_pinned, telegram_ask                                                                                               |
 
 Selection algorithm:
+
 1. At startup, `initPackEmbeddings()` embeds each non-`alwaysLoad` pack's description
 2. Per message, the query embedding (from step 4 of processMessage) is compared against pack embeddings via cosine similarity
 3. Packs above threshold (0.3) are included. `alwaysLoad` packs always included
@@ -106,6 +107,7 @@ Grammy bot with long polling. Key behaviors:
 Croner-based reminder system. All schedules run through the full `processMessage()` pipeline with tool access, memory, and reasoning.
 
 Mechanics:
+
 - **Cron** -- Recurring schedules via cron expressions (with timezone support)
 - **One-shot** -- `run_at` timestamp; auto-cancelled after firing. Past-due one-shots fire immediately.
 - **Sync loop** -- Every 30s, polls the `schedules` table for new/cancelled entries and updates the in-memory job map
@@ -127,16 +129,19 @@ All modes run migrations, create a DB connection, and go through `processMessage
 User/agent-authored capabilities loaded from `EXTENSIONS_DIR`.
 
 **Identity files** (root of extensions dir):
+
 - `SOUL.md` -- Personality traits, values, communication style
 - `IDENTITY.md` -- Agent metadata: name, creature type, pronouns
 - `USER.md` -- Human context: name, location, preferences
 
 **Skills** (`skills/` subdir):
+
 - Markdown files with YAML frontmatter (`name`, `description`, optional `requires`)
 - Body injected into context preamble when selected by embedding similarity
 - Not tools -- they are instructions the agent follows
 
 **Dynamic tools** (`tools/` subdir):
+
 - TypeScript files loaded at runtime via jiti (no compile step)
 - Single `.ts` file = standalone pack; directory of `.ts` files = grouped pack
 - Export `{ name, description, parameters, execute }` (or factory function receiving `DynamicToolContext`)
@@ -144,6 +149,7 @@ User/agent-authored capabilities loaded from `EXTENSIONS_DIR`.
 - `node_modules` symlinked from project root for import resolution
 
 **Lifecycle**:
+
 1. `initExtensions()` at startup: create dirs, load everything, compute embeddings
 2. `extension_reload` tool: re-reads all files, rebuilds registry, recomputes embeddings
 3. Selection per message: skills and dynamic packs filtered by embedding similarity (same query embedding)
@@ -152,31 +158,31 @@ User/agent-authored capabilities loaded from `EXTENSIONS_DIR`.
 
 ## Key files
 
-| File | Role |
-|------|------|
-| `src/main.ts` | Entry point, boot sequence, graceful shutdown |
-| `src/agent.ts` | `processMessage()` pipeline, `AgentResponse` type, pi-agent adaptation |
-| `src/system-prompt.ts` | Base system prompt, identity injection, context preamble builder |
-| `src/env.ts` | Zod-validated environment config |
-| `src/logger.ts` | Logtape logging setup |
-| `src/cli/index.ts` | CLI: REPL, one-shot, tool invoke, reembed, backfill |
-| `src/telegram/bot.ts` | Grammy bot, authorization, queueing, reply threading, typing |
-| `src/telegram/format.ts` | Markdown-to-Telegram-HTML conversion |
-| `src/telegram/types.ts` | `TelegramContext`, `TelegramSideEffects` |
-| `src/scheduler/index.ts` | Croner scheduler, static/agent execution, sync loop |
-| `src/tools/packs.ts` | Tool pack definitions, embedding selection, `InternalTool` interface |
-| `src/tools/core/` | Memory, schedule, secret, identity, usage tools |
-| `src/tools/self/` | self_read, self_edit, self_test, self_logs, self_deploy, self_status, extension_reload |
-| `src/tools/web/` | web_search (Tavily), web_read (fetch + parse) |
-| `src/tools/telegram/` | react, reply_to, pin, unpin, get_pinned |
-| `src/extensions/index.ts` | Extension registry, init/reload, skill/dynamic-tool selection |
-| `src/extensions/loader.ts` | Skill parser, dynamic tool loader (jiti), requirement checker |
-| `src/extensions/embeddings.ts` | Skill + dynamic pack embedding cache and selection |
-| `src/extensions/secrets.ts` | Secrets table sync + builder |
-| `src/memory.ts` | ConstructMemoryManager (extends Cairn with custom prompts, expires_at) |
-| `src/db/schema.ts` | Construct-specific tables (extends CairnDatabase) |
-| `src/db/queries.ts` | All DB query helpers |
-| `src/db/migrate.ts` | Migration runner |
+| File                           | Role                                                                                   |
+| ------------------------------ | -------------------------------------------------------------------------------------- |
+| `src/main.ts`                  | Entry point, boot sequence, graceful shutdown                                          |
+| `src/agent.ts`                 | `processMessage()` pipeline, `AgentResponse` type, pi-agent adaptation                 |
+| `src/system-prompt.ts`         | Base system prompt, identity injection, context preamble builder                       |
+| `src/env.ts`                   | Zod-validated environment config                                                       |
+| `src/logger.ts`                | Logtape logging setup                                                                  |
+| `src/cli/index.ts`             | CLI: REPL, one-shot, tool invoke, reembed, backfill                                    |
+| `src/telegram/bot.ts`          | Grammy bot, authorization, queueing, reply threading, typing                           |
+| `src/telegram/format.ts`       | Markdown-to-Telegram-HTML conversion                                                   |
+| `src/telegram/types.ts`        | `TelegramContext`, `TelegramSideEffects`                                               |
+| `src/scheduler/index.ts`       | Croner scheduler, static/agent execution, sync loop                                    |
+| `src/tools/packs.ts`           | Tool pack definitions, embedding selection, `InternalTool` interface                   |
+| `src/tools/core/`              | Memory, schedule, secret, identity, usage tools                                        |
+| `src/tools/self/`              | self_read, self_edit, self_test, self_logs, self_deploy, self_status, extension_reload |
+| `src/tools/web/`               | web_search (Tavily), web_read (fetch + parse)                                          |
+| `src/tools/telegram/`          | react, reply_to, pin, unpin, get_pinned                                                |
+| `src/extensions/index.ts`      | Extension registry, init/reload, skill/dynamic-tool selection                          |
+| `src/extensions/loader.ts`     | Skill parser, dynamic tool loader (jiti), requirement checker                          |
+| `src/extensions/embeddings.ts` | Skill + dynamic pack embedding cache and selection                                     |
+| `src/extensions/secrets.ts`    | Secrets table sync + builder                                                           |
+| `src/memory.ts`                | ConstructMemoryManager (extends Cairn with custom prompts, expires_at)                 |
+| `src/db/schema.ts`             | Construct-specific tables (extends CairnDatabase)                                      |
+| `src/db/queries.ts`            | All DB query helpers                                                                   |
+| `src/db/migrate.ts`            | Migration runner                                                                       |
 
 ## Database tables
 

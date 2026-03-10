@@ -7,7 +7,7 @@
  ╚═════╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝
 ```
 
-> *A cairn marks where something important happened. A pile of stones in the wilderness, left by someone who passed through before you.*
+> _A cairn marks where something important happened. A pile of stones in the wilderness, left by someone who passed through before you._
 
 ---
 
@@ -74,58 +74,63 @@ Queries support hybrid search (LIKE + embedding similarity), recursive CTE trave
 
 Three search modes, wired together:
 
-| Mode | Engine | Use |
-|---|---|---|
-| **FTS** | SQLite FTS5 | Keyword search, fast |
-| **Embedding** | Cosine similarity | Semantic search, slower |
-| **Graph** | Node traversal + linked memories | Relational context |
+| Mode          | Engine                           | Use                     |
+| ------------- | -------------------------------- | ----------------------- |
+| **FTS**       | SQLite FTS5                      | Keyword search, fast    |
+| **Embedding** | Cosine similarity                | Semantic search, slower |
+| **Graph**     | Node traversal + linked memories | Relational context      |
 
 ## The Memory Manager
 
 Single entry point. Wraps the full pipeline.
 
 ```typescript
-import { MemoryManager } from '@repo/cairn'
+import { MemoryManager } from "@repo/cairn";
 
 const memory = new MemoryManager(db, {
-  workerConfig,     // LLM config for observer/reflector
-  embeddingModel,   // default: qwen/qwen3-embedding-4b
-  apiKey,           // OpenRouter key
-  logger,           // optional
-})
+  workerConfig, // LLM config for observer/reflector
+  embeddingModel, // default: qwen/qwen3-embedding-4b
+  apiKey, // OpenRouter key
+  logger, // optional
+});
 
 // observe → reflect → promote → graph
-await memory.runObserver(conversationId)
-await memory.runReflector(conversationId)
-await memory.promoteObservations(conversationId)
+await memory.runObserver(conversationId);
+await memory.runReflector(conversationId);
+await memory.promoteObservations(conversationId);
 
 // recall
-const context = await memory.buildContext(conversationId)
+const context = await memory.buildContext(conversationId);
 ```
 
 ## Exports
 
 ```typescript
-import { MemoryManager } from '@repo/cairn'
-import { generateEmbedding, cosineSimilarity } from '@repo/cairn/embeddings'
-import { processMemoryForGraph } from '@repo/cairn/graph'
-import { searchNodes, traverseGraph, getNodeEdges, getRelatedMemoryIds } from '@repo/cairn/graph/queries'
-import { recallMemories, storeMemory, getRecentMemories } from '@repo/cairn/db/queries'
+import { MemoryManager } from "@repo/cairn";
+import { generateEmbedding, cosineSimilarity } from "@repo/cairn/embeddings";
+import { processMemoryForGraph } from "@repo/cairn/graph";
+import {
+  searchNodes,
+  traverseGraph,
+  getNodeEdges,
+  getRelatedMemoryIds,
+} from "@repo/cairn/graph/queries";
+import { recallMemories, storeMemory, getRecentMemories } from "@repo/cairn/db/queries";
 ```
 
 ## Thresholds
 
-| Constant | Value | Purpose |
-|---|---|---|
-| `OBSERVER_THRESHOLD` | 3,000 tokens | Trigger message compression |
-| `REFLECTOR_THRESHOLD` | 4,000 tokens | Trigger observation condensation |
-| `OBSERVER_MAX_BATCH_TOKENS` | 16,000 tokens | Max per observer batch |
-| `OBSERVATION_BUDGET` | 8,000 tokens | Context injection ceiling |
-| Promotion similarity | 0.85 | Dedup threshold for new memories |
-| Node search threshold | 0.3 | Embedding match for graph nodes |
+| Constant                    | Value         | Purpose                          |
+| --------------------------- | ------------- | -------------------------------- |
+| `OBSERVER_THRESHOLD`        | 3,000 tokens  | Trigger message compression      |
+| `REFLECTOR_THRESHOLD`       | 4,000 tokens  | Trigger observation condensation |
+| `OBSERVER_MAX_BATCH_TOKENS` | 16,000 tokens | Max per observer batch           |
+| `OBSERVATION_BUDGET`        | 8,000 tokens  | Context injection ceiling        |
+| Promotion similarity        | 0.85          | Dedup threshold for new memories |
+| Node search threshold       | 0.3           | Embedding match for graph nodes  |
 
 ---
 
-> *Stones stacked in the dark. Each one a fact. Each one placed deliberately, so the next traveler knows what came before.*
+> _Stones stacked in the dark. Each one a fact. Each one placed deliberately, so the next traveler knows what came before._
 
 Cairn remembers the shape of what was said.

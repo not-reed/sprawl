@@ -38,9 +38,9 @@ Central facade class. Constructed with a Kysely DB instance and config (API key,
 
 ```typescript
 interface CairnOptions {
-  observerPrompt?: string    // Override default observer system prompt
-  reflectorPrompt?: string   // Override default reflector system prompt
-  entityTypes?: string[]     // Override default graph entity types
+  observerPrompt?: string; // Override default observer system prompt
+  reflectorPrompt?: string; // Override default reflector system prompt
+  entityTypes?: string[]; // Override default graph entity types
 }
 ```
 
@@ -67,6 +67,7 @@ LLM-powered message compressor. Takes a batch of messages, outputs structured ob
 **Trigger**: Called after every `processMessage()` response. Only runs if un-observed messages exceed `OBSERVER_THRESHOLD` (3000 estimated tokens).
 
 **Process**:
+
 1. `getUnobservedMessages()` loads messages after the watermark (uses `rowid` comparison for sub-second ordering)
 2. Messages are formatted as `[timestamp] role: content` and sent to the worker LLM
 3. The LLM returns JSON observations, each with `content`, `priority`, and `observation_date`
@@ -76,6 +77,7 @@ LLM-powered message compressor. Takes a batch of messages, outputs structured ob
 7. Usage tracked in `ai_usage` with source `observer`
 
 **Prompt rules**:
+
 - Extract key information as self-contained bullet points
 - Assign priority: `high` (decisions, commitments, important facts), `medium` (general context), `low` (small talk)
 - Preserve concrete details: names, numbers, dates, preferences
@@ -90,6 +92,7 @@ LLM-powered observation condenser.
 **Trigger**: Called automatically after the observer runs. Only runs if active (non-superseded) observations exceed `REFLECTOR_THRESHOLD` (4000 estimated tokens).
 
 **Process**:
+
 1. Active observations are loaded and formatted as `[id] (priority, date) content`
 2. Sent to the worker LLM with the reflector system prompt
 3. The LLM returns new condensed observations and a list of `superseded_ids` to retire
@@ -103,6 +106,7 @@ The default prompt is exported as `DEFAULT_REFLECTOR_PROMPT`.
 ## Promoter (in MemoryManager)
 
 Bridges observations to long-term memories:
+
 1. Find unpromoted medium/high-priority observations
 2. Generate embedding for each
 3. Compare against all existing memory embeddings
@@ -120,6 +124,7 @@ Exported: `DEFAULT_ENTITY_TYPES`, `extractEntities()`.
 ### Graph Processing (`index.ts`)
 
 `processMemoryForGraph()` orchestrates:
+
 1. Call `extractEntities()` with the memory content
 2. Upsert each entity as a node (matched by canonical name + type). Descriptions only filled in if existing node lacks one.
 3. Upsert each relationship as an edge. Existing edges (same source, target, relation) get `weight` incremented.
@@ -144,6 +149,7 @@ Exported: `DEFAULT_ENTITY_TYPES`, `extractEntities()`.
 - **`buildContextWindow()`** -- Full context assembly
 
 Example output:
+
 ```
 ! [2024-01-15] User has a dentist appointment on March 5th at 9am
 - [2024-01-15] User is working on a TypeScript project called Construct
@@ -165,16 +171,16 @@ Uses a `chars / 4` heuristic, plus 4 tokens overhead per message. Intentionally 
 
 `CairnDatabase` defines the base tables all consumers share:
 
-| Table | Purpose |
-|-------|---------|
-| `memories` | Long-term facts, preferences, notes with FTS5 + embeddings |
-| `memories_fts` | FTS5 virtual table (synced via triggers) |
-| `conversations` | Groups messages by source + external ID |
-| `messages` | Individual messages within conversations |
-| `observations` | Compressed conversation summaries |
-| `graph_nodes` | Entities extracted from memories |
-| `graph_edges` | Relationships between entities |
-| `ai_usage` | LLM token/cost tracking |
+| Table           | Purpose                                                    |
+| --------------- | ---------------------------------------------------------- |
+| `memories`      | Long-term facts, preferences, notes with FTS5 + embeddings |
+| `memories_fts`  | FTS5 virtual table (synced via triggers)                   |
+| `conversations` | Groups messages by source + external ID                    |
+| `messages`      | Individual messages within conversations                   |
+| `observations`  | Compressed conversation summaries                          |
+| `graph_nodes`   | Entities extracted from memories                           |
+| `graph_edges`   | Relationships between entities                             |
+| `ai_usage`      | LLM token/cost tracking                                    |
 
 Apps extend this schema with their own tables (e.g., Construct adds `schedules`, `settings`, `secrets`, `pending_asks`).
 
@@ -182,19 +188,19 @@ Apps extend this schema with their own tables (e.g., Construct adds `schedules`,
 
 **observations**:
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | text (PK) | nanoid |
-| `conversation_id` | text (FK) | References conversations |
-| `content` | text | The observation text |
-| `priority` | text | `high`, `medium`, or `low` |
-| `observation_date` | text | Date context |
-| `source_message_ids` | text (nullable) | JSON array of message IDs |
-| `token_count` | integer (nullable) | Estimated tokens |
-| `generation` | integer | 0 = observer, 1+ = reflector |
-| `superseded_at` | text (nullable) | Set when replaced by reflector |
-| `promoted_at` | text (nullable) | Set when promoted to memory |
-| `created_at` | text | Auto-set |
+| Column               | Type               | Notes                          |
+| -------------------- | ------------------ | ------------------------------ |
+| `id`                 | text (PK)          | nanoid                         |
+| `conversation_id`    | text (FK)          | References conversations       |
+| `content`            | text               | The observation text           |
+| `priority`           | text               | `high`, `medium`, or `low`     |
+| `observation_date`   | text               | Date context                   |
+| `source_message_ids` | text (nullable)    | JSON array of message IDs      |
+| `token_count`        | integer (nullable) | Estimated tokens               |
+| `generation`         | integer            | 0 = observer, 1+ = reflector   |
+| `superseded_at`      | text (nullable)    | Set when replaced by reflector |
+| `promoted_at`        | text (nullable)    | Set when promoted to memory    |
+| `created_at`         | text               | Auto-set                       |
 
 **graph_nodes**: Unique on `(name, node_type)`. Canonical name is lowercased/trimmed. Types configurable via `entityTypes`.
 
@@ -224,21 +230,21 @@ Apps extend this schema with their own tables (e.g., Construct adds `schedules`,
 
 ## Key Files
 
-| File | Role |
-|------|------|
-| `src/index.ts` | Barrel exports |
-| `src/manager.ts` | MemoryManager class (main facade) |
-| `src/observer.ts` | Message -> observations LLM worker |
-| `src/reflector.ts` | Observation condenser LLM worker |
-| `src/context.ts` | Observation rendering with budget eviction |
-| `src/embeddings.ts` | OpenRouter embeddings + cosine similarity |
-| `src/tokens.ts` | Token estimation (char/4 heuristic) |
-| `src/types.ts` | All shared types (CairnMessage, Observation, GraphNode, etc.) |
-| `src/db/types.ts` | CairnDatabase schema type |
-| `src/db/queries.ts` | Memory CRUD, FTS5 hybrid recall, usage tracking |
-| `src/graph/index.ts` | processMemoryForGraph orchestrator |
-| `src/graph/extract.ts` | LLM entity/relationship extraction |
-| `src/graph/queries.ts` | Graph CRUD, search, traversal |
+| File                   | Role                                                          |
+| ---------------------- | ------------------------------------------------------------- |
+| `src/index.ts`         | Barrel exports                                                |
+| `src/manager.ts`       | MemoryManager class (main facade)                             |
+| `src/observer.ts`      | Message -> observations LLM worker                            |
+| `src/reflector.ts`     | Observation condenser LLM worker                              |
+| `src/context.ts`       | Observation rendering with budget eviction                    |
+| `src/embeddings.ts`    | OpenRouter embeddings + cosine similarity                     |
+| `src/tokens.ts`        | Token estimation (char/4 heuristic)                           |
+| `src/types.ts`         | All shared types (CairnMessage, Observation, GraphNode, etc.) |
+| `src/db/types.ts`      | CairnDatabase schema type                                     |
+| `src/db/queries.ts`    | Memory CRUD, FTS5 hybrid recall, usage tracking               |
+| `src/graph/index.ts`   | processMemoryForGraph orchestrator                            |
+| `src/graph/extract.ts` | LLM entity/relationship extraction                            |
+| `src/graph/queries.ts` | Graph CRUD, search, traversal                                 |
 
 ## Consumers
 
@@ -258,16 +264,16 @@ Apps extend this schema with their own tables (e.g., Construct adds `schedules`,
 
 ## Token Thresholds
 
-| Constant | Value | Purpose |
-|----------|-------|---------|
-| `OBSERVER_THRESHOLD` | 3000 tokens | Min un-observed message tokens before observer triggers |
-| `REFLECTOR_THRESHOLD` | 4000 tokens | Min active observation tokens before reflector triggers |
-| `OBSERVER_BATCH_LIMIT` | 16000 tokens | Max tokens per observer batch |
+| Constant               | Value        | Purpose                                                 |
+| ---------------------- | ------------ | ------------------------------------------------------- |
+| `OBSERVER_THRESHOLD`   | 3000 tokens  | Min un-observed message tokens before observer triggers |
+| `REFLECTOR_THRESHOLD`  | 4000 tokens  | Min active observation tokens before reflector triggers |
+| `OBSERVER_BATCH_LIMIT` | 16000 tokens | Max tokens per observer batch                           |
 
 ## Configuration
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `MEMORY_WORKER_MODEL` | No | *(none)* | OpenRouter model for observer, reflector, graph extraction. If unset, LLM-powered memory features are disabled. |
-| `EMBEDDING_MODEL` | No | `qwen/qwen3-embedding-4b` | OpenRouter model for embeddings. |
-| `OPENROUTER_API_KEY` | Yes | -- | Used for all API calls. |
+| Variable              | Required | Default                   | Description                                                                                                     |
+| --------------------- | -------- | ------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `MEMORY_WORKER_MODEL` | No       | _(none)_                  | OpenRouter model for observer, reflector, graph extraction. If unset, LLM-powered memory features are disabled. |
+| `EMBEDDING_MODEL`     | No       | `qwen/qwen3-embedding-4b` | OpenRouter model for embeddings.                                                                                |
+| `OPENROUTER_API_KEY`  | Yes      | --                        | Used for all API calls.                                                                                         |
