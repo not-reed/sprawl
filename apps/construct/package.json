@@ -11,7 +11,8 @@
   "dependencies": {
     "@repo/db": "workspace:*",
     "@repo/cairn": "workspace:*",
-    "@logtape/logtape": "^2.0.2",
+    "@repo/env": "workspace:*",
+    "@repo/log": "workspace:*",
     "@mariozechner/pi-agent-core": "^0.54.2",
     "@mariozechner/pi-ai": "^0.54.2",
     "@sinclair/typebox": "^0.34.48",

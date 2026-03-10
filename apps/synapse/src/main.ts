@@ -1,20 +1,25 @@
 import { env } from './env.js'
 import { createDb } from '@repo/db'
+import { setupLogging } from '@repo/log'
 import type { Database } from './db/schema.js'
 import { runMigrations } from './db/migrate.js'
 import { CortexReader } from './cortex/reader.js'
 import { PaperExecutor } from './engine/executor.js'
 import { startLoop, stopLoop } from './engine/loop.js'
 import { initPortfolioState, getPortfolioState } from './db/queries.js'
+import { log } from './logger.js'
 
-function log(msg: string) {
-  console.log(`[synapse] ${msg}`)
+/** Callback adapter for subsystems that take (msg: string) => void */
+function emit(msg: string) {
+  log.info`${msg}`
 }
 
 async function main() {
-  log(`Synapse DB: ${env.DATABASE_URL}`)
-  log(`Cortex DB: ${env.CORTEX_DATABASE_URL}`)
-  log(`Initial balance: $${env.INITIAL_BALANCE_USD}`)
+  await setupLogging({ appName: 'synapse' })
+
+  log.info`Synapse DB: ${env.DATABASE_URL}`
+  log.info`Cortex DB: ${env.CORTEX_DATABASE_URL}`
+  log.info`Initial balance: $${env.INITIAL_BALANCE_USD}`
 
   // Run migrations
   await runMigrations(env.DATABASE_URL)
@@ -28,7 +33,7 @@ async function main() {
 
   const state = await getPortfolioState(db)
   if (state) {
-    log(`Portfolio: $${state.total_value_usd.toFixed(2)} (cash: $${state.cash_usd.toFixed(2)}, drawdown: ${state.drawdown_pct.toFixed(1)}%${state.halted ? ', HALTED' : ''})`)
+    log.info`Portfolio: $${state.total_value_usd.toFixed(2)} (cash: $${state.cash_usd.toFixed(2)}, drawdown: ${state.drawdown_pct.toFixed(1)}%${state.halted ? ', HALTED' : ''})`
   }
 
   // Create paper executor
@@ -38,12 +43,12 @@ async function main() {
   })
 
   // Start loop
-  startLoop({ db, cortex, executor, env, log })
-  log('Daemon running. Press Ctrl+C to stop.')
+  startLoop({ db, cortex, executor, env, log: emit })
+  log.info`Daemon running. Press Ctrl+C to stop.`
 
   // Graceful shutdown
   const shutdown = async () => {
-    log('Shutting down...')
+    log.info`Shutting down...`
     stopLoop()
     await cortex.destroy()
     await db.destroy()

@@ -2,7 +2,7 @@ import type { TSchema } from '@sinclair/typebox'
 import type { Kysely } from 'kysely'
 import type { Database } from '../db/schema.js'
 import type { TelegramContext } from '../telegram/types.js'
-import { generateEmbedding, cosineSimilarity, type MemoryManager } from '@repo/cairn'
+import { generateEmbedding, cosineSimilarity, SIMILARITY, type MemoryManager } from '@repo/cairn'
 import { agentLog } from '../logger.js'
 
 import { createMemoryStoreTool } from './core/memory-store.js'
@@ -160,7 +160,7 @@ export async function initPackEmbeddings(apiKey: string, embeddingModel?: string
 
 // --- Selection ---
 
-const DEFAULT_THRESHOLD = 0.3
+const DEFAULT_THRESHOLD = SIMILARITY.PACK_SELECTION
 
 /**
  * Select which packs to load based on query embedding similarity.

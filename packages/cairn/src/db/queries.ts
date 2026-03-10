@@ -2,6 +2,7 @@ import type { Kysely } from 'kysely'
 import { sql } from 'kysely'
 import { nanoid } from 'nanoid'
 import { cosineSimilarity } from '../embeddings.js'
+import { SIMILARITY } from '../similarity.js'
 import type { CairnDatabase, Memory, NewMemory, NewAiUsage } from './types.js'
 
 // Kysely is invariant in its type parameter: Kysely<A> is not assignable to
@@ -117,7 +118,7 @@ export async function recallMemories(
 
   // 2. Embedding cosine similarity search
   if (opts?.queryEmbedding && results.length < limit) {
-    const threshold = opts.similarityThreshold ?? 0.3
+    const threshold = opts.similarityThreshold ?? SIMILARITY.RECALL_DEFAULT
     const allWithEmbeddings = await d
       .selectFrom('memories')
       .selectAll()

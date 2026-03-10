@@ -23,9 +23,6 @@ importers:
 
   apps/construct:
     dependencies:
-      '@logtape/logtape':
-        specifier: ^2.0.2
-        version: 2.0.4
       '@mariozechner/pi-agent-core':
         specifier: ^0.54.2
         version: 0.54.2(ws@8.19.0)(zod@4.3.6)
@@ -38,6 +35,12 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/env':
+        specifier: workspace:*
+        version: link:../../packages/env
+      '@repo/log':
+        specifier: workspace:*
+        version: link:../../packages/log
       '@sinclair/typebox':
         specifier: ^0.34.48
         version: 0.34.48
@@ -78,6 +81,12 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/env':
+        specifier: workspace:*
+        version: link:../../packages/env
+      '@repo/log':
+        specifier: workspace:*
+        version: link:../../packages/log
       croner:
         specifier: ^10.0.1
         version: 10.0.1
@@ -190,6 +199,12 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/env':
+        specifier: workspace:*
+        version: link:../../packages/env
+      '@repo/log':
+        specifier: workspace:*
+        version: link:../../packages/log
       croner:
         specifier: ^10.0.1
         version: 10.0.1
@@ -228,6 +243,18 @@ importers:
       kysely:
         specifier: ^0.28.11
         version: 0.28.11
+
+  packages/env:
+    dependencies:
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+
+  packages/log:
+    dependencies:
+      '@logtape/logtape':
+        specifier: ^2.0.2
+        version: 2.0.4
 
 packages:
 

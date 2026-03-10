@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { csvFromEnv } from '@repo/env'
 import { resolve, join } from 'node:path'
 
 function defaultExtensionsDir(): string {
@@ -17,10 +18,7 @@ const envSchema = z.object({
   TAVILY_API_KEY: z.string().optional(),
   OPENROUTER_MODEL: z.string().default('google/gemini-3-flash-preview'),
   DATABASE_URL: z.string().default('./data/construct.db'),
-  ALLOWED_TELEGRAM_IDS: z
-    .string()
-    .default('')
-    .transform((s) => s.split(',').filter(Boolean)),
+  ALLOWED_TELEGRAM_IDS: csvFromEnv(''),
   TIMEZONE: z.string().default('UTC'),
   LOG_LEVEL: z.string().default('info'),
   LOG_FILE: z.string().default('./data/construct.log'),

@@ -14,7 +14,7 @@ import {
   getRecentMemories,
   trackUsage,
 } from './db/queries.js'
-import { generateEmbedding, MemoryManager, type WorkerModelConfig } from '@repo/cairn'
+import { generateEmbedding, MemoryManager, SIMILARITY, type WorkerModelConfig } from '@repo/cairn'
 
 export interface ProcessMessageOpts {
   onDelta?: (text: string) => void
@@ -68,14 +68,14 @@ export async function processMessage(
       category: 'rules',
       limit: 5,
       queryEmbedding,
-      similarityThreshold: 0.3,
+      similarityThreshold: SIMILARITY.RECALL_DEFAULT,
     })
     rulesMemories = rulesResults.map((m) => ({ content: m.content }))
 
     const campaignResults = await recallMemories(db, message, {
       limit: 5,
       queryEmbedding,
-      similarityThreshold: 0.3,
+      similarityThreshold: SIMILARITY.RECALL_DEFAULT,
     })
     const recentMems = await getRecentMemories(db, 10)
     const seen = new Set(campaignResults.map((m) => m.id))

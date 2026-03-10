@@ -4,6 +4,7 @@ import { nanoid } from 'nanoid'
 import type { CairnDatabase } from '../db/types.js'
 import type { GraphNode, GraphEdge } from '../types.js'
 import { cosineSimilarity } from '../embeddings.js'
+import { SIMILARITY } from '../similarity.js'
 
 // See db/queries.ts for rationale on AnyDB vs DB pattern.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -122,7 +123,7 @@ export async function searchNodes(
   if (!queryEmbedding) return likeResults as GraphNode[]
 
   // Embedding similarity search
-  const threshold = 0.3
+  const threshold = SIMILARITY.GRAPH_SEARCH
   const allWithEmbeddings = await d
     .selectFrom('graph_nodes')
     .selectAll()

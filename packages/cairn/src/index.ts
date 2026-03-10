@@ -38,6 +38,9 @@ export { estimateTokens, estimateMessageTokens } from './tokens.js'
 // Embeddings
 export { generateEmbedding, cosineSimilarity } from './embeddings.js'
 
+// Similarity thresholds
+export { SIMILARITY } from './similarity.js'
+
 // Graph (re-export from submodule)
 export { processMemoryForGraph } from './graph/index.js'
 export { extractEntities, DEFAULT_ENTITY_TYPES } from './graph/extract.js'

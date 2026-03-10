@@ -1,4 +1,4 @@
-import { generateEmbedding, cosineSimilarity } from '@repo/cairn'
+import { generateEmbedding, cosineSimilarity, SIMILARITY } from '@repo/cairn'
 import { agentLog } from '../logger.js'
 import type { Skill } from './types.js'
 import type { ToolPack } from '../tools/packs.js'
@@ -68,7 +68,7 @@ export async function initDynamicPackEmbeddings(
 export function selectSkills(
   queryEmbedding: number[] | undefined,
   skills: Skill[],
-  threshold = 0.35,
+  threshold = SIMILARITY.SKILL_SELECTION,
   maxSkills = 3,
 ): Skill[] {
   if (skills.length === 0) return []
@@ -96,7 +96,7 @@ export function selectSkills(
 export function selectDynamicPacks(
   queryEmbedding: number[] | undefined,
   packs: ToolPack[],
-  threshold = 0.3,
+  threshold = SIMILARITY.PACK_SELECTION,
 ): ToolPack[] {
   // No query embedding → load all dynamic packs (graceful fallback)
   if (!queryEmbedding) return packs

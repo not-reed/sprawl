@@ -9,6 +9,8 @@
   "dependencies": {
     "@repo/db": "workspace:*",
     "@repo/cairn": "workspace:*",
+    "@repo/env": "workspace:*",
+    "@repo/log": "workspace:*",
 "croner": "^10.0.1",
     "kysely": "^0.28.11",
     "nanoid": "^5.1.6",

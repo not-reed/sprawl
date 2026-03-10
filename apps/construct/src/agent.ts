@@ -20,7 +20,7 @@ import {
   saveMessage,
   trackUsage,
 } from './db/queries.js'
-import { generateEmbedding, estimateTokens, type WorkerModelConfig } from '@repo/cairn'
+import { generateEmbedding, estimateTokens, SIMILARITY, type WorkerModelConfig } from '@repo/cairn'
 import { ConstructMemoryManager, CONSTRUCT_OBSERVER_PROMPT, CONSTRUCT_REFLECTOR_PROMPT } from './memory.js'
 import { selectAndCreateTools, type InternalTool } from './tools/packs.js'
 import { selectSkills, getExtensionRegistry, selectAndCreateDynamicTools } from './extensions/index.js'
@@ -131,7 +131,7 @@ export async function processMessage(
     const results = await recallMemories(db, message, {
       limit: 5,
       queryEmbedding,
-      similarityThreshold: 0.4,
+      similarityThreshold: SIMILARITY.RECALL_STRICT,
     })
     // Filter out any that are already in recent memories
     const recentIds = new Set(recentMemories.map((m) => m.id))
