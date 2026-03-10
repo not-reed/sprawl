@@ -25,10 +25,10 @@ Respond with ONLY valid JSON:
   "confidence": 0.0-1.0,
   "reasoning": "2-3 sentence explanation",
   "key_factors": ["factor1", "factor2", "factor3"]
-}`
+}`;
 
 export const SHORT_SIGNAL_PROMPT = SIGNAL_BASE.replace(
-  '{instructions}',
+  "{instructions}",
   `You are producing a SHORT-TERM signal with a 24-48 HOUR horizon. This is a tactical, momentum-driven call. You are trying to answer: "If I entered a position right now, would I be in profit or loss 24-48 hours from now?"
 
 ### What matters at this timescale
@@ -65,10 +65,10 @@ export const SHORT_SIGNAL_PROMPT = SIGNAL_BASE.replace(
 - 0.5-0.7: Direction and at least one catalyst or memory pattern align
 - 0.7-0.9: Multiple confirming factors (momentum + catalyst + volume + memory pattern)
 - 0.9+: Almost never appropriate — crypto is too volatile for near-certainty on a 24h call`,
-)
+);
 
 export const LONG_SIGNAL_PROMPT = SIGNAL_BASE.replace(
-  '{instructions}',
+  "{instructions}",
   `You are producing a LONG-TERM signal with a 1-4 WEEK horizon. This is a strategic, thesis-driven call. You are trying to answer: "Is the risk/reward favorable for holding a position in this token over the next few weeks?"
 
 ### What matters at this timescale
@@ -109,4 +109,4 @@ export const LONG_SIGNAL_PROMPT = SIGNAL_BASE.replace(
 - 0.5-0.7: Solid thesis — trend, narrative, and at least one fundamental factor align
 - 0.7-0.85: Strong thesis — multiple confirming factors across price, narrative, fundamentals, and macro
 - 0.85+: Almost never appropriate — too many unknowns over a multi-week horizon to be this confident`,
-)
+);

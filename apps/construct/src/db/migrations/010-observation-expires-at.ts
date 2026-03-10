@@ -1,7 +1,7 @@
-import { type Kysely, sql } from 'kysely'
+import { type Kysely, sql } from "kysely";
 
 export async function up(db: Kysely<unknown>): Promise<void> {
-  await sql`ALTER TABLE observations ADD COLUMN expires_at TEXT`.execute(db)
+  await sql`ALTER TABLE observations ADD COLUMN expires_at TEXT`.execute(db);
 }
 
 export async function down(_db: Kysely<unknown>): Promise<void> {

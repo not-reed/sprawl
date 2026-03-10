@@ -30,11 +30,13 @@
   box-sizing: border-box;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
@@ -237,10 +239,22 @@ a {
   font-weight: 500;
 }
 
-.badge-play { background: rgba(91, 156, 245, 0.15); color: var(--blue); }
-.badge-recap { background: rgba(232, 166, 86, 0.15); color: var(--orange); }
-.badge-active { background: rgba(91, 196, 159, 0.15); color: var(--green); }
-.badge-completed { background: rgba(136, 136, 152, 0.15); color: var(--gray); }
+.badge-play {
+  background: rgba(91, 156, 245, 0.15);
+  color: var(--blue);
+}
+.badge-recap {
+  background: rgba(232, 166, 86, 0.15);
+  color: var(--orange);
+}
+.badge-active {
+  background: rgba(91, 196, 159, 0.15);
+  color: var(--green);
+}
+.badge-completed {
+  background: rgba(136, 136, 152, 0.15);
+  color: var(--gray);
+}
 
 .badge-mode {
   cursor: pointer;
@@ -257,9 +271,18 @@ a {
   letter-spacing: 0.5px;
 }
 
-.badge-priority-high { background: rgba(224, 86, 86, 0.15); color: var(--red); }
-.badge-priority-medium { background: rgba(212, 196, 90, 0.15); color: var(--yellow); }
-.badge-priority-low { background: rgba(136, 136, 152, 0.15); color: var(--gray); }
+.badge-priority-high {
+  background: rgba(224, 86, 86, 0.15);
+  color: var(--red);
+}
+.badge-priority-medium {
+  background: rgba(212, 196, 90, 0.15);
+  color: var(--yellow);
+}
+.badge-priority-low {
+  background: rgba(136, 136, 152, 0.15);
+  color: var(--gray);
+}
 
 /* Play view */
 .play-view {
@@ -609,9 +632,15 @@ a {
   border-left: 3px solid var(--border-light);
 }
 
-.sidebar-obs.priority-high { border-left-color: var(--red); }
-.sidebar-obs.priority-medium { border-left-color: var(--yellow); }
-.sidebar-obs.priority-low { border-left-color: var(--gray); }
+.sidebar-obs.priority-high {
+  border-left-color: var(--red);
+}
+.sidebar-obs.priority-medium {
+  border-left-color: var(--yellow);
+}
+.sidebar-obs.priority-low {
+  border-left-color: var(--gray);
+}
 
 .sidebar-obs-content {
   font-size: 13px;
@@ -798,11 +827,26 @@ a {
   border-radius: 8px;
 }
 
-.grade-a { background: rgba(91, 196, 159, 0.15); color: var(--green); }
-.grade-b { background: rgba(91, 156, 245, 0.15); color: var(--blue); }
-.grade-c { background: rgba(212, 196, 90, 0.15); color: var(--yellow); }
-.grade-d { background: rgba(136, 136, 152, 0.15); color: var(--gray); }
-.grade-f { background: rgba(224, 86, 86, 0.15); color: var(--red); }
+.grade-a {
+  background: rgba(91, 196, 159, 0.15);
+  color: var(--green);
+}
+.grade-b {
+  background: rgba(91, 156, 245, 0.15);
+  color: var(--blue);
+}
+.grade-c {
+  background: rgba(212, 196, 90, 0.15);
+  color: var(--yellow);
+}
+.grade-d {
+  background: rgba(136, 136, 152, 0.15);
+  color: var(--gray);
+}
+.grade-f {
+  background: rgba(224, 86, 86, 0.15);
+  color: var(--red);
+}
 
 .voice-card-actions {
   display: flex;

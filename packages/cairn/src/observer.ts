@@ -1,4 +1,5 @@
-import type { WorkerModelConfig, ObserverInput, ObserverOutput, CairnLogger } from './types.js'
+import type { WorkerModelConfig, ObserverInput, ObserverOutput, CairnLogger } from "./types.js";
+import { MemoryError } from "./errors.js";
 
 export const DEFAULT_OBSERVER_PROMPT = `You extract observations from conversation. You compress raw messages into facts, events, preferences, and state changes. Each observation is a standalone record — it may be the only trace of what was said.
 
@@ -59,56 +60,59 @@ Return a JSON object with this exact shape:
   ]
 }
 
-Respond ONLY with JSON, no fences.`
+Respond ONLY with JSON, no fences.`;
 
 /**
  * Detect degenerate LLM output (repetition loops, impossibly large responses).
  * Called on raw text before JSON parsing.
  */
 export function isDegenerateRaw(text: string): boolean {
-  if (text.length > 50_000) return true
+  if (text.length > 50_000) return true;
 
-  const blockSize = 100
-  const seen = new Map<string, number>()
+  const blockSize = 100;
+  const seen = new Map<string, number>();
   for (let i = 0; i + blockSize <= text.length; i += blockSize) {
-    const block = text.slice(i, i + blockSize)
-    const count = (seen.get(block) ?? 0) + 1
-    if (count >= 3) return true
-    seen.set(block, count)
+    const block = text.slice(i, i + blockSize);
+    const count = (seen.get(block) ?? 0) + 1;
+    if (count >= 3) return true;
+    seen.set(block, count);
   }
 
-  return false
+  return false;
 }
 
 /**
  * Sanitize parsed observations: truncate long content, cap count, deduplicate.
  */
 export function sanitizeObservations(
-  observations: ObserverOutput['observations'],
+  observations: ObserverOutput["observations"],
   inputMessageCount: number,
-): ObserverOutput['observations'] {
+): ObserverOutput["observations"] {
   // Deduplicate by content
-  const seen = new Set<string>()
+  const seen = new Set<string>();
   const deduped = observations.filter((o) => {
-    if (seen.has(o.content)) return false
-    seen.add(o.content)
-    return true
-  })
+    if (seen.has(o.content)) return false;
+    seen.add(o.content);
+    return true;
+  });
 
   // Cap total count
-  const cap = Math.max(inputMessageCount * 3, 50)
-  const capped = deduped.slice(0, cap)
+  const cap = Math.max(inputMessageCount * 3, 50);
+  const capped = deduped.slice(0, cap);
 
   // Truncate long content
   return capped.map((o) =>
-    o.content.length > 2000
-      ? { ...o, content: o.content.slice(0, 2000) + '...' }
-      : o,
-  )
+    o.content.length > 2000 ? { ...o, content: o.content.slice(0, 2000) + "..." } : o,
+  );
 }
 
 /**
- * Compress a set of messages into observations using an LLM.
+ * Compress a set of messages into structured observations using an LLM.
+ * Validates, deduplicates, and sanitizes the output before returning.
+ * @param config - Worker model config (model name, API key, base URL).
+ * @param input - Messages to compress, each with role, content, and optional timestamp.
+ * @param logger - Optional logger for warnings on degenerate/unparseable responses.
+ * @param prompt - Custom system prompt override (defaults to DEFAULT_OBSERVER_PROMPT).
  */
 export async function observe(
   config: WorkerModelConfig,
@@ -118,74 +122,73 @@ export async function observe(
 ): Promise<ObserverOutput & { usage?: { input_tokens: number; output_tokens: number } }> {
   const messagesText = input.messages
     .map((m) => {
-      const ts = m.created_at ? `[${m.created_at}] ` : ''
-      return `${ts}${m.role}: ${m.content}`
+      const ts = m.created_at ? `[${m.created_at}] ` : "";
+      return `${ts}${m.role}: ${m.content}`;
     })
-    .join('\n')
+    .join("\n");
 
-  const response = await fetch(config.baseUrl ?? 'https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
+  const response = await fetch(config.baseUrl ?? "https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Bearer ${config.apiKey}`,
     },
     body: JSON.stringify({
       model: config.model,
       messages: [
-        { role: 'system', content: prompt ?? DEFAULT_OBSERVER_PROMPT },
-        { role: 'user', content: messagesText },
+        { role: "system", content: prompt ?? DEFAULT_OBSERVER_PROMPT },
+        { role: "user", content: messagesText },
       ],
       temperature: 0,
       max_tokens: 2048,
       ...config.extraBody,
     }),
-  })
+  });
 
   if (!response.ok) {
-    const body = await response.text()
-    throw new Error(`Observer API error: ${response.status} ${body}`)
+    const body = await response.text();
+    throw new MemoryError(`Observer API error: ${response.status} ${body}`);
   }
 
   const data = (await response.json()) as {
-    choices: Array<{ message: { content: string } }>
-    usage?: { prompt_tokens?: number; completion_tokens?: number }
-  }
+    choices: Array<{ message: { content: string } }>;
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
+  };
 
-  const text = data.choices[0]?.message?.content?.trim()
+  const text = data.choices[0]?.message?.content?.trim();
   if (!text) {
-    throw new Error('Empty response from observer model')
+    throw new MemoryError("Empty response from observer model");
   }
 
   // Check for degenerate output before parsing
   if (isDegenerateRaw(text)) {
-    logger?.warning(`Degenerate observer response detected (length=${text.length}), discarding`)
-    return { observations: [] }
+    logger?.warning(`Degenerate observer response detected (length=${text.length}), discarding`);
+    return { observations: [] };
   }
 
-  const cleaned = text.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')
+  const cleaned = text.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
 
-  let parsed: unknown
+  let parsed: unknown;
   try {
-    parsed = JSON.parse(cleaned)
+    parsed = JSON.parse(cleaned);
   } catch {
-    logger?.warning(`Failed to parse observer response (length=${text.length}): ${text.slice(0, 150)}...${text.slice(-100)}`)
-    return { observations: [] }
+    logger?.warning(
+      `Failed to parse observer response (length=${text.length}): ${text.slice(0, 150)}...${text.slice(-100)}`,
+    );
+    return { observations: [] };
   }
 
-  const result = parsed as ObserverOutput
-  if (!Array.isArray(result.observations)) result.observations = []
+  const result = parsed as ObserverOutput;
+  if (!Array.isArray(result.observations)) result.observations = [];
 
   // Validate and normalize
-  const validPriorities = new Set(['low', 'medium', 'high'])
+  const validPriorities = new Set(["low", "medium", "high"]);
   result.observations = result.observations.filter(
-    (o) =>
-      o.content &&
-      typeof o.content === 'string' &&
-      validPriorities.has(o.priority),
-  )
+    (o) => o.content && typeof o.content === "string" && validPriorities.has(o.priority),
+  );
 
   // Sanitize: truncate, cap, deduplicate
-  result.observations = sanitizeObservations(result.observations, input.messages.length)
+  result.observations = sanitizeObservations(result.observations, input.messages.length);
 
   return {
     observations: result.observations,
@@ -195,5 +198,5 @@ export async function observe(
           output_tokens: data.usage.completion_tokens ?? 0,
         }
       : undefined,
-  }
+  };
 }

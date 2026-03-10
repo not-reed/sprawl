@@ -1,35 +1,40 @@
-import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { useApi } from '../hooks/useApi'
-import { api } from '../lib/api'
+import { useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useApi } from "../hooks/useApi";
+import { api } from "../lib/api";
 
 export function CampaignView() {
-  const { id } = useParams<{ id: string }>()
-  const { data, loading } = useApi(() => api.getCampaign(id!), [id])
-  const [creating, setCreating] = useState(false)
-  const [sessionName, setSessionName] = useState('')
-  const navigate = useNavigate()
+  const { id } = useParams<{ id: string }>();
+  const { data, loading } = useApi(() => api.getCampaign(id!), [id]);
+  const [creating, setCreating] = useState(false);
+  const [sessionName, setSessionName] = useState("");
+  const navigate = useNavigate();
 
-  const handleNewSession = async (mode: 'play' | 'recap' = 'play') => {
-    if (!id) return
-    setCreating(true)
+  const handleNewSession = async (mode: "play" | "recap" = "play") => {
+    if (!id) return;
+    setCreating(true);
     try {
       const session = await api.createSession(id, {
         name: sessionName.trim() || undefined,
         mode,
-      })
-      setSessionName('')
-      navigate(`/play/${session.id}`)
+      });
+      setSessionName("");
+      navigate(`/play/${session.id}`);
     } catch (err) {
-      console.error('Failed to create session:', err)
+      console.error("Failed to create session:", err);
     } finally {
-      setCreating(false)
+      setCreating(false);
     }
-  }
+  };
 
-  if (loading || !data) return <div className="page"><div className="loading">Loading...</div></div>
+  if (loading || !data)
+    return (
+      <div className="page">
+        <div className="loading">Loading...</div>
+      </div>
+    );
 
-  const sessions = data.sessions ?? []
+  const sessions = data.sessions ?? [];
 
   return (
     <div className="page">
@@ -48,10 +53,14 @@ export function CampaignView() {
           onChange={(e) => setSessionName(e.target.value)}
         />
         <div className="btn-row">
-          <button className="btn btn-primary" onClick={() => handleNewSession('play')} disabled={creating}>
+          <button
+            className="btn btn-primary"
+            onClick={() => handleNewSession("play")}
+            disabled={creating}
+          >
             New Play Session
           </button>
-          <button className="btn" onClick={() => handleNewSession('recap')} disabled={creating}>
+          <button className="btn" onClick={() => handleNewSession("recap")} disabled={creating}>
             New Recap Session
           </button>
         </div>
@@ -82,5 +91,5 @@ export function CampaignView() {
         </div>
       )}
     </div>
-  )
+  );
 }

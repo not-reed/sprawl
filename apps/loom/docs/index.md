@@ -49,22 +49,26 @@ Run via `just loom-ingest`.
 Three-layer TTS pipeline:
 
 **Kokoro client** (`src/tts/kokoro.ts`):
+
 - OpenAI-compatible API client for Kokoro FastAPI server
 - Handles streaming and buffered synthesis
 - Text cleaning: strips code, tables, dice notation, stat blocks, markdown
 
 **Scriptify** (`src/tts/scriptify.ts`):
+
 - LLM-powered script adaptation for multi-voice narration
 - Parses `[SPEAKER]` tagged output, maps characters to configured voices
 - Falls back to single-voice on parse failure
 - Tracks usage
 
 **Voices** (`src/tts/voices.ts`):
+
 - Static voice catalog with quality grades
 - Blend expression builder (e.g., `af_heart(0.7)+af_sky(0.3)`)
 - Live voice detection from Kokoro server
 
 **Audio assembly** (`src/routes/audio.ts`):
+
 - Multi-voice parallel synthesis per segment
 - In-memory audio cache with TTL cleanup
 - Falls back gracefully if TTS disabled
@@ -78,6 +82,7 @@ Single service: Kokoro FastAPI TTS (CPU-optimized v0.2.4). Port 8880. Model volu
 ### `POST /api/chat`
 
 SSE streaming endpoint. Events:
+
 - `delta` -- Incremental text chunks
 - `done` -- Final message with full text
 - `audio` -- TTS audio stream URL (if enabled)
@@ -118,36 +123,36 @@ Serves cached audio for a completed TTS generation.
 
 Six migrations (Cairn base + Loom additions):
 
-| Migration | Description |
-|-----------|-------------|
-| `001-initial` | Cairn base tables |
-| `002-fts5-and-embeddings` | FTS5, triggers, embeddings |
-| `003-graph-memory` | Graph nodes + edges |
-| `004-observational-memory` | Observations table, watermarks |
-| `005-observation-promoted-at` | Promoter tracking |
-| `006-campaigns` | `campaigns` + `sessions` tables with FK to conversations |
+| Migration                     | Description                                              |
+| ----------------------------- | -------------------------------------------------------- |
+| `001-initial`                 | Cairn base tables                                        |
+| `002-fts5-and-embeddings`     | FTS5, triggers, embeddings                               |
+| `003-graph-memory`            | Graph nodes + edges                                      |
+| `004-observational-memory`    | Observations table, watermarks                           |
+| `005-observation-promoted-at` | Promoter tracking                                        |
+| `006-campaigns`               | `campaigns` + `sessions` tables with FK to conversations |
 
 ## Key Files
 
-| File | Role |
-|------|------|
-| `src/main.ts` | Entry point, migrations, server start |
-| `src/server.ts` | Hono app setup, CORS, route mounting, static serving |
-| `src/agent.ts` | Chat agent with rulebook context + Cairn memory |
-| `src/system-prompt.ts` | GM system prompt, dice protocol, TTS format rules |
-| `src/ingest.ts` | Rulebook ingestion: chunking, embedding, graph extraction |
-| `src/env.ts` | Zod-validated env config |
-| `src/tts/kokoro.ts` | Kokoro TTS client (OpenAI-compatible API) |
-| `src/tts/scriptify.ts` | LLM script adaptation for multi-voice narration |
-| `src/tts/voices.ts` | Voice catalog and blend expressions |
-| `src/routes/chat.ts` | SSE chat streaming + TTS audio serving |
-| `src/routes/campaigns.ts` | Campaign CRUD |
-| `src/routes/sessions.ts` | Session detail + observations |
-| `src/routes/audio.ts` | Audio caching, voice config, multi-voice synthesis |
-| `src/routes/settings.ts` | Voice catalog, config, character extraction |
-| `src/routes/debug.ts` | TTS debugging endpoints |
-| `src/db/schema.ts` | Campaign + session table types |
-| `src/db/queries.ts` | DB operations |
+| File                      | Role                                                      |
+| ------------------------- | --------------------------------------------------------- |
+| `src/main.ts`             | Entry point, migrations, server start                     |
+| `src/server.ts`           | Hono app setup, CORS, route mounting, static serving      |
+| `src/agent.ts`            | Chat agent with rulebook context + Cairn memory           |
+| `src/system-prompt.ts`    | GM system prompt, dice protocol, TTS format rules         |
+| `src/ingest.ts`           | Rulebook ingestion: chunking, embedding, graph extraction |
+| `src/env.ts`              | Zod-validated env config                                  |
+| `src/tts/kokoro.ts`       | Kokoro TTS client (OpenAI-compatible API)                 |
+| `src/tts/scriptify.ts`    | LLM script adaptation for multi-voice narration           |
+| `src/tts/voices.ts`       | Voice catalog and blend expressions                       |
+| `src/routes/chat.ts`      | SSE chat streaming + TTS audio serving                    |
+| `src/routes/campaigns.ts` | Campaign CRUD                                             |
+| `src/routes/sessions.ts`  | Session detail + observations                             |
+| `src/routes/audio.ts`     | Audio caching, voice config, multi-voice synthesis        |
+| `src/routes/settings.ts`  | Voice catalog, config, character extraction               |
+| `src/routes/debug.ts`     | TTS debugging endpoints                                   |
+| `src/db/schema.ts`        | Campaign + session table types                            |
+| `src/db/queries.ts`       | DB operations                                             |
 
 ## Frontend (`web/`)
 

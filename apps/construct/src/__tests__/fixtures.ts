@@ -6,29 +6,31 @@
  * Dims 6-15 are unused (available for orthogonal "no match" queries).
  */
 
-import type { Kysely } from 'kysely'
-import { nanoid } from 'nanoid'
-import type { Database } from '../db/schema.js'
-import { createDb } from '@repo/db'
-import { storeMemory, upsertNode, upsertEdge } from '@repo/cairn'
-import * as m001 from '../db/migrations/001-initial.js'
-import * as m002 from '../db/migrations/002-fts5-and-embeddings.js'
-import * as m004 from '../db/migrations/004-telegram-message-ids.js'
-import * as m005 from '../db/migrations/005-graph-memory.js'
-import * as m006 from '../db/migrations/006-observational-memory.js'
-import * as m008 from '../db/migrations/008-schedule-prompts.js'
+import type { Kysely } from "kysely";
+import { nanoid } from "nanoid";
+import type { Database } from "../db/schema.js";
+import type { Observation, CairnMessage } from "@repo/cairn";
+import { createDb } from "@repo/db";
+import { storeMemory, upsertNode, upsertEdge } from "@repo/cairn";
+import type { AgentResponse, ProcessMessageOpts } from "../agent.js";
+import * as m001 from "../db/migrations/001-initial.js";
+import * as m002 from "../db/migrations/002-fts5-and-embeddings.js";
+import * as m004 from "../db/migrations/004-telegram-message-ids.js";
+import * as m005 from "../db/migrations/005-graph-memory.js";
+import * as m006 from "../db/migrations/006-observational-memory.js";
+import * as m008 from "../db/migrations/008-schedule-prompts.js";
 
-const DIM = 16
+const DIM = 16;
 
 /** Create a normalized 16-d embedding with given dimension weights. */
 function makeEmbedding(weights: Record<number, number>): number[] {
-  const v = new Array(DIM).fill(0)
+  const v = Array.from({ length: DIM }, () => 0);
   for (const [dim, w] of Object.entries(weights)) {
-    v[Number(dim)] = w
+    v[Number(dim)] = w;
   }
-  const norm = Math.sqrt(v.reduce((s, x) => s + x * x, 0))
-  if (norm === 0) return v
-  return v.map((x) => x / norm)
+  const norm = Math.sqrt(v.reduce((s, x) => s + x * x, 0));
+  if (norm === 0) return v;
+  return v.map((x) => x / norm);
 }
 
 // --- Memory embeddings (one per fixture memory) ---
@@ -42,7 +44,7 @@ export const memoryEmbeddings = {
   darkMode: makeEmbedding({ 2: 0.5, 3: 0.5 }),
   clickstream: makeEmbedding({ 2: 0.9, 3: 0.2 }),
   sarah: makeEmbedding({ 4: 1.0, 5: 0.2 }),
-} as const
+} as const;
 
 // --- Query embeddings for test probes ---
 
@@ -52,90 +54,90 @@ export const queryEmbeddings = {
   work: makeEmbedding({ 2: 1.0 }),
   hobbies: makeEmbedding({ 3: 1.0 }),
   orthogonal: makeEmbedding({ 15: 1.0 }), // matches nothing
-} as const
+} as const;
 
 // --- Memory fixture data ---
 
 export const memoryFixtures = [
   {
-    key: 'shellfish',
-    content: 'Alex is allergic to shellfish - severe reaction, carries an EpiPen',
-    category: 'health',
-    tags: 'allergy,medical',
+    key: "shellfish",
+    content: "Alex is allergic to shellfish - severe reaction, carries an EpiPen",
+    category: "health",
+    tags: "allergy,medical",
   },
   {
-    key: 'datapipe',
-    content: 'Alex works at DataPipe as a senior backend engineer',
-    category: 'work',
-    tags: 'job,career',
+    key: "datapipe",
+    content: "Alex works at DataPipe as a senior backend engineer",
+    category: "work",
+    tags: "job,career",
   },
   {
-    key: 'miso',
-    content: 'Alex has a cat named Miso who is 3 years old',
-    category: 'personal',
-    tags: 'pet,cat',
+    key: "miso",
+    content: "Alex has a cat named Miso who is 3 years old",
+    category: "personal",
+    tags: "pet,cat",
   },
   {
-    key: 'rust',
-    content: 'Alex is learning Rust, working through the Rustlings exercises',
-    category: 'learning',
-    tags: 'programming,rust',
+    key: "rust",
+    content: "Alex is learning Rust, working through the Rustlings exercises",
+    category: "learning",
+    tags: "programming,rust",
   },
   {
-    key: 'portland',
-    content: 'Alex lives in Portland, Oregon, near Hawthorne Boulevard',
-    category: 'personal',
-    tags: 'location,home',
+    key: "portland",
+    content: "Alex lives in Portland, Oregon, near Hawthorne Boulevard",
+    category: "personal",
+    tags: "location,home",
   },
   {
-    key: 'darkMode',
-    content: 'Alex prefers dark mode in all editors and uses Neovim',
-    category: 'preference',
-    tags: 'editor,tooling',
+    key: "darkMode",
+    content: "Alex prefers dark mode in all editors and uses Neovim",
+    category: "preference",
+    tags: "editor,tooling",
   },
   {
-    key: 'clickstream',
-    content: 'DataPipe processes real-time clickstream data using Kafka and Flink',
-    category: 'work',
-    tags: 'infrastructure,streaming',
+    key: "clickstream",
+    content: "DataPipe processes real-time clickstream data using Kafka and Flink",
+    category: "work",
+    tags: "infrastructure,streaming",
   },
   {
-    key: 'sarah',
+    key: "sarah",
     content: "Alex's girlfriend Sarah loves hiking and visits on weekends",
-    category: 'personal',
-    tags: 'relationship,social',
+    category: "personal",
+    tags: "relationship,social",
   },
-] as const
+] as const;
 
 // --- Observation fixture data ---
 
 export const observationFixtures = [
   {
-    content: 'User has a dentist appointment on March 5th at 9am',
-    priority: 'high' as const,
-    observation_date: '2024-01-15',
+    content: "User has a dentist appointment on March 5th at 9am",
+    priority: "high" as const,
+    observation_date: "2024-01-15",
   },
   {
-    content: 'User is learning Rust, finding the borrow checker tricky',
-    priority: 'medium' as const,
-    observation_date: '2024-01-15',
+    content: "User is learning Rust, finding the borrow checker tricky",
+    priority: "medium" as const,
+    observation_date: "2024-01-15",
   },
   {
-    content: 'User works at DataPipe doing Flink stream processing',
-    priority: 'medium' as const,
-    observation_date: '2024-01-14',
+    content: "User works at DataPipe doing Flink stream processing",
+    priority: "medium" as const,
+    observation_date: "2024-01-14",
   },
   {
     content: "User's cat Miso likes to sit on the keyboard",
-    priority: 'low' as const,
-    observation_date: '2024-01-15',
+    priority: "low" as const,
+    observation_date: "2024-01-15",
   },
   {
     content: "User's girlfriend Sarah is visiting next weekend",
-    priority: 'high' as const,
-    observation_date: '2024-01-16',
+    priority: "high" as const,
+    observation_date: "2024-01-16",
   },
-]
+];
 
 // --- Identity file content ---
 
@@ -153,76 +155,76 @@ Interests: Rust programming, hiking, board games
 Pets: Miso (cat, 3 years old)
 Partner: Sarah (graphic designer)
 Health: Severe shellfish allergy (carries EpiPen)`,
-}
+};
 
 // --- DB setup ---
 
 export async function setupDb(): Promise<Kysely<Database>> {
-  const { db } = createDb<Database>(':memory:')
-  await m001.up(db as Kysely<unknown>)
-  await m002.up(db as Kysely<unknown>)
-  await m004.up(db as Kysely<unknown>)
-  await m005.up(db as Kysely<unknown>)
-  await m006.up(db as Kysely<unknown>)
-  await m008.up(db as Kysely<unknown>)
-  return db
+  const { db } = createDb<Database>(":memory:");
+  await m001.up(db as Kysely<unknown>);
+  await m002.up(db as Kysely<unknown>);
+  await m004.up(db as Kysely<unknown>);
+  await m005.up(db as Kysely<unknown>);
+  await m006.up(db as Kysely<unknown>);
+  await m008.up(db as Kysely<unknown>);
+  return db;
 }
 
 // --- Seed functions ---
 
 export interface SeededMemories {
-  ids: Record<string, string>
+  ids: Record<string, string>;
 }
 
 export async function seedMemories(db: Kysely<Database>): Promise<SeededMemories> {
-  const ids: Record<string, string> = {}
+  const ids: Record<string, string> = {};
   for (const mem of memoryFixtures) {
     const stored = await storeMemory(db, {
       content: mem.content,
       category: mem.category,
       tags: mem.tags,
-      source: 'user',
+      source: "user",
       embedding: JSON.stringify(memoryEmbeddings[mem.key]),
-    })
-    ids[mem.key] = stored.id
+    });
+    ids[mem.key] = stored.id;
   }
-  return { ids }
+  return { ids };
 }
 
 export interface SeededGraph {
-  nodeIds: Record<string, string>
+  nodeIds: Record<string, string>;
 }
 
 export async function seedGraph(
   db: Kysely<Database>,
   memoryIds: Record<string, string>,
 ): Promise<SeededGraph> {
-  const alex = await upsertNode(db, { name: 'Alex', type: 'person', description: 'The user' })
+  const alex = await upsertNode(db, { name: "Alex", type: "person", description: "The user" });
   const miso = await upsertNode(db, {
-    name: 'Miso',
-    type: 'entity',
+    name: "Miso",
+    type: "entity",
     description: "Alex's cat, 3 years old",
-  })
+  });
   const portland = await upsertNode(db, {
-    name: 'Portland',
-    type: 'place',
-    description: 'City in Oregon',
-  })
+    name: "Portland",
+    type: "place",
+    description: "City in Oregon",
+  });
   const datapipe = await upsertNode(db, {
-    name: 'DataPipe',
-    type: 'entity',
-    description: 'Tech company, real-time data pipelines',
-  })
+    name: "DataPipe",
+    type: "entity",
+    description: "Tech company, real-time data pipelines",
+  });
   const rust = await upsertNode(db, {
-    name: 'Rust',
-    type: 'concept',
-    description: 'Programming language',
-  })
+    name: "Rust",
+    type: "concept",
+    description: "Programming language",
+  });
   const shellfish = await upsertNode(db, {
-    name: 'Shellfish',
-    type: 'concept',
-    description: 'Food allergen',
-  })
+    name: "Shellfish",
+    type: "concept",
+    description: "Food allergen",
+  });
 
   const nodeIds: Record<string, string> = {
     alex: alex.id,
@@ -231,59 +233,59 @@ export async function seedGraph(
     datapipe: datapipe.id,
     rust: rust.id,
     shellfish: shellfish.id,
-  }
+  };
 
   // Edges — each linked to the relevant memory
   await upsertEdge(db, {
     source_id: alex.id,
     target_id: miso.id,
-    relation: 'owns',
+    relation: "owns",
     memory_id: memoryIds.miso,
-  })
+  });
   await upsertEdge(db, {
     source_id: alex.id,
     target_id: portland.id,
-    relation: 'lives_in',
+    relation: "lives_in",
     memory_id: memoryIds.portland,
-  })
+  });
   await upsertEdge(db, {
     source_id: alex.id,
     target_id: datapipe.id,
-    relation: 'works_at',
+    relation: "works_at",
     memory_id: memoryIds.datapipe,
-  })
+  });
   await upsertEdge(db, {
     source_id: alex.id,
     target_id: rust.id,
-    relation: 'learning',
+    relation: "learning",
     memory_id: memoryIds.rust,
-  })
+  });
   await upsertEdge(db, {
     source_id: alex.id,
     target_id: shellfish.id,
-    relation: 'allergic_to',
+    relation: "allergic_to",
     memory_id: memoryIds.shellfish,
-  })
+  });
   // DataPipe→Portland edge with no memory_id
   await upsertEdge(db, {
     source_id: datapipe.id,
     target_id: portland.id,
-    relation: 'located_in',
-  })
+    relation: "located_in",
+  });
 
-  return { nodeIds }
+  return { nodeIds };
 }
 
 export async function seedObservations(
   db: Kysely<Database>,
   conversationId: string,
 ): Promise<string[]> {
-  const ids: string[] = []
+  const ids: string[] = [];
   for (const obs of observationFixtures) {
-    const id = nanoid()
-    ids.push(id)
+    const id = nanoid();
+    ids.push(id);
     await db
-      .insertInto('observations')
+      .insertInto("observations")
       .values({
         id,
         conversation_id: conversationId,
@@ -294,21 +296,85 @@ export async function seedObservations(
         token_count: Math.ceil(obs.content.length / 4),
         generation: 0,
       })
-      .execute()
+      .execute();
   }
-  return ids
+  return ids;
 }
+
+// --- Factory functions ---
+
+/** Create a test message (CairnMessage shape). */
+export function createTestMessage(overrides: Partial<CairnMessage> = {}): CairnMessage {
+  return {
+    id: "msg-test-1",
+    role: "user",
+    content: "Test message content",
+    created_at: "2024-01-15T00:00:00Z",
+    ...overrides,
+  };
+}
+
+/** Create a test observation (runtime Observation shape). */
+export function createTestObservation(overrides: Partial<Observation> = {}): Observation {
+  return {
+    id: "obs-test-1",
+    conversation_id: "conv-test-1",
+    content: "Test observation content",
+    priority: "medium",
+    observation_date: "2024-01-15",
+    source_message_ids: [],
+    token_count: 10,
+    generation: 0,
+    superseded_at: null,
+    created_at: "2024-01-15T00:00:00Z",
+    ...overrides,
+  };
+}
+
+/** Create test ProcessMessageOpts. */
+export function createTestProcessOpts(
+  overrides: Partial<ProcessMessageOpts> = {},
+): ProcessMessageOpts {
+  return {
+    source: "cli",
+    externalId: null,
+    ...overrides,
+  };
+}
+
+/** Create a test tool call result entry (as returned in AgentResponse.toolCalls). */
+export function createTestToolResult(
+  overrides: Partial<AgentResponse["toolCalls"][number]> = {},
+): AgentResponse["toolCalls"][number] {
+  return {
+    name: "test_tool",
+    args: {},
+    result: "Tool executed successfully",
+    ...overrides,
+  };
+}
+
+/** Create a test AgentResponse. */
+export function createTestAgentResponse(overrides: Partial<AgentResponse> = {}): AgentResponse {
+  return {
+    text: "Test response",
+    toolCalls: [],
+    ...overrides,
+  };
+}
+
+// --- Seed functions ---
 
 export async function seedAll(
   db: Kysely<Database>,
   conversationId: string,
 ): Promise<{
-  memoryIds: Record<string, string>
-  nodeIds: Record<string, string>
-  observationIds: string[]
+  memoryIds: Record<string, string>;
+  nodeIds: Record<string, string>;
+  observationIds: string[];
 }> {
-  const { ids: memoryIds } = await seedMemories(db)
-  const { nodeIds } = await seedGraph(db, memoryIds)
-  const observationIds = await seedObservations(db, conversationId)
-  return { memoryIds, nodeIds, observationIds }
+  const { ids: memoryIds } = await seedMemories(db);
+  const { nodeIds } = await seedGraph(db, memoryIds);
+  const observationIds = await seedObservations(db, conversationId);
+  return { memoryIds, nodeIds, observationIds };
 }

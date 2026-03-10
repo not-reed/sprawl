@@ -11,17 +11,18 @@ Telegram is the primary user-facing interface for Construct. The bot uses Grammy
 
 ## Key Files
 
-| File | Role |
-|------|------|
-| `src/telegram/bot.ts` | Bot creation, message/reaction handlers, markdown conversion, reply logic |
-| `src/telegram/index.ts` | Standalone Telegram-only entry point (runs bot without scheduler) |
-| `src/telegram/types.ts` | `TelegramContext` and `TelegramSideEffects` interfaces |
+| File                    | Role                                                                      |
+| ----------------------- | ------------------------------------------------------------------------- |
+| `src/telegram/bot.ts`   | Bot creation, message/reaction handlers, markdown conversion, reply logic |
+| `src/telegram/index.ts` | Standalone Telegram-only entry point (runs bot without scheduler)         |
+| `src/telegram/types.ts` | `TelegramContext` and `TelegramSideEffects` interfaces                    |
 
 ## Bot Setup
 
 `createBot(db)` in `src/telegram/bot.ts` creates a Grammy `Bot` instance with the token from `env.TELEGRAM_BOT_TOKEN`.
 
 The bot listens for two event types:
+
 - `message:text` -- Text messages from users
 - `message_reaction` -- Emoji reactions on messages
 
@@ -63,10 +64,10 @@ Each message creates a `TelegramContext` passed to `processMessage()`:
 
 ```typescript
 interface TelegramContext {
-  bot: Bot                       // Grammy bot instance
-  chatId: string                 // Telegram chat ID
-  incomingMessageId: number      // Message ID of the user's message
-  sideEffects: TelegramSideEffects  // Mutable object for tool side-effects
+  bot: Bot; // Grammy bot instance
+  chatId: string; // Telegram chat ID
+  incomingMessageId: number; // Message ID of the user's message
+  sideEffects: TelegramSideEffects; // Mutable object for tool side-effects
 }
 ```
 
@@ -76,13 +77,14 @@ Tools can set flags on `sideEffects` during execution:
 
 ```typescript
 interface TelegramSideEffects {
-  reactToUser?: string           // Emoji to react with
-  replyToMessageId?: number      // Message ID for reply threading
-  suppressText?: boolean         // If true, skip the text reply
+  reactToUser?: string; // Emoji to react with
+  replyToMessageId?: number; // Message ID for reply threading
+  suppressText?: boolean; // If true, skip the text reply
 }
 ```
 
 After the agent finishes:
+
 1. If `reactToUser` is set, the bot calls `setMessageReaction()` on the incoming message
 2. If `suppressText` is false (default) and the response has text, `sendReply()` sends it
 
@@ -106,7 +108,7 @@ This allows the agent to interpret reactions contextually (e.g., a thumbs-up on 
 
 `markdownToTelegramHtml()` converts the agent's Markdown response to Telegram-compatible HTML:
 
-1. **Protect code**: Extract code blocks (``` ```) and inline code (`` ` ``) to prevent processing
+1. **Protect code**: Extract code blocks (` `) and inline code (`` ` ``) to prevent processing
 2. **Escape HTML entities**: `&`, `<`, `>` in remaining text
 3. **Convert headers**: `# Heading` to `<b>Heading</b>`
 4. **Convert formatting**: `***bold-italic***`, `**bold**`, `*italic*`
@@ -126,6 +128,7 @@ Telegram has a 4096-character message limit. The `sendReply()` function chunks l
 ## Telegram Message ID Tracking
 
 After sending a reply, the bot stores the Telegram message ID of the sent message in the database via `updateTelegramMessageId()`. This enables:
+
 - Future `telegram_reply_to` calls referencing the bot's own messages
 - Reaction handling on the bot's messages (to determine `whose` in the synthetic reaction message)
 

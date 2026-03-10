@@ -1,27 +1,34 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from "react";
 
 interface SearchBarProps {
-  onSearch: (query: string, mode: string) => void
-  placeholder?: string
-  showMode?: boolean
-  className?: string
+  onSearch: (query: string, mode: string) => void;
+  placeholder?: string;
+  showMode?: boolean;
+  className?: string;
 }
 
-export function SearchBar({ onSearch, placeholder = 'Search...', showMode = true, className }: SearchBarProps) {
-  const [query, setQuery] = useState('')
-  const [mode, setMode] = useState('auto')
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
+export function SearchBar({
+  onSearch,
+  placeholder = "Search...",
+  showMode = true,
+  className,
+}: SearchBarProps) {
+  const [query, setQuery] = useState("");
+  const [mode, setMode] = useState("auto");
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      onSearch(query, mode)
-    }, 250)
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
-  }, [query, mode, onSearch])
+      onSearch(query, mode);
+    }, 250);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [query, mode, onSearch]);
 
   return (
-    <div className={`search-bar ${className ?? ''}`}>
+    <div className={`search-bar ${className ?? ""}`}>
       <input
         className="search-input"
         type="text"
@@ -30,11 +37,7 @@ export function SearchBar({ onSearch, placeholder = 'Search...', showMode = true
         placeholder={placeholder}
       />
       {showMode && (
-        <select
-          className="search-mode"
-          value={mode}
-          onChange={(e) => setMode(e.target.value)}
-        >
+        <select className="search-mode" value={mode} onChange={(e) => setMode(e.target.value)}>
           <option value="auto">Auto</option>
           <option value="fts">FTS5</option>
           <option value="embedding">Embedding</option>
@@ -42,5 +45,5 @@ export function SearchBar({ onSearch, placeholder = 'Search...', showMode = true
         </select>
       )}
     </div>
-  )
+  );
 }

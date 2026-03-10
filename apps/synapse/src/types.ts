@@ -1,19 +1,19 @@
-export type TradeDirection = 'buy' | 'sell'
+export type TradeDirection = "buy" | "sell";
 
 export interface ExecutionResult {
   /** Actual execution price after slippage */
-  price_usd: number
+  price_usd: number;
   /** Token quantity bought or sold */
-  quantity: number
+  quantity: number;
   /** Total USD value of the trade */
-  size_usd: number
+  size_usd: number;
   /** Gas cost in USD */
-  gas_usd: number
+  gas_usd: number;
   /** Slippage applied in basis points */
-  slippage_bps: number
+  slippage_bps: number;
 }
 
 export interface Executor {
-  buy(tokenId: string, amountUsd: number): Promise<ExecutionResult>
-  sell(tokenId: string, quantity: number): Promise<ExecutionResult>
+  buy(tokenId: string, amountUsd: number): Promise<ExecutionResult>;
+  sell(tokenId: string, quantity: number): Promise<ExecutionResult>;
 }

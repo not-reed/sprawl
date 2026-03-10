@@ -1,13 +1,13 @@
-import { getNodeColor } from '../lib/graph-layout'
+import { getNodeColor } from "../lib/graph-layout";
 
 interface GraphControlsProps {
-  typeFilters: Set<string>
-  onToggleType: (type: string) => void
-  onReset: () => void
-  onSearch: (query: string) => void
+  typeFilters: Set<string>;
+  onToggleType: (type: string) => void;
+  onReset: () => void;
+  onSearch: (query: string) => void;
 }
 
-const NODE_TYPES = ['person', 'place', 'concept', 'event', 'entity']
+const NODE_TYPES = ["person", "place", "concept", "event", "entity"];
 
 export function GraphControls({
   typeFilters,
@@ -23,8 +23,8 @@ export function GraphControls({
           type="text"
           placeholder="Search nodes..."
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              onSearch((e.target as HTMLInputElement).value)
+            if (e.key === "Enter") {
+              onSearch((e.target as HTMLInputElement).value);
             }
           }}
         />
@@ -33,13 +33,10 @@ export function GraphControls({
         {NODE_TYPES.map((type) => (
           <label
             key={type}
-            className={`graph-filter ${typeFilters.has(type) ? '' : 'inactive'}`}
+            className={`graph-filter ${typeFilters.has(type) ? "" : "inactive"}`}
             onClick={() => onToggleType(type)}
           >
-            <span
-              className="graph-filter-dot"
-              style={{ background: getNodeColor(type) }}
-            />
+            <span className="graph-filter-dot" style={{ background: getNodeColor(type) }} />
             {type}
           </label>
         ))}
@@ -48,5 +45,5 @@ export function GraphControls({
         </button>
       </div>
     </div>
-  )
+  );
 }

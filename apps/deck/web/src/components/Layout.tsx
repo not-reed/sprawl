@@ -1,22 +1,28 @@
-import { NavLink, Outlet } from 'react-router-dom'
-import { useApi } from '../hooks/useApi'
-import { api } from '../lib/api'
+import { NavLink, Outlet } from "react-router-dom";
+import { useApi } from "../hooks/useApi";
+import { api } from "../lib/api";
 
 export function Layout() {
-  const { data: stats } = useApi(() => api.getStats(), [])
+  const { data: stats } = useApi(() => api.getStats(), []);
 
   return (
     <div className="app">
       <nav className="nav">
         <span className="nav-brand">construct</span>
         <div className="nav-links">
-          <NavLink to="/" end className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          <NavLink to="/" end className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
             Graph
           </NavLink>
-          <NavLink to="/memories" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          <NavLink
+            to="/memories"
+            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
+          >
             Memories
           </NavLink>
-          <NavLink to="/observations" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          <NavLink
+            to="/observations"
+            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
+          >
             Observations
           </NavLink>
         </div>
@@ -41,5 +47,5 @@ export function Layout() {
         <Outlet />
       </main>
     </div>
-  )
+  );
 }

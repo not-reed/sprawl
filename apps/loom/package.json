@@ -7,11 +7,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/db": "workspace:*",
-    "@repo/cairn": "workspace:*",
     "@hono/node-server": "^1.14.0",
     "@mariozechner/pi-agent-core": "^0.54.2",
     "@mariozechner/pi-ai": "^0.54.2",
+    "@repo/cairn": "workspace:*",
+    "@repo/db": "workspace:*",
     "hono": "^4.7.0",
     "kysely": "^0.28.11",
     "nanoid": "^5.1.6",

@@ -4,7 +4,7 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile
     volumes:
-      - ~/.construct:/data
+      - ./data:/data
     env_file:
-      - ~/.construct/.env
+      - .env
     restart: unless-stopped

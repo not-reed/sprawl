@@ -1,22 +1,22 @@
-import type { Observation } from '../lib/types'
+import type { Observation } from "../lib/types";
 
 interface SessionSidebarProps {
-  observations: Observation[]
-  open: boolean
-  onClose: () => void
+  observations: Observation[];
+  open: boolean;
+  onClose: () => void;
 }
 
 export function SessionSidebar({ observations, open, onClose }: SessionSidebarProps) {
   return (
-    <div className={`session-sidebar ${open ? 'open' : ''}`}>
+    <div className={`session-sidebar ${open ? "open" : ""}`}>
       <div className="sidebar-header">
         <h3>Session Notes</h3>
-        <button className="btn btn-close" onClick={onClose}>&times;</button>
+        <button className="btn btn-close" onClick={onClose}>
+          &times;
+        </button>
       </div>
       {observations.length === 0 ? (
-        <div className="sidebar-empty">
-          Notes will appear here as you play
-        </div>
+        <div className="sidebar-empty">Notes will appear here as you play</div>
       ) : (
         <div className="sidebar-observations">
           {observations.map((obs) => (
@@ -32,5 +32,5 @@ export function SessionSidebar({ observations, open, onClose }: SessionSidebarPr
         </div>
       )}
     </div>
-  )
+  );
 }

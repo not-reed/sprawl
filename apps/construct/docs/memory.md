@@ -16,6 +16,7 @@ Construct subclasses Cairn's `MemoryManager` as `ConstructMemoryManager` to add:
 ### Custom Observer/Reflector Prompts
 
 `CONSTRUCT_OBSERVER_PROMPT` and `CONSTRUCT_REFLECTOR_PROMPT` extend the defaults with Construct-specific guidance:
+
 - **expires_at support** -- The observer can tag observations with an `expires_at` datetime for time-bound items (reminders, deadlines). Expired observations are filtered out of context.
 - **Conversation style** -- Tuned for personal companion interactions rather than generic message compression.
 
@@ -35,12 +36,12 @@ The overridden `getUnobservedMessages()` selects `telegram_message_id` alongside
 
 The agent stores and recalls facts via tools:
 
-| Tool | Description |
-|------|-------------|
-| `memory_store` | Store a memory with content, category, tags. Triggers async embedding + graph extraction. |
-| `memory_recall` | Hybrid search: FTS5 + embedding cosine similarity + LIKE fallback, with graph expansion. |
-| `memory_forget` | Soft-delete by ID or search for candidates. |
-| `memory_graph` | Explore the knowledge graph: search nodes, explore connections, check connectivity. |
+| Tool            | Description                                                                               |
+| --------------- | ----------------------------------------------------------------------------------------- |
+| `memory_store`  | Store a memory with content, category, tags. Triggers async embedding + graph extraction. |
+| `memory_recall` | Hybrid search: FTS5 + embedding cosine similarity + LIKE fallback, with graph expansion.  |
+| `memory_forget` | Soft-delete by ID or search for candidates.                                               |
+| `memory_graph`  | Explore the knowledge graph: search nodes, explore connections, check connectivity.       |
 
 Categories: `general` (default), `preference`, `fact`, `reminder`, `note`.
 
@@ -94,6 +95,7 @@ sequenceDiagram
 Embeddings are generated via OpenRouter's embeddings API. The default model is `qwen/qwen3-embedding-4b` (configurable via `EMBEDDING_MODEL`).
 
 Embeddings serve three purposes:
+
 1. **Memory recall** -- Semantic search (cosine similarity threshold 0.4 in processMessage, 0.3 in recallMemories)
 2. **Tool pack selection** -- Same query embedding reused
 3. **Skill selection** -- Same query embedding reused
@@ -102,8 +104,8 @@ If embedding generation fails, the system degrades gracefully: FTS5 and keyword 
 
 ## Configuration
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `MEMORY_WORKER_MODEL` | No | *(none)* | Model for observer, reflector, graph extraction. If unset, LLM-powered memory features disabled. |
-| `EMBEDDING_MODEL` | No | `qwen/qwen3-embedding-4b` | Model for embedding vectors. |
-| `OPENROUTER_API_KEY` | Yes | -- | Used for all API calls. |
+| Variable              | Required | Default                   | Description                                                                                      |
+| --------------------- | -------- | ------------------------- | ------------------------------------------------------------------------------------------------ |
+| `MEMORY_WORKER_MODEL` | No       | _(none)_                  | Model for observer, reflector, graph extraction. If unset, LLM-powered memory features disabled. |
+| `EMBEDDING_MODEL`     | No       | `qwen/qwen3-embedding-4b` | Model for embedding vectors.                                                                     |
+| `OPENROUTER_API_KEY`  | Yes      | --                        | Used for all API calls.                                                                          |

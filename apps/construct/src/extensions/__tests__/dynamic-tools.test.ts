@@ -1,38 +1,38 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, writeFile, mkdir, rm } from 'node:fs/promises'
-import { join } from 'node:path'
-import { tmpdir } from 'node:os'
-import { loadDynamicTools } from '../loader.js'
-import type { DynamicToolContext } from '../types.js'
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { mkdtemp, writeFile, mkdir, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { loadDynamicTools } from "../loader.js";
+import type { DynamicToolContext } from "../types.js";
 
-describe('loadDynamicTools', () => {
-  let tmpDir: string
-  const toolCtx: DynamicToolContext = { secrets: new Map() }
-  const availableSecrets = new Set<string>()
+describe("loadDynamicTools", () => {
+  let tmpDir: string;
+  const toolCtx: DynamicToolContext = { secrets: new Map() };
+  const availableSecrets = new Set<string>();
 
   beforeEach(async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'ext-dyn-'))
-    await mkdir(join(tmpDir, 'tools'), { recursive: true })
-  })
+    tmpDir = await mkdtemp(join(tmpdir(), "ext-dyn-"));
+    await mkdir(join(tmpDir, "tools"), { recursive: true });
+  });
 
   afterEach(async () => {
-    await rm(tmpDir, { recursive: true })
-  })
+    await rm(tmpDir, { recursive: true });
+  });
 
-  it('returns empty when tools/ has no files', async () => {
-    const packs = await loadDynamicTools(tmpDir, toolCtx, availableSecrets)
-    expect(packs).toEqual([])
-  })
+  it("returns empty when tools/ has no files", async () => {
+    const packs = await loadDynamicTools(tmpDir, toolCtx, availableSecrets);
+    expect(packs).toEqual([]);
+  });
 
-  it('returns empty when tools/ does not exist', async () => {
-    await rm(join(tmpDir, 'tools'), { recursive: true })
-    const packs = await loadDynamicTools(tmpDir, toolCtx, availableSecrets)
-    expect(packs).toEqual([])
-  })
+  it("returns empty when tools/ does not exist", async () => {
+    await rm(join(tmpDir, "tools"), { recursive: true });
+    const packs = await loadDynamicTools(tmpDir, toolCtx, availableSecrets);
+    expect(packs).toEqual([]);
+  });
 
-  it('loads a standalone tool file as a single-tool pack', async () => {
+  it("loads a standalone tool file as a single-tool pack", async () => {
     await writeFile(
-      join(tmpDir, 'tools', 'echo.ts'),
+      join(tmpDir, "tools", "echo.ts"),
       `import { Type } from '@sinclair/typebox'
 
 export default function create(ctx) {
@@ -47,23 +47,23 @@ export default function create(ctx) {
     },
   }
 }`,
-    )
+    );
 
-    const packs = await loadDynamicTools(tmpDir, toolCtx, availableSecrets)
-    expect(packs).toHaveLength(1)
-    expect(packs[0].name).toBe('ext:echo')
-    expect(packs[0].factories).toHaveLength(1)
+    const packs = await loadDynamicTools(tmpDir, toolCtx, availableSecrets);
+    expect(packs).toHaveLength(1);
+    expect(packs[0].name).toBe("ext:echo");
+    expect(packs[0].factories).toHaveLength(1);
 
     // Instantiate and test the tool
-    const tool = packs[0].factories[0]({} as any)
-    expect(tool).not.toBeNull()
-    expect(tool!.name).toBe('echo')
-  })
+    const tool = packs[0].factories[0]({} as any);
+    expect(tool).not.toBeNull();
+    expect(tool!.name).toBe("echo");
+  });
 
-  it('groups directory tools into a pack', async () => {
-    await mkdir(join(tmpDir, 'tools', 'utils'), { recursive: true })
+  it("groups directory tools into a pack", async () => {
+    await mkdir(join(tmpDir, "tools", "utils"), { recursive: true });
     await writeFile(
-      join(tmpDir, 'tools', 'utils', 'upper.ts'),
+      join(tmpDir, "tools", "utils", "upper.ts"),
       `import { Type } from '@sinclair/typebox'
 
 export default {
@@ -72,18 +72,18 @@ export default {
   parameters: Type.Object({ text: Type.String() }),
   execute: async (_id, args) => ({ output: args.text.toUpperCase() }),
 }`,
-    )
+    );
 
-    const packs = await loadDynamicTools(tmpDir, toolCtx, availableSecrets)
-    expect(packs).toHaveLength(1)
-    expect(packs[0].name).toBe('ext:utils')
-  })
+    const packs = await loadDynamicTools(tmpDir, toolCtx, availableSecrets);
+    expect(packs).toHaveLength(1);
+    expect(packs[0].name).toBe("ext:utils");
+  });
 
-  it('uses pack.md for description when present', async () => {
-    await mkdir(join(tmpDir, 'tools', 'mypack'), { recursive: true })
-    await writeFile(join(tmpDir, 'tools', 'mypack', 'pack.md'), 'Custom pack description')
+  it("uses pack.md for description when present", async () => {
+    await mkdir(join(tmpDir, "tools", "mypack"), { recursive: true });
+    await writeFile(join(tmpDir, "tools", "mypack", "pack.md"), "Custom pack description");
     await writeFile(
-      join(tmpDir, 'tools', 'mypack', 'tool.ts'),
+      join(tmpDir, "tools", "mypack", "tool.ts"),
       `import { Type } from '@sinclair/typebox'
 
 export default {
@@ -92,15 +92,15 @@ export default {
   parameters: Type.Object({}),
   execute: async () => ({ output: 'ok' }),
 }`,
-    )
+    );
 
-    const packs = await loadDynamicTools(tmpDir, toolCtx, availableSecrets)
-    expect(packs[0].description).toBe('Custom pack description')
-  })
+    const packs = await loadDynamicTools(tmpDir, toolCtx, availableSecrets);
+    expect(packs[0].description).toBe("Custom pack description");
+  });
 
-  it('skips tools with unmet secret requirements', async () => {
+  it("skips tools with unmet secret requirements", async () => {
     await writeFile(
-      join(tmpDir, 'tools', 'needs-secret.ts'),
+      join(tmpDir, "tools", "needs-secret.ts"),
       `import { Type } from '@sinclair/typebox'
 
 export const meta = {
@@ -113,15 +113,15 @@ export default {
   parameters: Type.Object({}),
   execute: async () => ({ output: 'ok' }),
 }`,
-    )
+    );
 
-    const packs = await loadDynamicTools(tmpDir, toolCtx, availableSecrets)
-    expect(packs).toEqual([])
-  })
+    const packs = await loadDynamicTools(tmpDir, toolCtx, availableSecrets);
+    expect(packs).toEqual([]);
+  });
 
-  it('loads tools when secret requirements are met', async () => {
+  it("loads tools when secret requirements are met", async () => {
     await writeFile(
-      join(tmpDir, 'tools', 'has-secret.ts'),
+      join(tmpDir, "tools", "has-secret.ts"),
       `import { Type } from '@sinclair/typebox'
 
 export const meta = {
@@ -136,11 +136,11 @@ export default function create(ctx) {
     execute: async () => ({ output: ctx.secrets.get('MY_KEY') || 'missing' }),
   }
 }`,
-    )
+    );
 
-    const secretsMap = new Map([['MY_KEY', 'secret_value']])
-    const secrets = new Set(['MY_KEY'])
-    const packs = await loadDynamicTools(tmpDir, { secrets: secretsMap }, secrets)
-    expect(packs).toHaveLength(1)
-  })
-})
+    const secretsMap = new Map([["MY_KEY", "secret_value"]]);
+    const secrets = new Set(["MY_KEY"]);
+    const packs = await loadDynamicTools(tmpDir, { secrets: secretsMap }, secrets);
+    expect(packs).toHaveLength(1);
+  });
+});

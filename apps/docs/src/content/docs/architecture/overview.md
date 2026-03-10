@@ -106,6 +106,7 @@ Not all tools are loaded for every message. Tool packs have description embeddin
 ### Static System Prompt + Dynamic Preamble
 
 The system prompt is split into two parts for prompt caching efficiency:
+
 - **Static system prompt**: Base instructions + identity files (SOUL.md, IDENTITY.md, USER.md). Cached and reused across requests.
 - **Dynamic preamble**: Prepended to the user's message. Contains current date/time, recent memories, semantically relevant memories, active skills, and reply context.
 
@@ -116,6 +117,7 @@ Instead of using `better-sqlite3` (which requires native C++ compilation), the p
 ### Self-Modification Safety
 
 The agent can edit its own source, but with guardrails:
+
 - Edits are scoped to `src/`, `cli/`, and `extensions/` only
 - Self-deploy runs typecheck and tests before committing
 - Deploys are rate-limited to 3 per hour

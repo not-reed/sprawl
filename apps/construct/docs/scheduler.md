@@ -11,12 +11,12 @@ The scheduler enables Construct to fire actions at specific times or on recurrin
 
 ## Key Files
 
-| File | Role |
-|------|------|
-| `src/scheduler/index.ts` | Scheduler lifecycle: start, register, fire, sync, stop |
+| File                         | Role                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------- |
+| `src/scheduler/index.ts`     | Scheduler lifecycle: start, register, fire, sync, stop                    |
 | `src/tools/core/schedule.ts` | `schedule_create`, `schedule_list`, `schedule_cancel` tools + dedup logic |
-| `src/db/schema.ts` | `ScheduleTable` type |
-| `src/db/queries.ts` | Schedule CRUD queries |
+| `src/db/schema.ts`           | `ScheduleTable` type                                                      |
+| `src/db/queries.ts`          | Schedule CRUD queries                                                     |
 
 ## How It Works
 
@@ -30,10 +30,10 @@ The scheduler enables Construct to fire actions at specific times or on recurrin
 
 ### Schedule Timing Types
 
-| Type | Database Column | Behavior |
-|------|----------------|----------|
+| Type          | Database Column   | Behavior                                             |
+| ------------- | ----------------- | ---------------------------------------------------- |
 | **Recurring** | `cron_expression` | Runs on a cron schedule indefinitely until cancelled |
-| **One-shot** | `run_at` | Fires once at the specified time, then auto-cancels |
+| **One-shot**  | `run_at`          | Fires once at the specified time, then auto-cancels  |
 
 ### Execution
 
@@ -47,6 +47,7 @@ When a schedule fires, `fireSchedule()` routes it through `fireAgentSchedule()`:
 6. The response is saved to the user's Telegram conversation history with a `[Scheduled: ...]` prefix
 
 This makes schedules useful for:
+
 - **Conditional notifications**: "Check if BTC is above $100k and only notify me if it is"
 - **Background tasks**: "Summarize my unread memories every Sunday"
 - **Reminders with context**: "Remind the user about their dentist appointment and check if they need directions"
@@ -84,12 +85,14 @@ The agent creates and manages schedules through three tools in the core pack (`s
 ### schedule_create
 
 Parameters:
+
 - `description` (required) -- Human-readable description (e.g. "Dentist appointment reminder")
 - `instruction` (required) -- What the agent should do when the schedule fires. The agent runs this with full context and tool access.
 - `cron_expression` (optional) -- Cron string (e.g., `"0 9 * * 1"` for Monday at 9am)
 - `run_at` (optional) -- Datetime in user's local timezone, without Z or offset (e.g. `"2025-03-05T09:00:00"`)
 
 Validation:
+
 - Must provide either `cron_expression` or `run_at` (timing)
 - `run_at` values have timezone offsets stripped so they're treated as local time
 - `chat_id` is automatically injected from the current conversation context

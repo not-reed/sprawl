@@ -1,8 +1,8 @@
-import type { LayoutNode } from '../lib/graph-layout'
+import type { LayoutNode } from "../lib/graph-layout";
 
 interface NodeTooltipProps {
-  node: LayoutNode
-  position: { x: number; y: number }
+  node: LayoutNode;
+  position: { x: number; y: number };
 }
 
 export function NodeTooltip({ node, position }: NodeTooltipProps) {
@@ -16,10 +16,8 @@ export function NodeTooltip({ node, position }: NodeTooltipProps) {
     >
       <div className="graph-tooltip-name">{node.display_name}</div>
       <div className="graph-tooltip-type">{node.node_type}</div>
-      {node.description && (
-        <div className="graph-tooltip-desc">{node.description}</div>
-      )}
+      {node.description && <div className="graph-tooltip-desc">{node.description}</div>}
       <div className="graph-tooltip-edges">{node.edgeCount} connections</div>
     </div>
-  )
+  );
 }

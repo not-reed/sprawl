@@ -28,59 +28,59 @@ When in recap mode, the player describes events that already happened. Your job:
 - Acknowledge and confirm events
 - Ask clarifying questions about details
 - Do NOT narrate new events — just record what the player tells you
-`
+`;
 
 export function getSystemPrompt(): string {
-  return BASE_SYSTEM_PROMPT
+  return BASE_SYSTEM_PROMPT;
 }
 
 function formatNow(timezone: string): string {
-  const now = new Date()
-  return now.toLocaleString('en-US', {
+  const now = new Date();
+  return now.toLocaleString("en-US", {
     timeZone: timezone,
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
     hour12: true,
-  })
+  });
 }
 
 export function buildContextPreamble(context: {
-  timezone: string
-  mode: string
-  campaignName: string
-  campaignSystem?: string | null
-  observations?: string
-  rulesMemories?: Array<{ content: string }>
-  campaignMemories?: Array<{ content: string; category: string }>
+  timezone: string;
+  mode: string;
+  campaignName: string;
+  campaignSystem?: string | null;
+  observations?: string;
+  rulesMemories?: Array<{ content: string }>;
+  campaignMemories?: Array<{ content: string; category: string }>;
 }): string {
-  const now = formatNow(context.timezone)
-  let preamble = `[Context: ${now} (${context.timezone}) | Mode: ${context.mode}]\n`
-  preamble += `[Campaign: ${context.campaignName}`
-  if (context.campaignSystem) preamble += ` | System: ${context.campaignSystem}`
-  preamble += ']\n'
+  const now = formatNow(context.timezone);
+  let preamble = `[Context: ${now} (${context.timezone}) | Mode: ${context.mode}]\n`;
+  preamble += `[Campaign: ${context.campaignName}`;
+  if (context.campaignSystem) preamble += ` | System: ${context.campaignSystem}`;
+  preamble += "]\n";
 
   if (context.observations) {
-    preamble += '\n[Session History]\n'
-    preamble += context.observations + '\n'
+    preamble += "\n[Session History]\n";
+    preamble += context.observations + "\n";
   }
 
   if (context.rulesMemories && context.rulesMemories.length > 0) {
-    preamble += '\n[Game Rules]\n'
+    preamble += "\n[Game Rules]\n";
     for (const m of context.rulesMemories) {
-      preamble += m.content + '\n\n'
+      preamble += m.content + "\n\n";
     }
   }
 
   if (context.campaignMemories && context.campaignMemories.length > 0) {
-    preamble += '\n[Campaign Context]\n'
+    preamble += "\n[Campaign Context]\n";
     for (const m of context.campaignMemories) {
-      preamble += `- (${m.category}) ${m.content}\n`
+      preamble += `- (${m.category}) ${m.content}\n`;
     }
   }
 
-  return preamble + '\n'
+  return preamble + "\n";
 }

@@ -1,12 +1,12 @@
-import type { Position, PortfolioState } from '../db/schema.js'
-import type { Env } from '../env.js'
+import type { Position, PortfolioState } from "../db/schema.js";
+import type { Env } from "../env.js";
 
 export interface RiskConfig {
-  stopLossPct: number
-  takeProfitPct: number
-  maxPositionPct: number
-  maxOpenPositions: number
-  maxDrawdownPct: number
+  stopLossPct: number;
+  takeProfitPct: number;
+  maxPositionPct: number;
+  maxOpenPositions: number;
+  maxDrawdownPct: number;
 }
 
 export function riskConfigFromEnv(env: Env): RiskConfig {
@@ -16,24 +16,26 @@ export function riskConfigFromEnv(env: Env): RiskConfig {
     maxPositionPct: env.MAX_POSITION_PCT,
     maxOpenPositions: env.MAX_OPEN_POSITIONS,
     maxDrawdownPct: env.MAX_PORTFOLIO_DRAWDOWN_PCT,
-  }
+  };
 }
 
 export type PositionRiskResult =
-  | { action: 'hold' }
-  | { action: 'close'; reason: 'stop_loss' | 'take_profit' }
+  | { action: "hold" }
+  | { action: "close"; reason: "stop_loss" | "take_profit" };
 
 /**
  * Check if a position should be closed based on stop-loss or take-profit.
+ * @param position - Open position with stop_loss_price and take_profit_price set.
+ * @param currentPrice - Latest market price in USD.
  */
 export function checkPositionRisk(position: Position, currentPrice: number): PositionRiskResult {
   if (currentPrice <= position.stop_loss_price) {
-    return { action: 'close', reason: 'stop_loss' }
+    return { action: "close", reason: "stop_loss" };
   }
   if (currentPrice >= position.take_profit_price) {
-    return { action: 'close', reason: 'take_profit' }
+    return { action: "close", reason: "take_profit" };
   }
-  return { action: 'hold' }
+  return { action: "hold" };
 }
 
 /**
@@ -45,15 +47,13 @@ export function computeStopTakeProfit(
   timeframe: string,
   config: RiskConfig,
 ): { stopLossPrice: number; takeProfitPrice: number } {
-  const stopPct = timeframe === 'short' ? 5 : config.stopLossPct
-  const stopLossPrice = entryPrice * (1 - stopPct / 100)
-  const takeProfitPrice = entryPrice * (1 + config.takeProfitPct / 100)
-  return { stopLossPrice, takeProfitPrice }
+  const stopPct = timeframe === "short" ? 5 : config.stopLossPct;
+  const stopLossPrice = entryPrice * (1 - stopPct / 100);
+  const takeProfitPrice = entryPrice * (1 + config.takeProfitPct / 100);
+  return { stopLossPrice, takeProfitPrice };
 }
 
-export type PortfolioRiskResult =
-  | { safe: true }
-  | { safe: false; reason: 'drawdown_halt' }
+export type PortfolioRiskResult = { safe: true } | { safe: false; reason: "drawdown_halt" };
 
 /**
  * Check portfolio-level drawdown against the halt threshold.
@@ -63,11 +63,11 @@ export function checkPortfolioRisk(
   highWaterMark: number,
   config: RiskConfig,
 ): PortfolioRiskResult {
-  const drawdownPct = ((highWaterMark - totalValue) / highWaterMark) * 100
+  const drawdownPct = ((highWaterMark - totalValue) / highWaterMark) * 100;
   if (drawdownPct >= config.maxDrawdownPct) {
-    return { safe: false, reason: 'drawdown_halt' }
+    return { safe: false, reason: "drawdown_halt" };
   }
-  return { safe: true }
+  return { safe: true };
 }
 
 /**
@@ -79,24 +79,33 @@ export function canOpenPosition(
   config: RiskConfig,
 ): { allowed: true } | { allowed: false; reason: string } {
   if (state.halted) {
-    return { allowed: false, reason: 'portfolio_halted' }
+    return { allowed: false, reason: "portfolio_halted" };
   }
 
   if (openPositionCount >= config.maxOpenPositions) {
-    return { allowed: false, reason: `max_positions:${openPositionCount}>=${config.maxOpenPositions}` }
+    return {
+      allowed: false,
+      reason: `max_positions:${openPositionCount}>=${config.maxOpenPositions}`,
+    };
   }
 
   // Pre-drawdown caution: stop opening at 80% of max drawdown
-  const cautionThreshold = config.maxDrawdownPct * 0.8
+  const cautionThreshold = config.maxDrawdownPct * 0.8;
   if (state.drawdown_pct >= cautionThreshold) {
-    return { allowed: false, reason: `pre_drawdown_caution:${state.drawdown_pct.toFixed(1)}%>=${cautionThreshold}%` }
+    return {
+      allowed: false,
+      reason: `pre_drawdown_caution:${state.drawdown_pct.toFixed(1)}%>=${cautionThreshold}%`,
+    };
   }
 
-  return { allowed: true }
+  return { allowed: true };
 }
 
 /**
- * Check single-token exposure limit.
+ * Check single-token exposure limit against max_position_pct.
+ * @param positionSizeUsd - Size of the proposed new position.
+ * @param existingExposureUsd - Current exposure to this token across all open positions.
+ * @param totalPortfolioValue - Total portfolio value (cash + positions).
  */
 export function checkExposureLimit(
   positionSizeUsd: number,
@@ -104,10 +113,13 @@ export function checkExposureLimit(
   totalPortfolioValue: number,
   config: RiskConfig,
 ): { allowed: true } | { allowed: false; reason: string } {
-  const totalExposure = positionSizeUsd + existingExposureUsd
-  const exposurePct = (totalExposure / totalPortfolioValue) * 100
+  const totalExposure = positionSizeUsd + existingExposureUsd;
+  const exposurePct = (totalExposure / totalPortfolioValue) * 100;
   if (exposurePct > config.maxPositionPct) {
-    return { allowed: false, reason: `exposure_limit:${exposurePct.toFixed(1)}%>${config.maxPositionPct}%` }
+    return {
+      allowed: false,
+      reason: `exposure_limit:${exposurePct.toFixed(1)}%>${config.maxPositionPct}%`,
+    };
   }
-  return { allowed: true }
+  return { allowed: true };
 }

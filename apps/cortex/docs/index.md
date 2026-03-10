@@ -64,18 +64,18 @@ Supports `--backfill`, `--backfill-news`, `--backfill-prices` flags with a day c
 
 ## Key files
 
-| File | Role |
-|------|------|
-| `src/main.ts` | Entry point, CLI args, boot |
-| `src/env.ts` | Zod-validated env config |
-| `src/pipeline/loop.ts` | Croner jobs, price/news composition |
-| `src/pipeline/analyzer.ts` | LLM signal generation with memory recall |
-| `src/pipeline/prompts.ts` | Short/long signal prompt templates |
-| `src/pipeline/backfill.ts` | Historical data backfill |
-| `src/ingest/prices.ts` | CoinGecko API |
-| `src/ingest/news.ts` | CryptoPanic + CryptoCompare RSS |
-| `src/db/schema.ts` | tracked_tokens, price_snapshots, news_items, signals, commands |
-| `src/db/queries.ts` | All DB operations |
+| File                       | Role                                                           |
+| -------------------------- | -------------------------------------------------------------- |
+| `src/main.ts`              | Entry point, CLI args, boot                                    |
+| `src/env.ts`               | Zod-validated env config                                       |
+| `src/pipeline/loop.ts`     | Croner jobs, price/news composition                            |
+| `src/pipeline/analyzer.ts` | LLM signal generation with memory recall                       |
+| `src/pipeline/prompts.ts`  | Short/long signal prompt templates                             |
+| `src/pipeline/backfill.ts` | Historical data backfill                                       |
+| `src/ingest/prices.ts`     | CoinGecko API                                                  |
+| `src/ingest/news.ts`       | CryptoPanic + CryptoCompare RSS                                |
+| `src/db/schema.ts`         | tracked_tokens, price_snapshots, news_items, signals, commands |
+| `src/db/queries.ts`        | All DB operations                                              |
 
 ## Database tables
 
@@ -90,5 +90,5 @@ Supports `--backfill`, `--backfill-news`, `--backfill-prices` flags with a day c
 
 - **Cairn** (`@repo/cairn`) -- Memory pipeline for price + news data. Same observe/reflect/promote/graph flow used by Construct.
 - **Synapse** -- Reads `signals` table from Cortex's DB via CortexReader
-- **Optic** -- Reads price_snapshots, news_items, signals, graph_* tables directly via rusqlite. Can insert commands.
+- **Optic** -- Reads price*snapshots, news_items, signals, graph*\* tables directly via rusqlite. Can insert commands.
 - **Deck** -- Can browse Cortex's memory graph if pointed at its DB

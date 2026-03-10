@@ -1,5 +1,6 @@
-import type { WorkerModelConfig, ReflectorInput, ReflectorOutput, CairnLogger } from './types.js'
-import { isDegenerateRaw, sanitizeObservations } from './observer.js'
+import type { WorkerModelConfig, ReflectorInput, ReflectorOutput, CairnLogger } from "./types.js";
+import { MemoryError } from "./errors.js";
+import { isDegenerateRaw, sanitizeObservations } from "./observer.js";
 
 export const DEFAULT_REFLECTOR_PROMPT = `You reorganize and condense observations. Your output replaces the input — any information you drop is permanently lost. Treat this as the sole memory of the conversation.
 
@@ -57,24 +58,24 @@ Return a JSON object with this exact shape:
 
 superseded_ids must only contain IDs from the input. If nothing is superseded, return an empty array.
 
-Respond ONLY with JSON, no fences.`
+Respond ONLY with JSON, no fences.`;
 
 /**
  * Filter superseded IDs to only those present in the input set.
  * Prevents hallucinated IDs from propagating.
  */
-export function validateSupersededIds(
-  supersededIds: unknown[],
-  inputIds: Set<string>,
-): string[] {
-  return supersededIds.filter(
-    (id): id is string => typeof id === 'string' && inputIds.has(id),
-  )
+export function validateSupersededIds(supersededIds: unknown[], inputIds: Set<string>): string[] {
+  return supersededIds.filter((id): id is string => typeof id === "string" && inputIds.has(id));
 }
 
 /**
  * Condense a set of observations into a tighter set using an LLM.
- * Returns new observations and IDs of observations that should be marked superseded.
+ * Merges overlapping facts, supersedes stale/contradicted observations, drops low-value entries.
+ * @param config - Worker model config (model name, API key, base URL).
+ * @param input - Active observations to condense, each with ID, content, priority, and date.
+ * @param logger - Optional logger for warnings on degenerate/unparseable responses.
+ * @param prompt - Custom system prompt override (defaults to DEFAULT_REFLECTOR_PROMPT).
+ * @returns New condensed observations and IDs of superseded originals.
  */
 export async function reflect(
   config: WorkerModelConfig,
@@ -84,76 +85,75 @@ export async function reflect(
 ): Promise<ReflectorOutput & { usage?: { input_tokens: number; output_tokens: number } }> {
   const observationsText = input.observations
     .map((o) => `[${o.id}] (${o.priority}, ${o.observation_date}) ${o.content}`)
-    .join('\n')
+    .join("\n");
 
-  const response = await fetch(config.baseUrl ?? 'https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
+  const response = await fetch(config.baseUrl ?? "https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Bearer ${config.apiKey}`,
     },
     body: JSON.stringify({
       model: config.model,
       messages: [
-        { role: 'system', content: prompt ?? DEFAULT_REFLECTOR_PROMPT },
-        { role: 'user', content: observationsText },
+        { role: "system", content: prompt ?? DEFAULT_REFLECTOR_PROMPT },
+        { role: "user", content: observationsText },
       ],
       temperature: 0,
       max_tokens: 2048,
       ...config.extraBody,
     }),
-  })
+  });
 
   if (!response.ok) {
-    const body = await response.text()
-    throw new Error(`Reflector API error: ${response.status} ${body}`)
+    const body = await response.text();
+    throw new MemoryError(`Reflector API error: ${response.status} ${body}`);
   }
 
   const data = (await response.json()) as {
-    choices: Array<{ message: { content: string } }>
-    usage?: { prompt_tokens?: number; completion_tokens?: number }
-  }
+    choices: Array<{ message: { content: string } }>;
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
+  };
 
-  const text = data.choices[0]?.message?.content?.trim()
+  const text = data.choices[0]?.message?.content?.trim();
   if (!text) {
-    throw new Error('Empty response from reflector model')
+    throw new MemoryError("Empty response from reflector model");
   }
 
   // Check for degenerate output before parsing
   if (isDegenerateRaw(text)) {
-    logger?.warning(`Degenerate reflector response detected (length=${text.length}), discarding`)
-    return { observations: [], superseded_ids: [] }
+    logger?.warning(`Degenerate reflector response detected (length=${text.length}), discarding`);
+    return { observations: [], superseded_ids: [] };
   }
 
-  const cleaned = text.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')
+  const cleaned = text.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
 
-  let parsed: unknown
+  let parsed: unknown;
   try {
-    parsed = JSON.parse(cleaned)
+    parsed = JSON.parse(cleaned);
   } catch {
-    logger?.warning(`Failed to parse reflector response (length=${text.length}): ${text.slice(0, 150)}...${text.slice(-100)}`)
-    return { observations: [], superseded_ids: [] }
+    logger?.warning(
+      `Failed to parse reflector response (length=${text.length}): ${text.slice(0, 150)}...${text.slice(-100)}`,
+    );
+    return { observations: [], superseded_ids: [] };
   }
 
-  const result = parsed as ReflectorOutput
-  if (!Array.isArray(result.observations)) result.observations = []
-  if (!Array.isArray(result.superseded_ids)) result.superseded_ids = []
+  const result = parsed as ReflectorOutput;
+  if (!Array.isArray(result.observations)) result.observations = [];
+  if (!Array.isArray(result.superseded_ids)) result.superseded_ids = [];
 
   // Validate observations
-  const validPriorities = new Set(['low', 'medium', 'high'])
+  const validPriorities = new Set(["low", "medium", "high"]);
   result.observations = result.observations.filter(
-    (o) =>
-      o.content &&
-      typeof o.content === 'string' &&
-      validPriorities.has(o.priority),
-  )
+    (o) => o.content && typeof o.content === "string" && validPriorities.has(o.priority),
+  );
 
   // Sanitize: truncate, cap, deduplicate
-  result.observations = sanitizeObservations(result.observations, input.observations.length)
+  result.observations = sanitizeObservations(result.observations, input.observations.length);
 
   // Validate superseded IDs — only allow IDs that were in the input
-  const inputIds = new Set(input.observations.map((o) => o.id))
-  result.superseded_ids = validateSupersededIds(result.superseded_ids, inputIds)
+  const inputIds = new Set(input.observations.map((o) => o.id));
+  result.superseded_ids = validateSupersededIds(result.superseded_ids, inputIds);
 
   return {
     observations: result.observations,
@@ -164,5 +164,5 @@ export async function reflect(
           output_tokens: data.usage.completion_tokens ?? 0,
         }
       : undefined,
-  }
+  };
 }

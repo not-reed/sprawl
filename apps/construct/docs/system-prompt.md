@@ -16,8 +16,8 @@ This separation means the LLM can cache the system prompt tokens and only proces
 
 ## Key Files
 
-| File | Role |
-|------|------|
+| File                   | Role                                                                           |
+| ---------------------- | ------------------------------------------------------------------------------ |
 | `src/system-prompt.ts` | `getSystemPrompt()`, `buildContextPreamble()`, `invalidateSystemPromptCache()` |
 
 ## Static System Prompt

@@ -20,7 +20,7 @@
   --gray: #888898;
   --radius: 8px;
   --radius-sm: 4px;
-  --font-mono: 'Berkeley Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  --font-mono: "Berkeley Mono", "JetBrains Mono", "Fira Code", monospace;
 }
 
 * {
@@ -29,11 +29,13 @@
   box-sizing: border-box;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.5;
 }
@@ -241,10 +243,22 @@ a:hover {
   letter-spacing: 0.2px;
 }
 
-.badge-fts5 { background: rgba(91, 156, 245, 0.15); color: var(--blue); }
-.badge-embedding { background: rgba(124, 108, 240, 0.15); color: var(--accent); }
-.badge-keyword { background: rgba(232, 166, 86, 0.15); color: var(--orange); }
-.badge-category { background: var(--bg-tertiary); color: var(--text-secondary); }
+.badge-fts5 {
+  background: rgba(91, 156, 245, 0.15);
+  color: var(--blue);
+}
+.badge-embedding {
+  background: rgba(124, 108, 240, 0.15);
+  color: var(--accent);
+}
+.badge-keyword {
+  background: rgba(232, 166, 86, 0.15);
+  color: var(--orange);
+}
+.badge-category {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
 
 .badge-node {
   padding: 2px 8px;
@@ -255,12 +269,29 @@ a:hover {
   transition: opacity 0.15s;
 }
 
-.badge-node:hover { opacity: 0.8; }
-.badge-node-person { background: rgba(91, 156, 245, 0.15); color: var(--blue); }
-.badge-node-place { background: rgba(91, 196, 159, 0.15); color: var(--green); }
-.badge-node-concept { background: rgba(232, 166, 86, 0.15); color: var(--orange); }
-.badge-node-event { background: rgba(224, 112, 160, 0.15); color: var(--pink); }
-.badge-node-entity { background: rgba(136, 136, 152, 0.15); color: var(--gray); }
+.badge-node:hover {
+  opacity: 0.8;
+}
+.badge-node-person {
+  background: rgba(91, 156, 245, 0.15);
+  color: var(--blue);
+}
+.badge-node-place {
+  background: rgba(91, 196, 159, 0.15);
+  color: var(--green);
+}
+.badge-node-concept {
+  background: rgba(232, 166, 86, 0.15);
+  color: var(--orange);
+}
+.badge-node-event {
+  background: rgba(224, 112, 160, 0.15);
+  color: var(--pink);
+}
+.badge-node-entity {
+  background: rgba(136, 136, 152, 0.15);
+  color: var(--gray);
+}
 
 /* Graph */
 .graph-container {
@@ -319,7 +350,9 @@ a:hover {
   transition: opacity 0.15s;
 }
 
-.graph-filter.inactive { opacity: 0.4; }
+.graph-filter.inactive {
+  opacity: 0.4;
+}
 
 .graph-filter-dot {
   width: 8px;
@@ -456,7 +489,7 @@ a:hover {
 }
 
 .timeline::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 8px;
   top: 0;
@@ -480,7 +513,7 @@ a:hover {
 }
 
 .timeline-item::before {
-  content: '';
+  content: "";
   position: absolute;
   left: -20px;
   top: 18px;
@@ -490,9 +523,15 @@ a:hover {
   background: var(--border-light);
 }
 
-.timeline-item.priority-high::before { background: var(--red); }
-.timeline-item.priority-medium::before { background: var(--yellow); }
-.timeline-item.priority-low::before { background: var(--gray); }
+.timeline-item.priority-high::before {
+  background: var(--red);
+}
+.timeline-item.priority-medium::before {
+  background: var(--yellow);
+}
+.timeline-item.priority-low::before {
+  background: var(--gray);
+}
 
 .timeline-header {
   display: flex;
@@ -522,9 +561,18 @@ a:hover {
   letter-spacing: 0.5px;
 }
 
-.badge-priority-high { background: rgba(224, 86, 86, 0.15); color: var(--red); }
-.badge-priority-medium { background: rgba(212, 196, 90, 0.15); color: var(--yellow); }
-.badge-priority-low { background: rgba(136, 136, 152, 0.15); color: var(--gray); }
+.badge-priority-high {
+  background: rgba(224, 86, 86, 0.15);
+  color: var(--red);
+}
+.badge-priority-medium {
+  background: rgba(212, 196, 90, 0.15);
+  color: var(--yellow);
+}
+.badge-priority-low {
+  background: rgba(136, 136, 152, 0.15);
+  color: var(--gray);
+}
 
 .toggle-superseded {
   display: flex;

@@ -11,8 +11,8 @@ The CLI provides a local interface to Construct without requiring Telegram. Buil
 
 ## Key Files
 
-| File | Role |
-|------|------|
+| File           | Role                                                                |
+| -------------- | ------------------------------------------------------------------- |
 | `cli/index.ts` | CLI entry point: command definition, REPL, one-shot, and tool modes |
 
 ## Modes of Operation
@@ -54,6 +54,7 @@ just cli myinstance --tool memory_recall --args '{"query": "work schedule"}'
 Bypasses the agent entirely and invokes a specific tool with JSON arguments. Useful for testing and debugging tools.
 
 When using `--tool` mode:
+
 1. All tools from all packs are loaded (no embedding selection -- `queryEmbedding` is `undefined`)
 2. The named tool is found and executed directly
 3. The raw output is printed
@@ -74,14 +75,14 @@ args: {
 
 ## CLI vs. Telegram
 
-| Aspect | CLI | Telegram |
-|--------|-----|----------|
-| Source | `'cli'` | `'telegram'` |
-| External ID | `'cli'` (fixed) | Chat ID |
-| Telegram tools | Return `null` (no TelegramContext) | Fully functional |
-| Typing indicator | None | Auto-refreshing |
-| Output format | Plain text | Markdown-to-HTML |
-| Self-deploy | Respects `isDev` flag | Respects `isDev` flag |
+| Aspect           | CLI                                | Telegram              |
+| ---------------- | ---------------------------------- | --------------------- |
+| Source           | `'cli'`                            | `'telegram'`          |
+| External ID      | `'cli'` (fixed)                    | Chat ID               |
+| Telegram tools   | Return `null` (no TelegramContext) | Fully functional      |
+| Typing indicator | None                               | Auto-refreshing       |
+| Output format    | Plain text                         | Markdown-to-HTML      |
+| Self-deploy      | Respects `isDev` flag              | Respects `isDev` flag |
 
 ## Startup
 

@@ -29,7 +29,7 @@ The retrieval side has a similar gap. OpenClaw pulls relevant memory files back 
 
 Construct's memory retrieval addresses this with a three-layer pipeline: FTS5 full-text search for exact keyword matches, cosine similarity over vector embeddings for semantic associations (catching "restaurants" → "Nightshade" even without shared vocabulary), and knowledge graph traversal for relational connections (walking edges like `Alice -> [introduced to] -> Nightshade -> [is a] -> restaurant`). Each layer covers gaps the others miss.
 
-On the writing side, Construct stores every raw message permanently in the database. Nothing is ever discarded. The observational memory pipeline doesn't replace stored messages; it replaces them *in the context window*. Once a chunk of conversation has been compressed into observations, the agent sees the condensed observations plus only the recent unobserved messages, rather than replaying the entire transcript. But the full history remains in SQLite, searchable and intact. The observations are a compression layer for context assembly, not a lossy replacement for storage.
+On the writing side, Construct stores every raw message permanently in the database. Nothing is ever discarded. The observational memory pipeline doesn't replace stored messages; it replaces them _in the context window_. Once a chunk of conversation has been compressed into observations, the agent sees the condensed observations plus only the recent unobserved messages, rather than replaying the entire transcript. But the full history remains in SQLite, searchable and intact. The observations are a compression layer for context assembly, not a lossy replacement for storage.
 
 This sidesteps OpenClaw's core failure mode entirely. There's no dependency on the model choosing to write things down. Every message is stored automatically, and the observation pipeline ensures the meaning of older conversations stays in the agent's working context even after the raw messages rotate out of the context window.
 
@@ -125,8 +125,8 @@ This means the memory system degrades gracefully. On day one, there are no obser
 
 The two follow-up articles cover the implementation in detail:
 
-The *Observer, Reflector, Graph* article digs into the writing side: how raw messages are compressed into observations, how observations are condensed across generations by the reflector, and how stored memories spawn a knowledge graph of entities and relationships.
+The _Observer, Reflector, Graph_ article digs into the writing side: how raw messages are compressed into observations, how observations are condensed across generations by the reflector, and how stored memories spawn a knowledge graph of entities and relationships.
 
-The *Three Ways to Find a Memory* article covers the reading side: the waterfall of FTS5 full-text search, cosine similarity over embeddings, and graph traversal that backs the `memory_recall` tool, and the passive auto-injection that runs before the agent even starts thinking.
+The _Three Ways to Find a Memory_ article covers the reading side: the waterfall of FTS5 full-text search, cosine similarity over embeddings, and graph traversal that backs the `memory_recall` tool, and the passive auto-injection that runs before the agent even starts thinking.
 
 Together, the two pipelines are what give Construct something closer to the memory structure of a person than a chatbot: compressed, semantically indexed, queryable by meaning, and always available without needing to be asked.

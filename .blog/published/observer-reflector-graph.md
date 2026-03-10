@@ -23,13 +23,14 @@ The observer is triggered post-response, non-blocking:
 
 ```typescript
 // src/agent.ts
-memoryManager.runObserver(conversationId)
+memoryManager
+  .runObserver(conversationId)
   .then((ran) => {
     if (ran) {
-      return memoryManager.runReflector(conversationId)
+      return memoryManager.runReflector(conversationId);
     }
   })
-  .catch((err) => agentLog.error`Post-response observation failed: ${err}`)
+  .catch((err) => agentLog.error`Post-response observation failed: ${err}`);
 ```
 
 It only runs when unobserved messages cross a token threshold (3,000 tokens estimated at 4 chars/token). Below that, it's free: no API call, no latency.
@@ -62,14 +63,14 @@ The result is a small set of typed observations:
 
 ```typescript
 interface Observation {
-  id: string
-  conversation_id: string
-  content: string           // "User has a dentist appointment March 5th at 9am"
-  priority: 'low' | 'medium' | 'high'
-  observation_date: string  // when the thing happened, not when it was observed
-  generation: number        // 0 = observer output, 1+ = survived reflector rounds
-  superseded_at: string | null
-  token_count: number
+  id: string;
+  conversation_id: string;
+  content: string; // "User has a dentist appointment March 5th at 9am"
+  priority: "low" | "medium" | "high";
+  observation_date: string; // when the thing happened, not when it was observed
+  generation: number; // 0 = observer output, 1+ = survived reflector rounds
+  superseded_at: string | null;
+  token_count: number;
 }
 ```
 
@@ -94,10 +95,10 @@ The reflector receives observations with their IDs, and returns both new condens
 ```typescript
 // src/memory/reflector.ts
 // Validate superseded IDs -only allow IDs that were in the input
-const inputIds = new Set(input.observations.map((o) => o.id))
+const inputIds = new Set(input.observations.map((o) => o.id));
 result.superseded_ids = result.superseded_ids.filter(
-  (id) => typeof id === 'string' && inputIds.has(id),
-)
+  (id) => typeof id === "string" && inputIds.has(id),
+);
 ```
 
 You can't trust an LLM to return valid database IDs without validating them. The reflector is allowed to supersede anything it was given. Nothing more.
@@ -111,12 +112,12 @@ At the start of each conversation turn, the agent builds a context window:
 ```typescript
 // src/agent.ts
 const { observationsText, activeMessages, hasObservations } =
-  await memoryManager.buildContext(conversationId)
+  await memoryManager.buildContext(conversationId);
 
 if (hasObservations) {
-  historyMessages = activeMessages   // only unobserved messages
+  historyMessages = activeMessages; // only unobserved messages
 } else {
-  historyMessages = await getRecentMessages(db, conversationId, 20)
+  historyMessages = await getRecentMessages(db, conversationId, 20);
 }
 ```
 
@@ -126,10 +127,10 @@ Observations are rendered as a stable text block:
 // src/memory/context.ts
 export function renderObservations(observations: Observation[]): string {
   const lines = observations.map((o) => {
-    const priority = o.priority === 'high' ? '!' : o.priority === 'low' ? '~' : '-'
-    return `${priority} [${o.observation_date}] ${o.content}`
-  })
-  return lines.join('\n')
+    const priority = o.priority === "high" ? "!" : o.priority === "low" ? "~" : "-";
+    return `${priority} [${o.observation_date}] ${o.content}`;
+  });
+  return lines.join("\n");
 }
 ```
 

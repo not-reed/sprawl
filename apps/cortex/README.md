@@ -7,7 +7,7 @@
  ╚═════╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
 ```
 
-> *The market is a living thing. A vast nervous system of price signals, rumor propagation, and herd behavior. Cortex taps the wire, builds memories, and watches for patterns the way a street samurai watches for movement in peripheral vision.*
+> _The market is a living thing. A vast nervous system of price signals, rumor propagation, and herd behavior. Cortex taps the wire, builds memories, and watches for patterns the way a street samurai watches for movement in peripheral vision._
 
 ---
 
@@ -70,7 +70,7 @@ The analyzer doesn't guess. It builds context first, then asks.
 3. **Evidence-based confidence** -- Capped by memory count, not LLM conviction:
    - < 5 memories: max 0.50
    - < 20 memories: max 0.75
-   - >= 20 memories: max 1.00
+   - > = 20 memories: max 1.00
 4. **LLM synthesis** -- Inject memories + graph context + current price data. Output: buy/sell/hold + confidence + reasoning + key factors
 5. **Feedback loop** -- Signal reasoning stored as cairn memory for future context
 
@@ -143,20 +143,20 @@ pnpm typecheck                  # static analysis
 
 ## Environment
 
-| Variable | Purpose |
-|---|---|
-| `DATABASE_URL` | SQLite path |
-| `OPENROUTER_API_KEY` | LLM uplink for signals + embeddings |
-| `COINGECKO_API_KEY` | Price data (optional, higher rate limits) |
-| `CRYPTOPANIC_API_KEY` | News feed |
-| `TRACKED_TOKENS` | Comma-separated CoinGecko IDs |
-| `EMBEDDING_MODEL` | Default: `qwen/qwen3-embedding-4b` |
-| `SIGNAL_MODEL` | Default: `google/gemini-3-flash` |
+| Variable              | Purpose                                   |
+| --------------------- | ----------------------------------------- |
+| `DATABASE_URL`        | SQLite path                               |
+| `OPENROUTER_API_KEY`  | LLM uplink for signals + embeddings       |
+| `COINGECKO_API_KEY`   | Price data (optional, higher rate limits) |
+| `CRYPTOPANIC_API_KEY` | News feed                                 |
+| `TRACKED_TOKENS`      | Comma-separated CoinGecko IDs             |
+| `EMBEDDING_MODEL`     | Default: `qwen/qwen3-embedding-4b`        |
+| `SIGNAL_MODEL`        | Default: `google/gemini-3-flash`          |
 
 ---
 
-> *"Cyberspace. A consensual hallucination experienced daily by billions of legitimate operators, in every nation."*
+> _"Cyberspace. A consensual hallucination experienced daily by billions of legitimate operators, in every nation."_
 >
-> -- William Gibson, *Neuromancer*
+> -- William Gibson, _Neuromancer_
 
 Cortex watches the consensual hallucination of the market. It doesn't predict the future. It remembers the past well enough to notice when something changes.
