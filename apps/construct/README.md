@@ -26,17 +26,17 @@ Think of it as a construct in the Neuromancer sense: a ROM personality, except t
         ╠═══════════════╣          ║   pi-agent-core  ║
         ║   CLI         ║─────────▶║                  ║
         ║   citty       ║          ║   ┌────────────┐ ║
-        ╚═══════════════╝          ║   │  memory_*   │ ║
-                                   ║   │  schedule_* │ ║
-                                   ║   │  self_*     │ ║
-                                   ║   │  secret_*   │ ║
-                                   ║   │  ext tools  │ ║
+        ╚═══════════════╝          ║   │ memory_*   │ ║
+                                   ║   │ schedule_* │ ║
+                                   ║   │ self_*     │ ║
+                                   ║   │ secret_*   │ ║
+                                   ║   │ ext tools  │ ║
                                    ║   └────────────┘ ║
                                    ╚════════╤═════════╝
                                             │
                                    ╔════════▼═════════╗
                                    ║     SQLITE       ║
-                                   ║     kysely        ║
+                                   ║     kysely       ║
                                    ╚══════════════════╝
 ```
 

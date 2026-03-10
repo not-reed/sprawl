@@ -14,7 +14,7 @@ The system is self-aware: it can read, edit, test, and deploy its own source cod
 ## Monorepo Data Flow
 
 ```
-┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+┌──────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
 │  Construct   │  │   Cortex    │  │   Synapse   │  │    Deck     │  │    Optic    │
 │  (agent)     │  │  (ingest)   │  │  (trading)  │  │  (web UI)   │  │  (TUI)      │
 └──────┬───────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘
@@ -33,7 +33,7 @@ The system is self-aware: it can read, edit, test, and deploy its own source cod
                 │                                                           │
        ┌────────▼───────────────────────────────────────────────────────────▼──┐
        │                              SQLITE                                   │
-       └──────────────────────────────────────────────────────────────────────┘
+       └───────────────────────────────────────────────────────────────────────┘
 ```
 
 - Construct, Cortex, Deck use Cairn for memory (observe/reflect/promote/graph)
@@ -44,21 +44,21 @@ The system is self-aware: it can read, edit, test, and deploy its own source cod
 ## High-Level Architecture (Construct)
 
 ```
-                         ┌──────────────────────────────────┐
+                         ┌───────────────────────────────────┐
                          │            src/main.ts            │
                          │     (startup orchestrator)        │
-                         └────┬────┬────┬────┬────┬─────────┘
-                              │    │    │    │    │
-         ┌────────────────────┘    │    │    │    └──────────────────┐
-         ▼                         ▼    │    ▼                      ▼
-   ┌───────────┐          ┌────────┐   │  ┌──────────┐     ┌─────────────┐
+                         └────┬────┬────┬─────┬────┬─────────┘
+                              │    │    │     │    │
+         ┌────────────────────┘    │    │     │    └──────────────────┐
+         ▼                         ▼    │     ▼                       ▼
+   ┌────────────┐          ┌────────┐   │  ┌──────────┐     ┌─────────────┐
    │  Database  │          │ Exts   │   │  │ Tool Pack│     │  Telegram   │
    │  migrate   │          │ init   │   │  │ Embeds   │     │  Bot start  │
    │  + create  │          │        │   │  │          │     │             │
-   └─────┬─────┘          └────┬───┘   │  └────┬─────┘     └──────┬──────┘
-         │                     │       │       │                   │
-         ▼                     ▼       ▼       ▼                   ▼
-   ┌──────────────────────────────────────────────────────────────────────┐
+   └─────┬──────┘          └────┬───┘   │  └────┬─────┘     └──────┬──────┘
+         │                      │       │       │                  │
+         ▼                      ▼       ▼       ▼                  ▼
+   ┌─────────────────────────────────────────────────────────────────────┐
    │                        processMessage()                             │
    │                         (src/agent.ts)                              │
    │                                                                     │
@@ -72,14 +72,14 @@ The system is self-aware: it can read, edit, test, and deploy its own source cod
    │  8. Create pi-agent Agent, replay history, register tools           │
    │  9. Save user message, prompt agent, await completion               │
    │ 10. Save assistant response, track usage                            │
-   └──────────────────────────────────────────────────────────────────────┘
+   └─────────────────────────────────────────────────────────────────────┘
          │                        │                        │
          ▼                        ▼                        ▼
-   ┌──────────┐          ┌──────────────┐          ┌──────────────┐
+   ┌───────────┐          ┌──────────────┐          ┌──────────────┐
    │  SQLite   │          │  OpenRouter  │          │  Tool Packs  │
-   │  (Kysely) │          │  (LLM API)  │          │  (4 builtin  │
+   │  (Kysely) │          │  (LLM API)   │          │  (4 builtin  │
    │           │          │              │          │  + dynamic)  │
-   └──────────┘          └──────────────┘          └──────────────┘
+   └───────────┘          └──────────────┘          └──────────────┘
 ```
 
 ## Startup Sequence

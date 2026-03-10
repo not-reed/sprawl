@@ -17,7 +17,7 @@
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│  [Graph]  [Memories]  [Observations]       847 memories  234 nodes│
+│  [Graph]  [Memories]  [Observations]       847 memories  234 nodes │
 ├──────────────────────────────────────────┬─────────────────────────┤
 │                                          │  BITCOIN                │
 │            ╭─ ethereum                   │  person                 │
@@ -28,7 +28,7 @@
 │                    ╱                     │  ◂── regulates  SEC     │
 │              defi ╱                      │                         │
 │                                          │  Linked Memories:       │
-│     [type filters]  [search]  [reset]    │  "BTC broke $95k..."   │
+│     [type filters]  [search]  [reset]    │  "BTC broke $95k..."    │
 ├──────────────────────────────────────────┴─────────────────────────┤
 │  pan: drag │ zoom: scroll │ select: click │ expand: double-click   │
 └────────────────────────────────────────────────────────────────────┘

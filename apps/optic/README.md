@@ -52,9 +52,9 @@ Cortex DB is always required. Synapse DB is optional -- if not provided, Optic r
 ├──────────────┤  Knowledge Graph │
 │  News Feed   │                  │
 ├──────────────┴──────────────────┤
-│ [Portfolio Bar]                  │
+│ [Portfolio Bar]                 │
 ├─────────────────────────────────┤
-│ [Status]                         │
+│ [Status]                        │
 └─────────────────────────────────┘
 ```
 
@@ -68,9 +68,9 @@ Prices with computed 24h/7d change from stored snapshots. Braille sparkline char
 ├───────────────┼─────────────────┤
 │  Signal Log   │  Risk Events    │
 ├───────────────┴─────────────────┤
-│ [Portfolio Bar]                  │
+│ [Portfolio Bar]                 │
 ├─────────────────────────────────┤
-│ [Status]                         │
+│ [Status]                        │
 └─────────────────────────────────┘
 ```
 

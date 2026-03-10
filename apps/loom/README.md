@@ -28,27 +28,27 @@ Drop any system's rules in markdown. Loom learns them, recalls them when they ma
 ║                    AI  AGENT                       ║
 ║                  pi-agent-core                     ║
 ║                                                    ║
-║   ┌──────────────┐  ┌──────────────┐              ║
-║   │ rules recall │  │ campaign ctx │              ║
-║   │ (top 5 FTS+  │  │ (recent +    │              ║
-║   │  embedding)  │  │  semantic)   │              ║
-║   └──────────────┘  └──────────────┘              ║
+║   ┌──────────────┐  ┌──────────────┐               ║
+║   │ rules recall │  │ campaign ctx │               ║
+║   │ (top 5 FTS+  │  │ (recent +    │               ║
+║   │  embedding)  │  │  semantic)   │               ║
+║   └──────────────┘  └──────────────┘               ║
 ║                                                    ║
-║   ┌──────────────┐  ┌──────────────┐              ║
-║   │ observations │  │ active msgs  │              ║
-║   │ (compressed  │  │ (conv tail)  │              ║
-║   │  history)    │  │              │              ║
-║   └──────────────┘  └──────────────┘              ║
+║   ┌──────────────┐  ┌──────────────┐               ║
+║   │ observations │  │ active msgs  │               ║
+║   │ (compressed  │  │ (conv tail)  │               ║
+║   │  history)    │  │              │               ║
+║   └──────────────┘  └──────────────┘               ║
 ╚═══════════════════════╤════════════════════════════╝
                         │ SSE stream
 ╔═══════════════════════▼════════════════════════════╗
 ║  Hono API + React SPA (mobile-first)               ║
-║  campaigns │ sessions │ chat │ observations         ║
+║  campaigns │ sessions │ chat │ observations        ║
 ╚═══════════════════════╤════════════════════════════╝
                         │ kysely
 ╔═══════════════════════▼════════════════════════════╗
-║  SQLite + Cairn                                     ║
-║  memories │ observations │ graph │ campaigns        ║
+║  SQLite + Cairn                                    ║
+║  memories │ observations │ graph │ campaigns       ║
 ╚════════════════════════════════════════════════════╝
 ```
 
