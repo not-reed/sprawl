@@ -1,0 +1,744 @@
+[
+  {
+    "id": "construct::app|src/agent.ts::entity|uses",
+    "source_id": "construct::app",
+    "target_id": "src/agent.ts::entity",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|src/system-prompt.ts::entity|uses",
+    "source_id": "construct::app",
+    "target_id": "src/system-prompt.ts::entity",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|src/memory.ts::entity|uses",
+    "source_id": "construct::app",
+    "target_id": "src/memory.ts::entity",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|src/tools/packs.ts::entity|uses",
+    "source_id": "construct::app",
+    "target_id": "src/tools/packs.ts::entity",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|src/extensions/index.ts::entity|uses",
+    "source_id": "construct::app",
+    "target_id": "src/extensions/index.ts::entity",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "constructmemorymanager::concept|@repo/cairn::package|extends",
+    "source_id": "constructmemorymanager::concept",
+    "target_id": "@repo/cairn::package",
+    "relation": "extends",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|@mariozechner/pi-agent-core::package|integrates",
+    "source_id": "construct::app",
+    "target_id": "@mariozechner/pi-agent-core::package",
+    "relation": "integrates",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|@mariozechner/pi-ai::package|uses",
+    "source_id": "construct::app",
+    "target_id": "@mariozechner/pi-ai::package",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "@repo/cairn::package|openrouter::technology|calls",
+    "source_id": "@repo/cairn::package",
+    "target_id": "openrouter::technology",
+    "relation": "calls",
+    "weight": 1
+  },
+  {
+    "id": "cli::app|construct::app|provides interface to",
+    "source_id": "cli::app",
+    "target_id": "construct::app",
+    "relation": "provides interface to",
+    "weight": 1
+  },
+  {
+    "id": "cli::app|citty::package|built with",
+    "source_id": "cli::app",
+    "target_id": "citty::package",
+    "relation": "built with",
+    "weight": 1
+  },
+  {
+    "id": "cli::app|processmessage()::concept|uses",
+    "source_id": "cli::app",
+    "target_id": "processmessage()::concept",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "telegram::app|processmessage()::concept|uses",
+    "source_id": "telegram::app",
+    "target_id": "processmessage()::concept",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "cli/index.ts::entity|cli::app|is entry point for",
+    "source_id": "cli/index.ts::entity",
+    "target_id": "cli::app",
+    "relation": "is entry point for",
+    "weight": 1
+  },
+  {
+    "id": "cli::app|readline::package|uses",
+    "source_id": "cli::app",
+    "target_id": "readline::package",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "cli::app|definecommand::concept|uses",
+    "source_id": "cli::app",
+    "target_id": "definecommand::concept",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|sqlite::technology|uses",
+    "source_id": "construct::app",
+    "target_id": "sqlite::technology",
+    "relation": "uses",
+    "weight": 2
+  },
+  {
+    "id": "construct::app|kysely::technology|accesses database via",
+    "source_id": "construct::app",
+    "target_id": "kysely::technology",
+    "relation": "accesses database via",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|@repo/db::package|uses",
+    "source_id": "construct::app",
+    "target_id": "@repo/db::package",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|@repo/cairn::package|extends schema from",
+    "source_id": "construct::app",
+    "target_id": "@repo/cairn::package",
+    "relation": "extends schema from",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|telegram::app|integrates with",
+    "source_id": "construct::app",
+    "target_id": "telegram::app",
+    "relation": "integrates with",
+    "weight": 1
+  },
+  {
+    "id": "@repo/db::package|kysely::technology|provides dialect for",
+    "source_id": "@repo/db::package",
+    "target_id": "kysely::technology",
+    "relation": "provides dialect for",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|nanoid::technology|uses for id generation",
+    "source_id": "construct::app",
+    "target_id": "nanoid::technology",
+    "relation": "uses for id generation",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|croner::technology|uses",
+    "source_id": "construct::app",
+    "target_id": "croner::technology",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|sqlite::technology|persists data in",
+    "source_id": "construct::app",
+    "target_id": "sqlite::technology",
+    "relation": "persists data in",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|telegram::app|sends responses to",
+    "source_id": "construct::app",
+    "target_id": "telegram::app",
+    "relation": "sends responses to",
+    "weight": 1
+  },
+  {
+    "id": "schedule_create::concept|levenshtein::pattern|uses for deduplication",
+    "source_id": "schedule_create::concept",
+    "target_id": "levenshtein::pattern",
+    "relation": "uses for deduplication",
+    "weight": 1
+  },
+  {
+    "id": "schedule_create::concept|embeddings::technology|uses for deduplication",
+    "source_id": "schedule_create::concept",
+    "target_id": "embeddings::technology",
+    "relation": "uses for deduplication",
+    "weight": 1
+  },
+  {
+    "id": "src/scheduler/index.ts::entity|croner::technology|manages",
+    "source_id": "src/scheduler/index.ts::entity",
+    "target_id": "croner::technology",
+    "relation": "manages",
+    "weight": 1
+  },
+  {
+    "id": "src/tools/core/schedule.ts::entity|schedule_create::concept|implements",
+    "source_id": "src/tools/core/schedule.ts::entity",
+    "target_id": "schedule_create::concept",
+    "relation": "implements",
+    "weight": 1
+  },
+  {
+    "id": "src/tools/core/schedule.ts::entity|schedule_list::concept|implements",
+    "source_id": "src/tools/core/schedule.ts::entity",
+    "target_id": "schedule_list::concept",
+    "relation": "implements",
+    "weight": 1
+  },
+  {
+    "id": "src/tools/core/schedule.ts::entity|schedule_cancel::concept|implements",
+    "source_id": "src/tools/core/schedule.ts::entity",
+    "target_id": "schedule_cancel::concept",
+    "relation": "implements",
+    "weight": 1
+  },
+  {
+    "id": "cortex::app|cairn::package|uses",
+    "source_id": "cortex::app",
+    "target_id": "cairn::package",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "cortex::app|sqlite::technology|stores data in",
+    "source_id": "cortex::app",
+    "target_id": "sqlite::technology",
+    "relation": "stores data in",
+    "weight": 1
+  },
+  {
+    "id": "cortex::app|coingecko::entity|fetches data from",
+    "source_id": "cortex::app",
+    "target_id": "coingecko::entity",
+    "relation": "fetches data from",
+    "weight": 1
+  },
+  {
+    "id": "cortex::app|cryptopanic::entity|fetches data from",
+    "source_id": "cortex::app",
+    "target_id": "cryptopanic::entity",
+    "relation": "fetches data from",
+    "weight": 1
+  },
+  {
+    "id": "cortex::app|cryptocompare::entity|fetches data from",
+    "source_id": "cortex::app",
+    "target_id": "cryptocompare::entity",
+    "relation": "fetches data from",
+    "weight": 1
+  },
+  {
+    "id": "optic::app|cortex::app|sends commands to",
+    "source_id": "optic::app",
+    "target_id": "cortex::app",
+    "relation": "sends commands to",
+    "weight": 1
+  },
+  {
+    "id": "synapse::app|cortex::app|reads signals from",
+    "source_id": "synapse::app",
+    "target_id": "cortex::app",
+    "relation": "reads signals from",
+    "weight": 1
+  },
+  {
+    "id": "deck::app|cortex::app|browses memory graph of",
+    "source_id": "deck::app",
+    "target_id": "cortex::app",
+    "relation": "browses memory graph of",
+    "weight": 1
+  },
+  {
+    "id": "cortex::app|kysely::technology|uses",
+    "source_id": "cortex::app",
+    "target_id": "kysely::technology",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "cortex::app|llm::technology|uses for signal generation",
+    "source_id": "cortex::app",
+    "target_id": "llm::technology",
+    "relation": "uses for signal generation",
+    "weight": 1
+  },
+  {
+    "id": "deck::app|hono::technology|uses",
+    "source_id": "deck::app",
+    "target_id": "hono::technology",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "deck::app|react::technology|uses",
+    "source_id": "deck::app",
+    "target_id": "react::technology",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "deck::app|vite::technology|uses",
+    "source_id": "deck::app",
+    "target_id": "vite::technology",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "deck::app|d3::technology|uses",
+    "source_id": "deck::app",
+    "target_id": "d3::technology",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "deck::app|react router::technology|uses",
+    "source_id": "deck::app",
+    "target_id": "react router::technology",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "deck::app|@repo/cairn::package|depends on",
+    "source_id": "deck::app",
+    "target_id": "@repo/cairn::package",
+    "relation": "depends on",
+    "weight": 1
+  },
+  {
+    "id": "deck::app|@repo/db::package|depends on",
+    "source_id": "deck::app",
+    "target_id": "@repo/db::package",
+    "relation": "depends on",
+    "weight": 1
+  },
+  {
+    "id": "deck::app|construct::app|can browse database of",
+    "source_id": "deck::app",
+    "target_id": "construct::app",
+    "relation": "can browse database of",
+    "weight": 1
+  },
+  {
+    "id": "deck::app|cortex::app|can browse database of",
+    "source_id": "deck::app",
+    "target_id": "cortex::app",
+    "relation": "can browse database of",
+    "weight": 1
+  },
+  {
+    "id": "loom::app|hono::technology|uses",
+    "source_id": "loom::app",
+    "target_id": "hono::technology",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "loom::app|react::technology|uses",
+    "source_id": "loom::app",
+    "target_id": "react::technology",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "loom::app|kokoro::technology|uses",
+    "source_id": "loom::app",
+    "target_id": "kokoro::technology",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "loom::app|cairn::package|integrates",
+    "source_id": "loom::app",
+    "target_id": "cairn::package",
+    "relation": "integrates",
+    "weight": 1
+  },
+  {
+    "id": "loom::app|kysely::technology|uses",
+    "source_id": "loom::app",
+    "target_id": "kysely::technology",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "loom::app|pi-agent-core::package|uses",
+    "source_id": "loom::app",
+    "target_id": "pi-agent-core::package",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "loom::app|docker::technology|runs",
+    "source_id": "loom::app",
+    "target_id": "docker::technology",
+    "relation": "runs",
+    "weight": 1
+  },
+  {
+    "id": "loom::app|vite::technology|built with",
+    "source_id": "loom::app",
+    "target_id": "vite::technology",
+    "relation": "built with",
+    "weight": 1
+  },
+  {
+    "id": "loom::app|openrouter::technology|uses",
+    "source_id": "loom::app",
+    "target_id": "openrouter::technology",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|cairn::package|uses",
+    "source_id": "construct::app",
+    "target_id": "cairn::package",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "optic::app|rust::technology|written in",
+    "source_id": "optic::app",
+    "target_id": "rust::technology",
+    "relation": "written in",
+    "weight": 1
+  },
+  {
+    "id": "optic::app|ratatui::package|uses",
+    "source_id": "optic::app",
+    "target_id": "ratatui::package",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "optic::app|cortex::app|reads from",
+    "source_id": "optic::app",
+    "target_id": "cortex::app",
+    "relation": "reads from",
+    "weight": 1
+  },
+  {
+    "id": "optic::app|synapse::app|reads from",
+    "source_id": "optic::app",
+    "target_id": "synapse::app",
+    "relation": "reads from",
+    "weight": 1
+  },
+  {
+    "id": "optic::app|rusqlite::package|uses",
+    "source_id": "optic::app",
+    "target_id": "rusqlite::package",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "optic::app|crossterm::package|uses",
+    "source_id": "optic::app",
+    "target_id": "crossterm::package",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "cortex::app|sqlite::technology|uses",
+    "source_id": "cortex::app",
+    "target_id": "sqlite::technology",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "synapse::app|sqlite::technology|uses",
+    "source_id": "synapse::app",
+    "target_id": "sqlite::technology",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "optic::app|cortexdb::concept|implements",
+    "source_id": "optic::app",
+    "target_id": "cortexdb::concept",
+    "relation": "implements",
+    "weight": 1
+  },
+  {
+    "id": "optic::app|synapsedb::concept|implements",
+    "source_id": "optic::app",
+    "target_id": "synapsedb::concept",
+    "relation": "implements",
+    "weight": 1
+  },
+  {
+    "id": "cairn::package|construct::app|shared by",
+    "source_id": "cairn::package",
+    "target_id": "construct::app",
+    "relation": "shared by",
+    "weight": 1
+  },
+  {
+    "id": "cairn::package|cortex::app|shared by",
+    "source_id": "cairn::package",
+    "target_id": "cortex::app",
+    "relation": "shared by",
+    "weight": 1
+  },
+  {
+    "id": "cairn::package|loom::app|shared by",
+    "source_id": "cairn::package",
+    "target_id": "loom::app",
+    "relation": "shared by",
+    "weight": 1
+  },
+  {
+    "id": "cairn::package|deck::app|shared by",
+    "source_id": "cairn::package",
+    "target_id": "deck::app",
+    "relation": "shared by",
+    "weight": 1
+  },
+  {
+    "id": "memorymanager::concept|kysely::technology|uses",
+    "source_id": "memorymanager::concept",
+    "target_id": "kysely::technology",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "cairn::package|openrouter::technology|uses",
+    "source_id": "cairn::package",
+    "target_id": "openrouter::technology",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|memorymanager::concept|subclasses",
+    "source_id": "construct::app",
+    "target_id": "memorymanager::concept",
+    "relation": "subclasses",
+    "weight": 1
+  },
+  {
+    "id": "@repo/db::package|kysely::technology|uses",
+    "source_id": "@repo/db::package",
+    "target_id": "kysely::technology",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "@repo/db::package|node:sqlite::technology|is backed by",
+    "source_id": "@repo/db::package",
+    "target_id": "node:sqlite::technology",
+    "relation": "is backed by",
+    "weight": 1
+  },
+  {
+    "id": "node:sqlite::technology|databasesync::technology|provides",
+    "source_id": "node:sqlite::technology",
+    "target_id": "databasesync::technology",
+    "relation": "provides",
+    "weight": 1
+  },
+  {
+    "id": "@repo/db::package|createdb::concept|exports",
+    "source_id": "@repo/db::package",
+    "target_id": "createdb::concept",
+    "relation": "exports",
+    "weight": 1
+  },
+  {
+    "id": "@repo/db::package|runmigrations::concept|exports",
+    "source_id": "@repo/db::package",
+    "target_id": "runmigrations::concept",
+    "relation": "exports",
+    "weight": 1
+  },
+  {
+    "id": "nodesqlitedialect::concept|node:sqlite::technology|bridges to",
+    "source_id": "nodesqlitedialect::concept",
+    "target_id": "node:sqlite::technology",
+    "relation": "bridges to",
+    "weight": 1
+  },
+  {
+    "id": "nodesqlitedialect::concept|kysely::technology|bridges to",
+    "source_id": "nodesqlitedialect::concept",
+    "target_id": "kysely::technology",
+    "relation": "bridges to",
+    "weight": 1
+  },
+  {
+    "id": "node:sqlite::technology|node.js::technology|is built-in to",
+    "source_id": "node:sqlite::technology",
+    "target_id": "node.js::technology",
+    "relation": "is built-in to",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|docker::technology|supports deployment via",
+    "source_id": "construct::app",
+    "target_id": "docker::technology",
+    "relation": "supports deployment via",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|systemd::technology|supports deployment via",
+    "source_id": "construct::app",
+    "target_id": "systemd::technology",
+    "relation": "supports deployment via",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|self-deploy pipeline::pattern|uses",
+    "source_id": "construct::app",
+    "target_id": "self-deploy pipeline::pattern",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "deploy/dockerfile::entity|construct::app|configures build for",
+    "source_id": "deploy/dockerfile::entity",
+    "target_id": "construct::app",
+    "relation": "configures build for",
+    "weight": 1
+  },
+  {
+    "id": "deploy/docker-compose.yml::entity|construct::app|configures runtime for",
+    "source_id": "deploy/docker-compose.yml::entity",
+    "target_id": "construct::app",
+    "relation": "configures runtime for",
+    "weight": 1
+  },
+  {
+    "id": "src/tools/self/self-deploy.ts::entity|self-deploy pipeline::pattern|implements",
+    "source_id": "src/tools/self/self-deploy.ts::entity",
+    "target_id": "self-deploy pipeline::pattern",
+    "relation": "implements",
+    "weight": 1
+  },
+  {
+    "id": "src/main.ts::entity|construct::app|is entry point for",
+    "source_id": "src/main.ts::entity",
+    "target_id": "construct::app",
+    "relation": "is entry point for",
+    "weight": 1
+  },
+  {
+    "id": "deploy/dockerfile::entity|node:22-alpine::technology|uses base image",
+    "source_id": "deploy/dockerfile::entity",
+    "target_id": "node:22-alpine::technology",
+    "relation": "uses base image",
+    "weight": 1
+  },
+  {
+    "id": "self-deploy pipeline::pattern|git::technology|uses",
+    "source_id": "self-deploy pipeline::pattern",
+    "target_id": "git::technology",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "self-deploy pipeline::pattern|vitest::package|uses",
+    "source_id": "self-deploy pipeline::pattern",
+    "target_id": "vitest::package",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "self-deploy pipeline::pattern|typescript::technology|uses",
+    "source_id": "self-deploy pipeline::pattern",
+    "target_id": "typescript::technology",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|sqlite::technology|uses for database",
+    "source_id": "construct::app",
+    "target_id": "sqlite::technology",
+    "relation": "uses for database",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|tsx::package|uses for execution",
+    "source_id": "construct::app",
+    "target_id": "tsx::package",
+    "relation": "uses for execution",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|zod::package|uses",
+    "source_id": "construct::app",
+    "target_id": "zod::package",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "justfile::technology|node.js::technology|invokes",
+    "source_id": "justfile::technology",
+    "target_id": "node.js::technology",
+    "relation": "invokes",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|openrouter::technology|uses",
+    "source_id": "construct::app",
+    "target_id": "openrouter::technology",
+    "relation": "uses",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|telegram::technology|integrates with",
+    "source_id": "construct::app",
+    "target_id": "telegram::technology",
+    "relation": "integrates with",
+    "weight": 1
+  },
+  {
+    "id": "construct::app|tavily::technology|optionally uses",
+    "source_id": "construct::app",
+    "target_id": "tavily::technology",
+    "relation": "optionally uses",
+    "weight": 1
+  },
+  {
+    "id": "environment configuration::concept|construct::app|configures",
+    "source_id": "environment configuration::concept",
+    "target_id": "construct::app",
+    "relation": "configures",
+    "weight": 1
+  },
+  {
+    "id": "extension secrets::concept|construct::app|syncs to",
+    "source_id": "extension secrets::concept",
+    "target_id": "construct::app",
+    "relation": "syncs to",
+    "weight": 1
+  }
+]

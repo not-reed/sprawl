@@ -1,0 +1,646 @@
+[
+  {
+    "id": "construct::app",
+    "name": "construct",
+    "display_name": "Construct",
+    "node_type": "app",
+    "description": "The central intelligence agent system"
+  },
+  {
+    "id": "src/agent.ts::entity",
+    "name": "src/agent.ts",
+    "display_name": "src/agent.ts",
+    "node_type": "entity",
+    "description": "Contains the main orchestration function processMessage()"
+  },
+  {
+    "id": "src/system-prompt.ts::entity",
+    "name": "src/system-prompt.ts",
+    "display_name": "src/system-prompt.ts",
+    "node_type": "entity",
+    "description": "Handles system prompt construction and context preamble"
+  },
+  {
+    "id": "src/memory.ts::entity",
+    "name": "src/memory.ts",
+    "display_name": "src/memory.ts",
+    "node_type": "entity",
+    "description": "Contains ConstructMemoryManager"
+  },
+  {
+    "id": "src/tools/packs.ts::entity",
+    "name": "src/tools/packs.ts",
+    "display_name": "src/tools/packs.ts",
+    "node_type": "entity",
+    "description": "Handles tool pack selection and instantiation"
+  },
+  {
+    "id": "src/extensions/index.ts::entity",
+    "name": "src/extensions/index.ts",
+    "display_name": "src/extensions/index.ts",
+    "node_type": "entity",
+    "description": "Extension registry for skills, dynamic tools, and identity"
+  },
+  {
+    "id": "@repo/cairn::package",
+    "name": "@repo/cairn",
+    "display_name": "@repo/cairn",
+    "node_type": "package",
+    "description": "Provides embeddings and the base MemoryManager class"
+  },
+  {
+    "id": "constructmemorymanager::concept",
+    "name": "constructmemorymanager",
+    "display_name": "ConstructMemoryManager",
+    "node_type": "concept",
+    "description": "Construct-specific memory facade that extends Cairn's MemoryManager"
+  },
+  {
+    "id": "pi-agent-core::package",
+    "name": "pi-agent-core",
+    "display_name": "pi-agent-core",
+    "node_type": "package",
+    "description": "Agent framework used for conversation management and tool calling"
+  },
+  {
+    "id": "@mariozechner/pi-agent-core::package",
+    "name": "@mariozechner/pi-agent-core",
+    "display_name": "@mariozechner/pi-agent-core",
+    "node_type": "package",
+    "description": "The npm package for pi-agent-core"
+  },
+  {
+    "id": "@mariozechner/pi-ai::package",
+    "name": "@mariozechner/pi-ai",
+    "display_name": "@mariozechner/pi-ai",
+    "node_type": "package",
+    "description": "Provides model access"
+  },
+  {
+    "id": "openrouter::technology",
+    "name": "openrouter",
+    "display_name": "OpenRouter",
+    "node_type": "technology",
+    "description": "Used for embedding generation and model access"
+  },
+  {
+    "id": "kysely::technology",
+    "name": "kysely",
+    "display_name": "Kysely",
+    "node_type": "technology",
+    "description": "Database query builder used in processMessage"
+  },
+  {
+    "id": "cli::app",
+    "name": "cli",
+    "display_name": "CLI",
+    "node_type": "app",
+    "description": "A local interface to Construct"
+  },
+  {
+    "id": "citty::package",
+    "name": "citty",
+    "display_name": "Citty",
+    "node_type": "package",
+    "description": "A lightweight CLI framework"
+  },
+  {
+    "id": "node.js::technology",
+    "name": "node.js",
+    "display_name": "Node.js",
+    "node_type": "technology",
+    "description": "Runtime environment"
+  },
+  {
+    "id": "readline::package",
+    "name": "readline",
+    "display_name": "readline",
+    "node_type": "package",
+    "description": "Node.js module used for REPL input"
+  },
+  {
+    "id": "telegram::app",
+    "name": "telegram",
+    "display_name": "Telegram",
+    "node_type": "app",
+    "description": "Messaging platform integrated with Construct"
+  },
+  {
+    "id": "cli/index.ts::entity",
+    "name": "cli/index.ts",
+    "display_name": "cli/index.ts",
+    "node_type": "entity",
+    "description": "CLI entry point file"
+  },
+  {
+    "id": "processmessage()::concept",
+    "name": "processmessage()",
+    "display_name": "processMessage()",
+    "node_type": "concept",
+    "description": "Message processing pipeline"
+  },
+  {
+    "id": "definecommand::concept",
+    "name": "definecommand",
+    "display_name": "defineCommand",
+    "node_type": "concept",
+    "description": "Citty function for command definition"
+  },
+  {
+    "id": "sqlite::technology",
+    "name": "sqlite",
+    "display_name": "SQLite",
+    "node_type": "technology",
+    "description": "Database engine used by Construct"
+  },
+  {
+    "id": "@repo/db::package",
+    "name": "@repo/db",
+    "display_name": "@repo/db",
+    "node_type": "package",
+    "description": "Provides database connection and custom Kysely dialect"
+  },
+  {
+    "id": "cairndatabase::concept",
+    "name": "cairndatabase",
+    "display_name": "CairnDatabase",
+    "node_type": "concept",
+    "description": "Base database schema extended by Construct"
+  },
+  {
+    "id": "nanoid::technology",
+    "name": "nanoid",
+    "display_name": "nanoid",
+    "node_type": "technology",
+    "description": "Used for ID generation"
+  },
+  {
+    "id": "fts5::technology",
+    "name": "fts5",
+    "display_name": "FTS5",
+    "node_type": "technology",
+    "description": "Full-text search extension for SQLite"
+  },
+  {
+    "id": "croner::technology",
+    "name": "croner",
+    "display_name": "Croner",
+    "node_type": "technology",
+    "description": "Library used for timed jobs"
+  },
+  {
+    "id": "levenshtein::pattern",
+    "name": "levenshtein",
+    "display_name": "Levenshtein",
+    "node_type": "pattern",
+    "description": "Algorithm used for fast deduplication"
+  },
+  {
+    "id": "embeddings::technology",
+    "name": "embeddings",
+    "display_name": "Embeddings",
+    "node_type": "technology",
+    "description": "Used for slow deduplication"
+  },
+  {
+    "id": "src/scheduler/index.ts::entity",
+    "name": "src/scheduler/index.ts",
+    "display_name": "src/scheduler/index.ts",
+    "node_type": "entity",
+    "description": "Handles scheduler lifecycle"
+  },
+  {
+    "id": "src/tools/core/schedule.ts::entity",
+    "name": "src/tools/core/schedule.ts",
+    "display_name": "src/tools/core/schedule.ts",
+    "node_type": "entity",
+    "description": "Contains schedule management tools"
+  },
+  {
+    "id": "src/db/schema.ts::entity",
+    "name": "src/db/schema.ts",
+    "display_name": "src/db/schema.ts",
+    "node_type": "entity",
+    "description": "Defines ScheduleTable type"
+  },
+  {
+    "id": "src/db/queries.ts::entity",
+    "name": "src/db/queries.ts",
+    "display_name": "src/db/queries.ts",
+    "node_type": "entity",
+    "description": "Contains schedule CRUD queries"
+  },
+  {
+    "id": "schedule_create::concept",
+    "name": "schedule_create",
+    "display_name": "schedule_create",
+    "node_type": "concept",
+    "description": "Tool to create new schedules"
+  },
+  {
+    "id": "schedule_list::concept",
+    "name": "schedule_list",
+    "display_name": "schedule_list",
+    "node_type": "concept",
+    "description": "Tool to list schedules"
+  },
+  {
+    "id": "schedule_cancel::concept",
+    "name": "schedule_cancel",
+    "display_name": "schedule_cancel",
+    "node_type": "concept",
+    "description": "Tool to cancel schedules"
+  },
+  {
+    "id": "cortex::app",
+    "name": "cortex",
+    "display_name": "Cortex",
+    "node_type": "app",
+    "description": "Crypto market intelligence daemon"
+  },
+  {
+    "id": "cairn::package",
+    "name": "cairn",
+    "display_name": "Cairn",
+    "node_type": "package",
+    "description": "Memory pipeline for price and news data"
+  },
+  {
+    "id": "coingecko::entity",
+    "name": "coingecko",
+    "display_name": "CoinGecko",
+    "node_type": "entity",
+    "description": "Source for token metadata and price data"
+  },
+  {
+    "id": "cryptopanic::entity",
+    "name": "cryptopanic",
+    "display_name": "CryptoPanic",
+    "node_type": "entity",
+    "description": "Source for news data"
+  },
+  {
+    "id": "cryptocompare::entity",
+    "name": "cryptocompare",
+    "display_name": "CryptoCompare",
+    "node_type": "entity",
+    "description": "Source for news data"
+  },
+  {
+    "id": "optic::app",
+    "name": "optic",
+    "display_name": "Optic",
+    "node_type": "app",
+    "description": "App that can insert commands into Cortex"
+  },
+  {
+    "id": "synapse::app",
+    "name": "synapse",
+    "display_name": "Synapse",
+    "node_type": "app",
+    "description": "App that reads signals from Cortex"
+  },
+  {
+    "id": "deck::app",
+    "name": "deck",
+    "display_name": "Deck",
+    "node_type": "app",
+    "description": "App that can browse Cortex's memory graph"
+  },
+  {
+    "id": "llm::technology",
+    "name": "llm",
+    "display_name": "LLM",
+    "node_type": "technology",
+    "description": null
+  },
+  {
+    "id": "hono::technology",
+    "name": "hono",
+    "display_name": "Hono",
+    "node_type": "technology",
+    "description": "REST API framework"
+  },
+  {
+    "id": "react::technology",
+    "name": "react",
+    "display_name": "React",
+    "node_type": "technology",
+    "description": "Frontend library"
+  },
+  {
+    "id": "vite::technology",
+    "name": "vite",
+    "display_name": "Vite",
+    "node_type": "technology",
+    "description": "Development server"
+  },
+  {
+    "id": "d3::technology",
+    "name": "d3",
+    "display_name": "D3",
+    "node_type": "technology",
+    "description": "Visualization library"
+  },
+  {
+    "id": "sprawl::concept",
+    "name": "sprawl",
+    "display_name": "Sprawl",
+    "node_type": "concept",
+    "description": "Ecosystem of apps"
+  },
+  {
+    "id": "react router::technology",
+    "name": "react router",
+    "display_name": "React Router",
+    "node_type": "technology",
+    "description": null
+  },
+  {
+    "id": "loom::app",
+    "name": "loom",
+    "display_name": "Loom",
+    "node_type": "app",
+    "description": "Interactive rulebook companion for tabletop RPGs"
+  },
+  {
+    "id": "kokoro::technology",
+    "name": "kokoro",
+    "display_name": "Kokoro",
+    "node_type": "technology",
+    "description": "Multi-voice TTS engine"
+  },
+  {
+    "id": "docker::technology",
+    "name": "docker",
+    "display_name": "Docker",
+    "node_type": "technology",
+    "description": "Containerization platform"
+  },
+  {
+    "id": "rust::technology",
+    "name": "rust",
+    "display_name": "Rust",
+    "node_type": "technology",
+    "description": null
+  },
+  {
+    "id": "ratatui::package",
+    "name": "ratatui",
+    "display_name": "Ratatui",
+    "node_type": "package",
+    "description": "Rust TUI library"
+  },
+  {
+    "id": "rusqlite::package",
+    "name": "rusqlite",
+    "display_name": "rusqlite",
+    "node_type": "package",
+    "description": "SQLite bindings for Rust"
+  },
+  {
+    "id": "crossterm::package",
+    "name": "crossterm",
+    "display_name": "Crossterm",
+    "node_type": "package",
+    "description": "Terminal manipulation library"
+  },
+  {
+    "id": "cortexdb::concept",
+    "name": "cortexdb",
+    "display_name": "CortexDb",
+    "node_type": "concept",
+    "description": "Struct for reading Cortex database"
+  },
+  {
+    "id": "synapsedb::concept",
+    "name": "synapsedb",
+    "display_name": "SynapseDb",
+    "node_type": "concept",
+    "description": "Struct for reading Synapse database"
+  },
+  {
+    "id": "memorymanager::concept",
+    "name": "memorymanager",
+    "display_name": "MemoryManager",
+    "node_type": "concept",
+    "description": "Central facade class for Cairn"
+  },
+  {
+    "id": "observer::concept",
+    "name": "observer",
+    "display_name": "Observer",
+    "node_type": "concept",
+    "description": "LLM-powered message compressor"
+  },
+  {
+    "id": "reflector::concept",
+    "name": "reflector",
+    "display_name": "Reflector",
+    "node_type": "concept",
+    "description": "LLM-powered observation condenser"
+  },
+  {
+    "id": "promoter::concept",
+    "name": "promoter",
+    "display_name": "Promoter",
+    "node_type": "concept",
+    "description": "Bridges observations to long-term memories"
+  },
+  {
+    "id": "graph extractor::concept",
+    "name": "graph extractor",
+    "display_name": "Graph extractor",
+    "node_type": "concept",
+    "description": "Pulls entities and relationships from memories"
+  },
+  {
+    "id": "pnpm::technology",
+    "name": "pnpm",
+    "display_name": "pnpm",
+    "node_type": "technology",
+    "description": "Package manager used for the workspace"
+  },
+  {
+    "id": "node:sqlite::technology",
+    "name": "node:sqlite",
+    "display_name": "node:sqlite",
+    "node_type": "technology",
+    "description": "Node.js built-in SQLite module"
+  },
+  {
+    "id": "databasesync::technology",
+    "name": "databasesync",
+    "display_name": "DatabaseSync",
+    "node_type": "technology",
+    "description": null
+  },
+  {
+    "id": "createdb::concept",
+    "name": "createdb",
+    "display_name": "createDb",
+    "node_type": "concept",
+    "description": "Function to create a Kysely instance"
+  },
+  {
+    "id": "runmigrations::concept",
+    "name": "runmigrations",
+    "display_name": "runMigrations",
+    "node_type": "concept",
+    "description": "File-based migration runner"
+  },
+  {
+    "id": "nodesqlitedialect::concept",
+    "name": "nodesqlitedialect",
+    "display_name": "NodeSqliteDialect",
+    "node_type": "concept",
+    "description": "Bridges node:sqlite to Kysely"
+  },
+  {
+    "id": "nodesqlitedriver::concept",
+    "name": "nodesqlitedriver",
+    "display_name": "NodeSqliteDriver",
+    "node_type": "concept",
+    "description": "Handles connection lifecycle and transactions"
+  },
+  {
+    "id": "nodesqliteconnection::concept",
+    "name": "nodesqliteconnection",
+    "display_name": "NodeSqliteConnection",
+    "node_type": "concept",
+    "description": "Handles query execution"
+  },
+  {
+    "id": "better-sqlite3::technology",
+    "name": "better-sqlite3",
+    "display_name": "better-sqlite3",
+    "node_type": "technology",
+    "description": null
+  },
+  {
+    "id": "systemd::technology",
+    "name": "systemd",
+    "display_name": "systemd",
+    "node_type": "technology",
+    "description": null
+  },
+  {
+    "id": "self-deploy pipeline::pattern",
+    "name": "self-deploy pipeline",
+    "display_name": "self-deploy pipeline",
+    "node_type": "pattern",
+    "description": null
+  },
+  {
+    "id": "deploy/dockerfile::entity",
+    "name": "deploy/dockerfile",
+    "display_name": "deploy/Dockerfile",
+    "node_type": "entity",
+    "description": null
+  },
+  {
+    "id": "deploy/docker-compose.yml::entity",
+    "name": "deploy/docker-compose.yml",
+    "display_name": "deploy/docker-compose.yml",
+    "node_type": "entity",
+    "description": null
+  },
+  {
+    "id": "src/tools/self/self-deploy.ts::entity",
+    "name": "src/tools/self/self-deploy.ts",
+    "display_name": "src/tools/self/self-deploy.ts",
+    "node_type": "entity",
+    "description": null
+  },
+  {
+    "id": "src/main.ts::entity",
+    "name": "src/main.ts",
+    "display_name": "src/main.ts",
+    "node_type": "entity",
+    "description": null
+  },
+  {
+    "id": "node:22-alpine::technology",
+    "name": "node:22-alpine",
+    "display_name": "node:22-alpine",
+    "node_type": "technology",
+    "description": null
+  },
+  {
+    "id": "git::technology",
+    "name": "git",
+    "display_name": "git",
+    "node_type": "technology",
+    "description": null
+  },
+  {
+    "id": "tsx::package",
+    "name": "tsx",
+    "display_name": "tsx",
+    "node_type": "package",
+    "description": null
+  },
+  {
+    "id": "pnpm::package",
+    "name": "pnpm",
+    "display_name": "pnpm",
+    "node_type": "package",
+    "description": null
+  },
+  {
+    "id": "vitest::package",
+    "name": "vitest",
+    "display_name": "vitest",
+    "node_type": "package",
+    "description": null
+  },
+  {
+    "id": "typescript::technology",
+    "name": "typescript",
+    "display_name": "TypeScript",
+    "node_type": "technology",
+    "description": null
+  },
+  {
+    "id": "zod::package",
+    "name": "zod",
+    "display_name": "Zod",
+    "node_type": "package",
+    "description": "Library used for schema validation"
+  },
+  {
+    "id": "justfile::technology",
+    "name": "justfile",
+    "display_name": "Justfile",
+    "node_type": "technology",
+    "description": "Command runner used to execute apps"
+  },
+  {
+    "id": "telegram::technology",
+    "name": "telegram",
+    "display_name": "Telegram",
+    "node_type": "technology",
+    "description": "Messaging platform"
+  },
+  {
+    "id": "tavily::technology",
+    "name": "tavily",
+    "display_name": "Tavily",
+    "node_type": "technology",
+    "description": "Web search service"
+  },
+  {
+    "id": "environment configuration::concept",
+    "name": "environment configuration",
+    "display_name": "Environment Configuration",
+    "node_type": "concept",
+    "description": "System for managing app settings via .env files"
+  },
+  {
+    "id": "extension secrets::concept",
+    "name": "extension secrets",
+    "display_name": "Extension Secrets",
+    "node_type": "concept",
+    "description": "Environment variables prefixed with EXT_ synced to secrets table"
+  }
+]

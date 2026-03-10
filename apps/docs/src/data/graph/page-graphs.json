@@ -1,0 +1,695 @@
+{
+  "pages": {
+    "construct/agent": {
+      "nodeIds": [
+        "construct::app",
+        "src/agent.ts::entity",
+        "src/system-prompt.ts::entity",
+        "src/memory.ts::entity",
+        "src/tools/packs.ts::entity",
+        "src/extensions/index.ts::entity",
+        "@repo/cairn::package",
+        "constructmemorymanager::concept",
+        "pi-agent-core::package",
+        "@mariozechner/pi-agent-core::package",
+        "@mariozechner/pi-ai::package",
+        "openrouter::technology",
+        "kysely::technology"
+      ],
+      "edgeIds": [
+        "construct::app|src/agent.ts::entity|uses",
+        "construct::app|src/system-prompt.ts::entity|uses",
+        "construct::app|src/memory.ts::entity|uses",
+        "construct::app|src/tools/packs.ts::entity|uses",
+        "construct::app|src/extensions/index.ts::entity|uses",
+        "constructmemorymanager::concept|@repo/cairn::package|extends",
+        "construct::app|@mariozechner/pi-agent-core::package|integrates",
+        "construct::app|@mariozechner/pi-ai::package|uses",
+        "@repo/cairn::package|openrouter::technology|calls"
+      ]
+    },
+    "construct/cli": {
+      "nodeIds": [
+        "cli::app",
+        "construct::app",
+        "citty::package",
+        "node.js::technology",
+        "readline::package",
+        "telegram::app",
+        "cli/index.ts::entity",
+        "processmessage()::concept",
+        "definecommand::concept"
+      ],
+      "edgeIds": [
+        "cli::app|construct::app|provides interface to",
+        "cli::app|citty::package|built with",
+        "cli::app|processmessage()::concept|uses",
+        "telegram::app|processmessage()::concept|uses",
+        "cli/index.ts::entity|cli::app|is entry point for",
+        "cli::app|readline::package|uses",
+        "cli::app|definecommand::concept|uses"
+      ]
+    },
+    "construct/database": {
+      "nodeIds": [
+        "construct::app",
+        "sqlite::technology",
+        "kysely::technology",
+        "@repo/db::package",
+        "@repo/cairn::package",
+        "cairndatabase::concept",
+        "nanoid::technology",
+        "fts5::technology",
+        "telegram::app"
+      ],
+      "edgeIds": [
+        "construct::app|sqlite::technology|uses",
+        "construct::app|kysely::technology|accesses database via",
+        "construct::app|@repo/db::package|uses",
+        "construct::app|@repo/cairn::package|extends schema from",
+        "construct::app|telegram::app|integrates with",
+        "@repo/db::package|kysely::technology|provides dialect for",
+        "construct::app|nanoid::technology|uses for id generation"
+      ]
+    },
+    "construct/extensions": {
+      "nodeIds": [],
+      "edgeIds": []
+    },
+    "construct": {
+      "nodeIds": [],
+      "edgeIds": []
+    },
+    "construct/memory": {
+      "nodeIds": [],
+      "edgeIds": []
+    },
+    "construct/scheduler": {
+      "nodeIds": [
+        "construct::app",
+        "croner::technology",
+        "sqlite::technology",
+        "telegram::app",
+        "levenshtein::pattern",
+        "embeddings::technology",
+        "src/scheduler/index.ts::entity",
+        "src/tools/core/schedule.ts::entity",
+        "src/db/schema.ts::entity",
+        "src/db/queries.ts::entity",
+        "schedule_create::concept",
+        "schedule_list::concept",
+        "schedule_cancel::concept"
+      ],
+      "edgeIds": [
+        "construct::app|croner::technology|uses",
+        "construct::app|sqlite::technology|persists data in",
+        "construct::app|telegram::app|sends responses to",
+        "schedule_create::concept|levenshtein::pattern|uses for deduplication",
+        "schedule_create::concept|embeddings::technology|uses for deduplication",
+        "src/scheduler/index.ts::entity|croner::technology|manages",
+        "src/tools/core/schedule.ts::entity|schedule_create::concept|implements",
+        "src/tools/core/schedule.ts::entity|schedule_list::concept|implements",
+        "src/tools/core/schedule.ts::entity|schedule_cancel::concept|implements"
+      ]
+    },
+    "construct/system-prompt": {
+      "nodeIds": [],
+      "edgeIds": []
+    },
+    "construct/telegram": {
+      "nodeIds": [],
+      "edgeIds": []
+    },
+    "construct/tools": {
+      "nodeIds": [],
+      "edgeIds": []
+    },
+    "cortex": {
+      "nodeIds": [
+        "cortex::app",
+        "cairn::package",
+        "node.js::technology",
+        "sqlite::technology",
+        "coingecko::entity",
+        "cryptopanic::entity",
+        "cryptocompare::entity",
+        "optic::app",
+        "synapse::app",
+        "deck::app",
+        "kysely::technology",
+        "fts5::technology",
+        "llm::technology"
+      ],
+      "edgeIds": [
+        "cortex::app|cairn::package|uses",
+        "cortex::app|sqlite::technology|stores data in",
+        "cortex::app|coingecko::entity|fetches data from",
+        "cortex::app|cryptopanic::entity|fetches data from",
+        "cortex::app|cryptocompare::entity|fetches data from",
+        "optic::app|cortex::app|sends commands to",
+        "synapse::app|cortex::app|reads signals from",
+        "deck::app|cortex::app|browses memory graph of",
+        "cortex::app|kysely::technology|uses",
+        "cortex::app|llm::technology|uses for signal generation"
+      ]
+    },
+    "synapse": {
+      "nodeIds": [],
+      "edgeIds": []
+    },
+    "deck": {
+      "nodeIds": [
+        "deck::app",
+        "hono::technology",
+        "react::technology",
+        "vite::technology",
+        "d3::technology",
+        "sprawl::concept",
+        "@repo/cairn::package",
+        "@repo/db::package",
+        "construct::app",
+        "cortex::app",
+        "react router::technology"
+      ],
+      "edgeIds": [
+        "deck::app|hono::technology|uses",
+        "deck::app|react::technology|uses",
+        "deck::app|vite::technology|uses",
+        "deck::app|d3::technology|uses",
+        "deck::app|react router::technology|uses",
+        "deck::app|@repo/cairn::package|depends on",
+        "deck::app|@repo/db::package|depends on",
+        "deck::app|construct::app|can browse database of",
+        "deck::app|cortex::app|can browse database of"
+      ]
+    },
+    "loom": {
+      "nodeIds": [
+        "loom::app",
+        "hono::technology",
+        "react::technology",
+        "kokoro::technology",
+        "cairn::package",
+        "kysely::technology",
+        "pi-agent-core::package",
+        "docker::technology",
+        "vite::technology",
+        "openrouter::technology",
+        "construct::app"
+      ],
+      "edgeIds": [
+        "loom::app|hono::technology|uses",
+        "loom::app|react::technology|uses",
+        "loom::app|kokoro::technology|uses",
+        "loom::app|cairn::package|integrates",
+        "loom::app|kysely::technology|uses",
+        "loom::app|pi-agent-core::package|uses",
+        "loom::app|docker::technology|runs",
+        "loom::app|vite::technology|built with",
+        "loom::app|openrouter::technology|uses",
+        "construct::app|cairn::package|uses"
+      ]
+    },
+    "optic": {
+      "nodeIds": [
+        "optic::app",
+        "rust::technology",
+        "ratatui::package",
+        "cortex::app",
+        "synapse::app",
+        "rusqlite::package",
+        "crossterm::package",
+        "sqlite::technology",
+        "cortexdb::concept",
+        "synapsedb::concept"
+      ],
+      "edgeIds": [
+        "optic::app|rust::technology|written in",
+        "optic::app|ratatui::package|uses",
+        "optic::app|cortex::app|reads from",
+        "optic::app|synapse::app|reads from",
+        "optic::app|rusqlite::package|uses",
+        "optic::app|crossterm::package|uses",
+        "cortex::app|sqlite::technology|uses",
+        "synapse::app|sqlite::technology|uses",
+        "optic::app|cortexdb::concept|implements",
+        "optic::app|synapsedb::concept|implements"
+      ]
+    },
+    "cairn": {
+      "nodeIds": [
+        "cairn::package",
+        "construct::app",
+        "cortex::app",
+        "loom::app",
+        "deck::app",
+        "memorymanager::concept",
+        "observer::concept",
+        "reflector::concept",
+        "promoter::concept",
+        "graph extractor::concept",
+        "kysely::technology",
+        "openrouter::technology",
+        "sqlite::technology",
+        "pnpm::technology"
+      ],
+      "edgeIds": [
+        "cairn::package|construct::app|shared by",
+        "cairn::package|cortex::app|shared by",
+        "cairn::package|loom::app|shared by",
+        "cairn::package|deck::app|shared by",
+        "memorymanager::concept|kysely::technology|uses",
+        "cairn::package|openrouter::technology|uses",
+        "construct::app|memorymanager::concept|subclasses"
+      ]
+    },
+    "db": {
+      "nodeIds": [
+        "@repo/db::package",
+        "kysely::technology",
+        "node:sqlite::technology",
+        "databasesync::technology",
+        "createdb::concept",
+        "runmigrations::concept",
+        "nodesqlitedialect::concept",
+        "nodesqlitedriver::concept",
+        "nodesqliteconnection::concept",
+        "better-sqlite3::technology",
+        "node.js::technology"
+      ],
+      "edgeIds": [
+        "@repo/db::package|kysely::technology|uses",
+        "@repo/db::package|node:sqlite::technology|is backed by",
+        "node:sqlite::technology|databasesync::technology|provides",
+        "@repo/db::package|createdb::concept|exports",
+        "@repo/db::package|runmigrations::concept|exports",
+        "nodesqlitedialect::concept|node:sqlite::technology|bridges to",
+        "nodesqlitedialect::concept|kysely::technology|bridges to",
+        "node:sqlite::technology|node.js::technology|is built-in to"
+      ]
+    },
+    "guides/deployment": {
+      "nodeIds": [
+        "construct::app",
+        "docker::technology",
+        "systemd::technology",
+        "self-deploy pipeline::pattern",
+        "deploy/dockerfile::entity",
+        "deploy/docker-compose.yml::entity",
+        "src/tools/self/self-deploy.ts::entity",
+        "src/main.ts::entity",
+        "node:22-alpine::technology",
+        "git::technology",
+        "sqlite::technology",
+        "tsx::package",
+        "pnpm::package",
+        "vitest::package",
+        "typescript::technology"
+      ],
+      "edgeIds": [
+        "construct::app|docker::technology|supports deployment via",
+        "construct::app|systemd::technology|supports deployment via",
+        "construct::app|self-deploy pipeline::pattern|uses",
+        "deploy/dockerfile::entity|construct::app|configures build for",
+        "deploy/docker-compose.yml::entity|construct::app|configures runtime for",
+        "src/tools/self/self-deploy.ts::entity|self-deploy pipeline::pattern|implements",
+        "src/main.ts::entity|construct::app|is entry point for",
+        "deploy/dockerfile::entity|node:22-alpine::technology|uses base image",
+        "self-deploy pipeline::pattern|git::technology|uses",
+        "self-deploy pipeline::pattern|vitest::package|uses",
+        "self-deploy pipeline::pattern|typescript::technology|uses",
+        "construct::app|sqlite::technology|uses for database",
+        "construct::app|tsx::package|uses for execution"
+      ]
+    },
+    "guides/development": {
+      "nodeIds": [],
+      "edgeIds": []
+    },
+    "guides/environment": {
+      "nodeIds": [
+        "construct::app",
+        "cortex::app",
+        "synapse::app",
+        "deck::app",
+        "loom::app",
+        "zod::package",
+        "node.js::technology",
+        "justfile::technology",
+        "sqlite::technology",
+        "openrouter::technology",
+        "telegram::technology",
+        "tavily::technology",
+        "environment configuration::concept",
+        "extension secrets::concept"
+      ],
+      "edgeIds": [
+        "construct::app|zod::package|uses",
+        "justfile::technology|node.js::technology|invokes",
+        "construct::app|sqlite::technology|uses",
+        "construct::app|openrouter::technology|uses",
+        "construct::app|telegram::technology|integrates with",
+        "construct::app|tavily::technology|optionally uses",
+        "environment configuration::concept|construct::app|configures",
+        "extension secrets::concept|construct::app|syncs to"
+      ]
+    },
+    "guides/security": {
+      "nodeIds": [],
+      "edgeIds": []
+    },
+    "architecture/overview": {
+      "nodeIds": [],
+      "edgeIds": []
+    }
+  },
+  "nodeAppearsIn": {
+    "construct::app": [
+      "construct/agent",
+      "construct/cli",
+      "construct/database",
+      "construct/scheduler",
+      "deck",
+      "loom",
+      "cairn",
+      "guides/deployment",
+      "guides/environment"
+    ],
+    "src/agent.ts::entity": [
+      "construct/agent"
+    ],
+    "src/system-prompt.ts::entity": [
+      "construct/agent"
+    ],
+    "src/memory.ts::entity": [
+      "construct/agent"
+    ],
+    "src/tools/packs.ts::entity": [
+      "construct/agent"
+    ],
+    "src/extensions/index.ts::entity": [
+      "construct/agent"
+    ],
+    "@repo/cairn::package": [
+      "construct/agent",
+      "construct/database",
+      "deck"
+    ],
+    "constructmemorymanager::concept": [
+      "construct/agent"
+    ],
+    "pi-agent-core::package": [
+      "construct/agent",
+      "loom"
+    ],
+    "@mariozechner/pi-agent-core::package": [
+      "construct/agent"
+    ],
+    "@mariozechner/pi-ai::package": [
+      "construct/agent"
+    ],
+    "openrouter::technology": [
+      "construct/agent",
+      "loom",
+      "cairn",
+      "guides/environment"
+    ],
+    "kysely::technology": [
+      "construct/agent",
+      "construct/database",
+      "cortex",
+      "loom",
+      "cairn",
+      "db"
+    ],
+    "cli::app": [
+      "construct/cli"
+    ],
+    "citty::package": [
+      "construct/cli"
+    ],
+    "node.js::technology": [
+      "construct/cli",
+      "cortex",
+      "db",
+      "guides/environment"
+    ],
+    "readline::package": [
+      "construct/cli"
+    ],
+    "telegram::app": [
+      "construct/cli",
+      "construct/database",
+      "construct/scheduler"
+    ],
+    "cli/index.ts::entity": [
+      "construct/cli"
+    ],
+    "processmessage()::concept": [
+      "construct/cli"
+    ],
+    "definecommand::concept": [
+      "construct/cli"
+    ],
+    "sqlite::technology": [
+      "construct/database",
+      "construct/scheduler",
+      "cortex",
+      "optic",
+      "cairn",
+      "guides/deployment",
+      "guides/environment"
+    ],
+    "@repo/db::package": [
+      "construct/database",
+      "deck",
+      "db"
+    ],
+    "cairndatabase::concept": [
+      "construct/database"
+    ],
+    "nanoid::technology": [
+      "construct/database"
+    ],
+    "fts5::technology": [
+      "construct/database",
+      "cortex"
+    ],
+    "croner::technology": [
+      "construct/scheduler"
+    ],
+    "levenshtein::pattern": [
+      "construct/scheduler"
+    ],
+    "embeddings::technology": [
+      "construct/scheduler"
+    ],
+    "src/scheduler/index.ts::entity": [
+      "construct/scheduler"
+    ],
+    "src/tools/core/schedule.ts::entity": [
+      "construct/scheduler"
+    ],
+    "src/db/schema.ts::entity": [
+      "construct/scheduler"
+    ],
+    "src/db/queries.ts::entity": [
+      "construct/scheduler"
+    ],
+    "schedule_create::concept": [
+      "construct/scheduler"
+    ],
+    "schedule_list::concept": [
+      "construct/scheduler"
+    ],
+    "schedule_cancel::concept": [
+      "construct/scheduler"
+    ],
+    "cortex::app": [
+      "cortex",
+      "deck",
+      "optic",
+      "cairn",
+      "guides/environment"
+    ],
+    "cairn::package": [
+      "cortex",
+      "loom",
+      "cairn"
+    ],
+    "coingecko::entity": [
+      "cortex"
+    ],
+    "cryptopanic::entity": [
+      "cortex"
+    ],
+    "cryptocompare::entity": [
+      "cortex"
+    ],
+    "optic::app": [
+      "cortex",
+      "optic"
+    ],
+    "synapse::app": [
+      "cortex",
+      "optic",
+      "guides/environment"
+    ],
+    "deck::app": [
+      "cortex",
+      "deck",
+      "cairn",
+      "guides/environment"
+    ],
+    "llm::technology": [
+      "cortex"
+    ],
+    "hono::technology": [
+      "deck",
+      "loom"
+    ],
+    "react::technology": [
+      "deck",
+      "loom"
+    ],
+    "vite::technology": [
+      "deck",
+      "loom"
+    ],
+    "d3::technology": [
+      "deck"
+    ],
+    "sprawl::concept": [
+      "deck"
+    ],
+    "react router::technology": [
+      "deck"
+    ],
+    "loom::app": [
+      "loom",
+      "cairn",
+      "guides/environment"
+    ],
+    "kokoro::technology": [
+      "loom"
+    ],
+    "docker::technology": [
+      "loom",
+      "guides/deployment"
+    ],
+    "rust::technology": [
+      "optic"
+    ],
+    "ratatui::package": [
+      "optic"
+    ],
+    "rusqlite::package": [
+      "optic"
+    ],
+    "crossterm::package": [
+      "optic"
+    ],
+    "cortexdb::concept": [
+      "optic"
+    ],
+    "synapsedb::concept": [
+      "optic"
+    ],
+    "memorymanager::concept": [
+      "cairn"
+    ],
+    "observer::concept": [
+      "cairn"
+    ],
+    "reflector::concept": [
+      "cairn"
+    ],
+    "promoter::concept": [
+      "cairn"
+    ],
+    "graph extractor::concept": [
+      "cairn"
+    ],
+    "pnpm::technology": [
+      "cairn"
+    ],
+    "node:sqlite::technology": [
+      "db"
+    ],
+    "databasesync::technology": [
+      "db"
+    ],
+    "createdb::concept": [
+      "db"
+    ],
+    "runmigrations::concept": [
+      "db"
+    ],
+    "nodesqlitedialect::concept": [
+      "db"
+    ],
+    "nodesqlitedriver::concept": [
+      "db"
+    ],
+    "nodesqliteconnection::concept": [
+      "db"
+    ],
+    "better-sqlite3::technology": [
+      "db"
+    ],
+    "systemd::technology": [
+      "guides/deployment"
+    ],
+    "self-deploy pipeline::pattern": [
+      "guides/deployment"
+    ],
+    "deploy/dockerfile::entity": [
+      "guides/deployment"
+    ],
+    "deploy/docker-compose.yml::entity": [
+      "guides/deployment"
+    ],
+    "src/tools/self/self-deploy.ts::entity": [
+      "guides/deployment"
+    ],
+    "src/main.ts::entity": [
+      "guides/deployment"
+    ],
+    "node:22-alpine::technology": [
+      "guides/deployment"
+    ],
+    "git::technology": [
+      "guides/deployment"
+    ],
+    "tsx::package": [
+      "guides/deployment"
+    ],
+    "pnpm::package": [
+      "guides/deployment"
+    ],
+    "vitest::package": [
+      "guides/deployment"
+    ],
+    "typescript::technology": [
+      "guides/deployment"
+    ],
+    "zod::package": [
+      "guides/environment"
+    ],
+    "justfile::technology": [
+      "guides/environment"
+    ],
+    "telegram::technology": [
+      "guides/environment"
+    ],
+    "tavily::technology": [
+      "guides/environment"
+    ],
+    "environment configuration::concept": [
+      "guides/environment"
+    ],
+    "extension secrets::concept": [
+      "guides/environment"
+    ]
+  }
+}

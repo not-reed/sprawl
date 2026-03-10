@@ -1,8 +1,6 @@
 node_modules/
 data/
-!apps/docs/data/
-apps/docs/data/*
-!apps/docs/data/graph/
+!**/src/data/
 .env*
 !.env.*.example
 *.db
