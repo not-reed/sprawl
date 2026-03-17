@@ -26,11 +26,14 @@ async function main() {
   // Sync EXT_* env vars into secrets table
   await syncEnvSecrets(db);
 
-  // Initialize extensions (SOUL.md, skills, dynamic tools + their embeddings)
-  await initExtensions(env.EXTENSIONS_DIR, env.OPENROUTER_API_KEY, db, env.EMBEDDING_MODEL);
-
-  // Pre-compute tool pack embeddings for semantic selection
-  await initPackEmbeddings(env.OPENROUTER_API_KEY, env.EMBEDDING_MODEL);
+  // Initialize extensions (SOUL.md, skills, dynamic tools + cached embeddings)
+  await initExtensions(
+    env.EXTENSIONS_DIR,
+    env.OPENROUTER_API_KEY,
+    db,
+    env.EMBEDDING_MODEL,
+    env.MEMORY_WORKER_MODEL || env.OPENROUTER_MODEL,
+  );
 
   // Create Telegram bot
   const bot = createBot(db);
@@ -41,6 +44,11 @@ async function main() {
   // Start Telegram long polling
   log.info`Construct is running`;
   bot.start({ allowed_updates: ["message", "message_reaction", "callback_query"] });
+
+  // Fire-and-forget: compute tool pack embeddings (only 2 API calls, not worth caching)
+  initPackEmbeddings(env.OPENROUTER_API_KEY, env.EMBEDDING_MODEL).catch((err) => {
+    log.warning`Background pack embedding computation failed: ${err}`;
+  });
 
   // Graceful shutdown
   const shutdown = async () => {
