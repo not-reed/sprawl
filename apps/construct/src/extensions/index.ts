@@ -231,7 +231,19 @@ async function syncSkillsFromDisk(
       )
       .execute();
 
-    // Insert body as single fallback instruction (available immediately)
+    // Delete old instructions and their deps, then insert fallback
+    const oldInstrIds = await db
+      .selectFrom("skill_instructions")
+      .where("skill_id", "=", skillId)
+      .select("id")
+      .execute();
+    if (oldInstrIds.length > 0) {
+      const ids = oldInstrIds.map((r) => r.id);
+      await db
+        .deleteFrom("skill_instruction_deps")
+        .where((eb) => eb.or([eb("from_id", "in", ids), eb("to_id", "in", ids)]))
+        .execute();
+    }
     await db.deleteFrom("skill_instructions").where("skill_id", "=", skillId).execute();
     await db
       .insertInto("skill_instructions")
@@ -273,7 +285,19 @@ async function extractInstructionsInBackground(
         continue;
       }
 
-      // Replace fallback instruction with extracted ones
+      // Replace fallback instruction with extracted ones (delete deps first)
+      const oldIds = await db
+        .selectFrom("skill_instructions")
+        .where("skill_id", "=", id)
+        .select("id")
+        .execute();
+      if (oldIds.length > 0) {
+        const ids = oldIds.map((r) => r.id);
+        await db
+          .deleteFrom("skill_instruction_deps")
+          .where((eb) => eb.or([eb("from_id", "in", ids), eb("to_id", "in", ids)]))
+          .execute();
+      }
       await db.deleteFrom("skill_instructions").where("skill_id", "=", id).execute();
 
       const instructionIds: string[] = [];
