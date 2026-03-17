@@ -13,12 +13,7 @@ import type { Observation, CairnMessage } from "@repo/cairn";
 import { createDb } from "@repo/db";
 import { storeMemory, upsertNode, upsertEdge } from "@repo/cairn";
 import type { AgentResponse, ProcessMessageOpts } from "../agent.js";
-import * as m001 from "../db/migrations/001-initial.js";
-import * as m002 from "../db/migrations/002-fts5-and-embeddings.js";
-import * as m004 from "../db/migrations/004-telegram-message-ids.js";
-import * as m005 from "../db/migrations/005-graph-memory.js";
-import * as m006 from "../db/migrations/006-observational-memory.js";
-import * as m008 from "../db/migrations/008-schedule-prompts.js";
+import { runMigrations } from "../db/migrate.js";
 
 const DIM = 16;
 
@@ -161,12 +156,7 @@ Health: Severe shellfish allergy (carries EpiPen)`,
 
 export async function setupDb(): Promise<Kysely<Database>> {
   const { db } = createDb<Database>(":memory:");
-  await m001.up(db as Kysely<unknown>);
-  await m002.up(db as Kysely<unknown>);
-  await m004.up(db as Kysely<unknown>);
-  await m005.up(db as Kysely<unknown>);
-  await m006.up(db as Kysely<unknown>);
-  await m008.up(db as Kysely<unknown>);
+  await runMigrations(db);
   return db;
 }
 

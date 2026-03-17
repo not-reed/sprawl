@@ -31,12 +31,22 @@ import {
 import { createUsageStatsTool } from "./core/usage-stats.js";
 import { createIdentityReadTool } from "./core/identity-read.js";
 import { createIdentityUpdateTool } from "./core/identity-update.js";
+import { createShellTool } from "./core/shell.js";
 import { createTelegramReactTool } from "./telegram/telegram-react.js";
 import { createTelegramReplyToTool } from "./telegram/telegram-reply-to.js";
 import { createTelegramPinTool } from "./telegram/telegram-pin.js";
 import { createTelegramUnpinTool } from "./telegram/telegram-unpin.js";
 import { createTelegramGetPinnedTool } from "./telegram/telegram-get-pinned.js";
 import { createTelegramAskTool } from "./telegram/telegram-ask.js";
+import {
+  createSkillCreateTool,
+  createSkillUpdateTool,
+  createSkillListTool,
+  createSkillDeleteTool,
+  createSkillInspectTool,
+  createSkillFeedbackTool,
+} from "./self/skill-manage.js";
+import { createSkillConflictsTool } from "./self/skill-discover.js";
 
 // --- Types ---
 
@@ -113,6 +123,7 @@ export const TOOL_PACKS: ToolPack[] = [
         ctx.extensionsDir
           ? (createIdentityUpdateTool(ctx.extensionsDir) as InternalTool<TSchema>)
           : null,
+      (ctx) => createShellTool(ctx.projectRoot) as InternalTool<TSchema>,
     ],
   },
   {
@@ -128,7 +139,7 @@ export const TOOL_PACKS: ToolPack[] = [
   {
     name: "self",
     description:
-      "Read, edit, test, and deploy own source code. View service logs and system health. Self-modification.",
+      "Read, edit, test, and deploy own source code. View service logs and system health. Self-modification. Manage living skills.",
     alwaysLoad: false,
     factories: [
       (ctx) => createSelfReadTool(ctx.projectRoot, ctx.extensionsDir) as InternalTool<TSchema>,
@@ -145,6 +156,16 @@ export const TOOL_PACKS: ToolPack[] = [
       (ctx) =>
         ctx.isDev ? null : (createSelfDeployTool(ctx.projectRoot) as InternalTool<TSchema>),
       () => createExtensionReloadTool() as InternalTool<TSchema>,
+      (ctx) =>
+        createSkillCreateTool(ctx.db, ctx.apiKey, ctx.embeddingModel) as InternalTool<TSchema>,
+      (ctx) =>
+        createSkillUpdateTool(ctx.db, ctx.apiKey, ctx.embeddingModel) as InternalTool<TSchema>,
+      (ctx) => createSkillListTool(ctx.db) as InternalTool<TSchema>,
+      (ctx) => createSkillDeleteTool(ctx.db) as InternalTool<TSchema>,
+      (ctx) => createSkillInspectTool(ctx.db) as InternalTool<TSchema>,
+      (ctx) => createSkillFeedbackTool(ctx.db) as InternalTool<TSchema>,
+      (ctx) =>
+        createSkillConflictsTool(ctx.db, ctx.apiKey, ctx.embeddingModel) as InternalTool<TSchema>,
     ],
   },
   {

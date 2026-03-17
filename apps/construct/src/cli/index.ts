@@ -9,12 +9,14 @@ import { env } from "../env.js";
 import { processMessage, isDev } from "../agent.js";
 import { selectAndCreateTools } from "../tools/packs.js";
 import { initExtensions, selectAndCreateDynamicTools } from "../extensions/index.js";
+import { skillsCommand } from "./skills.js";
 
 const main = defineCommand({
   meta: {
     name: "construct",
     description: "Construct CLI — personal braindump companion",
   },
+  subCommands: { skills: skillsCommand },
   args: {
     message: {
       type: "positional",

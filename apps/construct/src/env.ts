@@ -30,7 +30,7 @@ const envSchema = z.object({
     .string()
     .default(defaultExtensionsDir())
     .transform((p) => resolve(p)),
-  EMBEDDING_MODEL: z.string().default("qwen/qwen3-embedding-4b"),
+  EMBEDDING_MODEL: z.string().default("qwen/qwen3-embedding-8b"),
   MEMORY_WORKER_MODEL: z.string().optional(),
 });
 

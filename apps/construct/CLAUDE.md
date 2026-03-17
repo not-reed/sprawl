@@ -61,6 +61,24 @@ src/
     └── secrets.ts       # Secrets table + EXT_* sync
 ```
 
+## Tools vs Skills
+
+**Tools** (in `src/tools/`) = capability primitives that enable actions otherwise impossible:
+
+- `memory_store`, `memory_recall` — persistence without tools, no memory
+- `shell_tool` — OS access
+- `web_search`, `web_read` — network queries
+
+Tools are always available (core pack) or selected semantically. They don't execute themselves — they're called by the agent.
+
+**Skills** (in `extensions/skills/`) = instructional knowledge about _how_ to orchestrate tools:
+
+- "To authenticate with Jellyfin, use `Authorization: Bearer {JELLYFIN_TOKEN}`"
+- "To fetch watch history: GET `/Users/{userId}/Items?SortBy=DatePlayed`"
+- "Requires: Jellyfin auth first"
+
+Skills are extracted into atomic instructions, indexed by embedding, and injected contextually into the system prompt. They evolve through observation: when the agent chains multiple tool calls successfully, dependency edges are recorded. When tool errors occur, the implicated instruction is tracked for feedback loops.
+
 ## Tool Pattern
 
 Each tool is a factory function in its own file. Returns `InternalTool`:

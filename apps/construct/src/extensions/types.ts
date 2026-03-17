@@ -14,7 +14,22 @@ export interface Skill {
   description: string;
   requires: ExtensionRequirements;
   body: string;
-  filePath: string;
+  filePath?: string;
+}
+
+/** Atomic behavioral instruction extracted from a skill body */
+export interface SkillInstruction {
+  id: string;
+  skillId: string;
+  instruction: string;
+  position: number;
+}
+
+/** Dependency between two instructions */
+export interface SkillInstructionDep {
+  fromId: string;
+  toId: string;
+  relation: "requires" | "extends";
 }
 
 /** What a dynamic tool .ts file exports */
