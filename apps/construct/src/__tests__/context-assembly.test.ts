@@ -32,15 +32,7 @@ describe("buildContextPreamble — full preamble", () => {
         { content: "Alex is allergic to shellfish", category: "health", score: 0.95 },
         { content: "Alex works at DataPipe", category: "work", score: 0.82 },
       ],
-      skills: [
-        {
-          name: "Daily Standup",
-          description: "Run standup",
-          requires: {},
-          body: "Ask about blockers and progress.",
-          filePath: "",
-        },
-      ],
+      skillInstructions: ["[Daily Standup]", "- Ask about blockers and progress."],
       replyContext: "What should I have for dinner?",
     });
 
@@ -61,10 +53,10 @@ describe("buildContextPreamble — full preamble", () => {
     expect(preamble).toContain("(health) Alex is allergic to shellfish (95% match)");
     expect(preamble).toContain("(work) Alex works at DataPipe (82% match)");
 
-    // Skills section
-    expect(preamble).toContain("[Active skills");
-    expect(preamble).toContain("### Daily Standup");
-    expect(preamble).toContain("Ask about blockers");
+    // Skill instructions section
+    expect(preamble).toContain("[Relevant skill instructions");
+    expect(preamble).toContain("[Daily Standup]");
+    expect(preamble).toContain("- Ask about blockers");
 
     // Reply context
     expect(preamble).toContain('[Replying to: "What should I have for dinner?"]');
@@ -131,12 +123,11 @@ describe("buildContextPreamble — empty inputs", () => {
       source: "test",
       recentMemories: [],
       relevantMemories: [],
-      skills: [],
     });
 
     expect(preamble).not.toContain("[Recent memories");
     expect(preamble).not.toContain("[Potentially relevant memories]");
-    expect(preamble).not.toContain("[Active skills");
+    expect(preamble).not.toContain("[Relevant skill instructions");
   });
 });
 

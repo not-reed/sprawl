@@ -1,4 +1,4 @@
-import type { Skill } from "./extensions/types.js";
+// No need to import Skill type anymore
 
 /**
  * Base system prompt — static part that enables prompt caching.
@@ -22,6 +22,7 @@ Your tools describe their own capabilities. Use them freely; don't ask permissio
 - Do not proactively surface future tasks unless the current conversation creates a relevant connection. Scheduled reminders exist for a reason — let them fire at their scheduled time.
 - Never deploy without passing tests.
 - Never edit files outside src/, cli/, or extensions/.
+- Message annotations like [YYYY-MM-DD HH:MM] and [tg:ID] in history are metadata — never include them in responses.
 
 ## Telegram Interactions
 
@@ -128,7 +129,7 @@ export function formatNow(timezone: string): string {
  * Build a context preamble to prepend to the user's message.
  * This keeps the system prompt static/cacheable while injecting
  * per-request dynamic context, including recent memories for
- * pattern recognition and selected skills.
+ * pattern recognition and selected skill instructions.
  */
 export function buildContextPreamble(context: {
   timezone: string;
@@ -136,8 +137,13 @@ export function buildContextPreamble(context: {
   dev?: boolean;
   observations?: string;
   recentMemories?: Array<{ content: string; category: string; created_at: string }>;
-  relevantMemories?: Array<{ content: string; category: string; score?: number }>;
-  skills?: Skill[];
+  relevantMemories?: Array<{
+    content: string;
+    category: string;
+    score?: number;
+    created_at?: string;
+  }>;
+  skillInstructions?: string[];
   replyContext?: string;
 }): string {
   const now = new Date();
@@ -171,22 +177,24 @@ export function buildContextPreamble(context: {
     preamble +=
       "\n[Recent memories — use these for context, pattern recognition, and continuity]\n";
     for (const m of context.recentMemories) {
-      preamble += `- (${m.category}) ${m.content}\n`;
+      const dateStr = m.created_at ? ` [${m.created_at.slice(0, 16).replace("T", " ")}]` : "";
+      preamble += `- ${dateStr} (${m.category}) ${m.content}\n`;
     }
   }
 
   if (context.relevantMemories && context.relevantMemories.length > 0) {
     preamble += "\n[Potentially relevant memories]\n";
     for (const m of context.relevantMemories) {
+      const dateStr = m.created_at ? ` [${m.created_at.slice(0, 16).replace("T", " ")}]` : "";
       const score = m.score !== undefined ? ` (${(m.score * 100).toFixed(0)}% match)` : "";
-      preamble += `- (${m.category}) ${m.content}${score}\n`;
+      preamble += `- ${dateStr} (${m.category}) ${m.content}${score}\n`;
     }
   }
 
-  if (context.skills && context.skills.length > 0) {
-    preamble += "\n[Active skills — follow these instructions when relevant]\n";
-    for (const skill of context.skills) {
-      preamble += `\n### ${skill.name}\n${skill.body}\n`;
+  if (context.skillInstructions && context.skillInstructions.length > 0) {
+    preamble += "\n[Relevant skill instructions]\n";
+    for (const instr of context.skillInstructions) {
+      preamble += `${instr}\n`;
     }
   }
 

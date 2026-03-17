@@ -103,10 +103,11 @@ export function createMemoryRecallTool(
       }
 
       const lines = allResults.map((m) => {
+        const timeStr = m.created_at ? `[${m.created_at.slice(0, 16).replace("T", " ")}] ` : "";
         const match = m.matchType ? ` [${m.matchType}]` : "";
         const score =
           "score" in m && m.score !== undefined ? ` (${(m.score * 100).toFixed(0)}%)` : "";
-        return `[${m.id}] (${m.category}) ${m.content}${m.tags ? ` — tags: ${m.tags}` : ""}${match}${score}`;
+        return `${timeStr}[${m.id}] (${m.category}) ${m.content}${m.tags ? ` — tags: ${m.tags}` : ""}${match}${score}`;
       });
 
       return {

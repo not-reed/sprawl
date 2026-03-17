@@ -1,13 +1,7 @@
 import { Cron } from "croner";
 import type { Kysely } from "kysely";
 import type { Bot } from "grammy";
-import {
-  listSchedules,
-  markScheduleRun,
-  cancelSchedule,
-  getOrCreateConversation,
-  saveMessage,
-} from "../db/queries.js";
+import { listSchedules, markScheduleRun, cancelSchedule } from "../db/queries.js";
 import { schedulerLog } from "../logger.js";
 import type { Database, Schedule } from "../db/schema.js";
 import { processMessage } from "../agent.js";
@@ -77,8 +71,8 @@ async function fireAgentSchedule(db: Kysely<Database>, bot: Bot, schedule: Sched
     ].join("\n");
 
     const response = await processMessage(db, framedInstruction, {
-      source: "scheduler",
-      externalId: `schedule:${schedule.id}`,
+      source: "telegram",
+      externalId: schedule.chat_id,
       chatId: schedule.chat_id,
     });
     await markScheduleRun(db, schedule.id);
@@ -90,23 +84,14 @@ async function fireAgentSchedule(db: Kysely<Database>, bot: Bot, schedule: Sched
         await bot.api.sendMessage(schedule.chat_id, markdownToTelegramHtml(text), {
           parse_mode: "HTML",
         });
-      } catch {
-        // HTML parse failed — send as plain text
+      } catch (htmlErr) {
+        // HTML parse failed — try plain text
+        schedulerLog.debug`HTML send failed for schedule [${schedule.id}], retrying as plain text: ${htmlErr}`;
         await bot.api.sendMessage(schedule.chat_id, text);
       }
+    }
 
-      // Mirror to user's telegram conversation history
-      try {
-        const conversationId = await getOrCreateConversation(db, "telegram", schedule.chat_id);
-        await saveMessage(db, {
-          conversation_id: conversationId,
-          role: "assistant",
-          content: `[Scheduled: ${schedule.description}] ${text}`,
-        });
-      } catch (saveErr) {
-        schedulerLog.error`Failed to save agent schedule message to history [${schedule.id}]: ${saveErr}`;
-      }
-
+    if (text) {
       schedulerLog.info`Agent schedule [${schedule.id}] fired, response delivered (${text.length} chars)`;
     } else {
       schedulerLog.info`Agent schedule [${schedule.id}] fired silently (empty response)`;

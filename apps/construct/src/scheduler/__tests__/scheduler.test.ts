@@ -85,7 +85,8 @@ describe("scheduler", () => {
       db,
       expect.stringContaining("overdue reminder"),
       expect.objectContaining({
-        source: "scheduler",
+        source: "telegram",
+        externalId: "12345",
         chatId: "12345",
       }),
     );
@@ -274,8 +275,8 @@ describe("scheduler", () => {
       db,
       expect.stringContaining("Check the weather and alert if cold"),
       expect.objectContaining({
-        source: "scheduler",
-        externalId: `schedule:${s.id}`,
+        source: "telegram",
+        externalId: "12345",
         chatId: "12345",
       }),
     );
@@ -295,6 +296,7 @@ describe("scheduler", () => {
     });
 
     const s = await insertSchedule(db, {
+      description: "Background task",
       run_at: "2020-01-01T00:00:00Z",
       message: "Background task",
       prompt: "Run system updates silently",
@@ -315,6 +317,35 @@ describe("scheduler", () => {
       .where("id", "=", s.id)
       .executeTakeFirstOrThrow();
     expect(row.last_run_at).toBeTruthy();
+  });
+
+  it("runs in telegram conversation so response is saved to chat history", async () => {
+    const bot = makeMockBot();
+    mockProcessMessage.mockResolvedValueOnce({
+      text: "Weather is sunny today!",
+      toolCalls: [],
+    });
+
+    const s = await insertSchedule(db, {
+      run_at: "2020-01-01T00:00:00Z",
+      message: "Check weather",
+      prompt: "Check the weather",
+      chat_id: "12345",
+    });
+
+    registerJob(db, bot, s, "UTC");
+    await new Promise((r) => setTimeout(r, 100));
+
+    // processMessage called with telegram source so it saves directly to chat history
+    expect(mockProcessMessage).toHaveBeenCalledWith(
+      db,
+      expect.stringContaining("Check the weather"),
+      expect.objectContaining({
+        source: "telegram",
+        externalId: "12345",
+        chatId: "12345",
+      }),
+    );
   });
 
   it("does not crash scheduler when agent throws", async () => {
@@ -356,7 +387,8 @@ describe("scheduler", () => {
       db,
       expect.stringContaining("plain reminder"),
       expect.objectContaining({
-        source: "scheduler",
+        source: "telegram",
+        externalId: "12345",
         chatId: "12345",
       }),
     );

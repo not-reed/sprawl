@@ -22,11 +22,12 @@ import {
   CONSTRUCT_OBSERVER_PROMPT,
   CONSTRUCT_REFLECTOR_PROMPT,
 } from "./memory.js";
+import { extractSkillsFromObservations, detectConflicts } from "./skills/discovery.js";
 import { selectAndCreateTools, type InternalTool } from "./tools/packs.js";
 import {
-  selectSkills,
   getExtensionRegistry,
   selectAndCreateDynamicTools,
+  selectAndRetrieveSkillInstructions,
 } from "./extensions/index.js";
 
 // Adapt internal tool → pi-agent-core AgentTool
@@ -152,10 +153,23 @@ export async function processMessage(
 
   agentLog.debug`Context: ${recentMemories.length} recent memories, ${relevantMemories.length} relevant memories`;
 
-  // 5. Select relevant skills based on query embedding
-  const selectedSkills = selectSkills(queryEmbedding);
-  if (selectedSkills.length > 0) {
-    agentLog.debug`Selected skills: ${selectedSkills.map((s) => s.name).join(", ")}`;
+  // 5. Select relevant skill instructions based on query embedding
+  const selectedInstructions = await selectAndRetrieveSkillInstructions(queryEmbedding);
+
+  // 5a. Validate instructions for conflicts
+  if (selectedInstructions.length > 1) {
+    try {
+      const conflicts = await detectConflicts(db, env.OPENROUTER_API_KEY, env.EMBEDDING_MODEL);
+      if (conflicts.length > 0) {
+        agentLog.warning`Conflicting instructions detected in this context: ${conflicts.length} conflict(s)`;
+        for (const conflict of conflicts) {
+          agentLog.warning`- ${conflict.conflictType}: "${conflict.instructionA.text}" vs "${conflict.instructionB.text}"`;
+        }
+        // TODO: Could warn user or prefer one skill over the other
+      }
+    } catch (err) {
+      agentLog.debug`Failed to check for instruction conflicts: ${err}`;
+    }
   }
 
   // 6. Build context preamble (dynamic, prepended to user message)
@@ -170,7 +184,7 @@ export async function processMessage(
       created_at: m.created_at,
     })),
     relevantMemories,
-    skills: selectedSkills,
+    skillInstructions: selectedInstructions,
     replyContext: opts.replyContext,
   });
 
@@ -211,12 +225,17 @@ export async function processMessage(
   // 9. Replay conversation history so the agent has multi-turn context
   for (const msg of historyMessages) {
     const tgPrefix = msg.telegram_message_id ? `[tg:${msg.telegram_message_id}] ` : "";
+    const timeStr = msg.created_at ? `[${msg.created_at.slice(0, 16).replace("T", " ")}] ` : "";
     if (msg.role === "user") {
-      agent.appendMessage({ role: "user", content: tgPrefix + msg.content, timestamp: Date.now() });
+      agent.appendMessage({
+        role: "user",
+        content: timeStr + tgPrefix + msg.content,
+        timestamp: Date.now(),
+      });
     } else if (msg.role === "assistant") {
       agent.appendMessage({
         role: "assistant",
-        content: [{ type: "text", text: tgPrefix + msg.content }],
+        content: [{ type: "text", text: msg.content }],
         api: "openrouter",
         provider: "openrouter",
         model: env.OPENROUTER_MODEL,
@@ -262,6 +281,24 @@ export async function processMessage(
         args: undefined,
         result: String(event.result),
       });
+
+      // TODO: On successful execution, create "applied_in" edges to skill instructions
+      // that were injected into the context. This records which instructions led to
+      // successful tool invocation for learning + observability.
+      // if (event.result?.success) {
+      //   for (const instrId of selectedInstructions) {
+      //     await memoryManager.upsertEdge(instrId, eventId, "applied_in");
+      //   }
+      // }
+
+      // TODO: On tool error, create "failed_on" edges to implicated instructions.
+      // This helps identify which instructions need fixing.
+      // if (event.result?.error) {
+      //   const implicated = getImplicatedInstructions(event.toolName, selectedInstructions);
+      //   for (const instrId of implicated) {
+      //     await memoryManager.upsertEdge(instrId, eventId, "failed_on");
+      //   }
+      // }
     }
   });
 
@@ -279,12 +316,15 @@ export async function processMessage(
   const observationTokens = observationsText ? estimateTokens(observationsText) : 0;
   const recentMemTokens = recentMemories.reduce((sum, m) => sum + estimateTokens(m.content), 0);
   const relevantMemTokens = relevantMemories.reduce((sum, m) => sum + estimateTokens(m.content), 0);
-  const skillTokens = selectedSkills.reduce((sum, s) => sum + estimateTokens(s.body), 0);
+  const instructionTokens = selectedInstructions.reduce(
+    (sum, instr) => sum + estimateTokens(instr),
+    0,
+  );
   const historyTokens = historyMessages.reduce((sum, m) => sum + estimateTokens(m.content), 0);
   const toolCount = tools.length;
   const preambleTokens = estimateTokens(preamble);
   const totalContextTokens = systemTokens + preambleTokens + historyTokens;
-  agentLog.info`Context breakdown: system=${systemTokens} observations=${observationTokens} recentMem=${recentMemTokens}(${recentMemories.length}) relevantMem=${relevantMemTokens}(${relevantMemories.length}) skills=${skillTokens}(${selectedSkills.length}) history=${historyTokens}(${historyMessages.length}msgs) tools=${toolCount} preamble=${preambleTokens} total=${totalContextTokens}`;
+  agentLog.info`Context breakdown: system=${systemTokens} observations=${observationTokens} recentMem=${recentMemTokens}(${recentMemories.length}) relevantMem=${relevantMemTokens}(${relevantMemories.length}) instructions=${instructionTokens}(${selectedInstructions.length}) history=${historyTokens}(${historyMessages.length}msgs) tools=${toolCount} preamble=${preambleTokens} total=${totalContextTokens}`;
 
   // 13. Run agent — prepend context preamble to first message
   // (subsequent steps renumbered: save=14, usage=15, observer=16)
@@ -293,8 +333,9 @@ export async function processMessage(
   await agent.waitForIdle();
   agentLog.info`Agent finished. Response length: ${responseText.length}, tool calls: ${toolCalls.length}`;
 
-  // Strip leaked [tg:ID] prefixes from response (LLM sometimes echoes them from history)
+  // Strip leaked [tg:ID] and timestamp prefixes from response (LLM sometimes echoes them from history)
   responseText = responseText.replace(/\[tg:\d+\]\s*/g, "");
+  responseText = responseText.replace(/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\]\s*/gm, "");
 
   // 13. Save assistant response
   const assistantMessageId = await saveMessage(db, {
@@ -325,6 +366,30 @@ export async function processMessage(
       if (ran) {
         // Promote novel observations to searchable memories before reflector condenses them
         await memoryManager.promoteObservations(conversationId);
+
+        // 15a. Extract emergent skills from observations
+        try {
+          const activeObs = await memoryManager.getActiveObservations(conversationId);
+          const extracted = await extractSkillsFromObservations(
+            activeObs,
+            env.OPENROUTER_API_KEY,
+            env.EMBEDDING_MODEL,
+          );
+
+          if (extracted.length > 0) {
+            agentLog.info`Extracted ${extracted.length} potential skill(s) from observations`;
+            for (const skill of extracted) {
+              if (skill.confidence >= 0.6) {
+                agentLog.info`Emergent skill: "${skill.name}" (confidence: ${(skill.confidence * 100).toFixed(0)}%)`;
+              }
+            }
+            // TODO: Optionally create skills via skill_create tool
+            // or announce to user: "I noticed a pattern... would you like me to save it as a skill?"
+          }
+        } catch (err) {
+          agentLog.warning`Failed to extract skills from observations: ${err}`;
+        }
+
         // Then check if reflector should condense
         return memoryManager.runReflector(conversationId);
       }
