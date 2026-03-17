@@ -13,4 +13,5 @@ target/
 .direnv/
 .plans/
 .blog/drafts/
-rules/
+deploy/lima/case.yaml
+deploy/lima/cairn.yaml

@@ -71,6 +71,20 @@
    - Key systems: `inbox/identity.ts` (Ed25519 via node:crypto), `inbox/server.ts` (Hono POST /inbox), `peers` + `inbox_messages` tables, `getInboxSystemPrompt()`, scheduler integration
    - Notable: "share availability windows, not reasons" privacy rule; `mutual` flag is informational not a gate; phase 2 scoped out (service peers, per-peer permissions, persistent nonce log)
 
+10. **Living Skills: From Static Docs to Self-Healing Instruction Systems** (`.blog/drafts/living-skills.md`)
+
+- Topic: The skills decomposition and execution tracking system
+- Angle: Atomic instruction extraction from skill bodies, embedding-based retrieval with transitive dependency traversal, execution attribution, emergent discovery and conflict detection as natural extensions
+- Key systems: `apps/construct/src/extensions/instructions.ts` (LLM extraction), `apps/construct/src/extensions/embeddings.ts` (`selectSkillInstructions`, transitive closure), `apps/construct/src/extensions/index.ts` (`syncSkillsFromDisk`), `apps/construct/src/tools/self/skill-manage.ts` (skill_feedback, skill_inspect, etc.), migrations 011-013
+- Notable: `implicated_instruction_id` in `skill_executions` ties tool errors to specific instructions; version tracking via `parent_id` lineage; sync is content-addressed (body hash diff); extraction fallback wraps whole body as single instruction on LLM failure
+
+11. **The Stdin/Stdout Contract Is Already Good Enough** (`.blog/drafts/cli-over-mcp.md`)
+
+- Topic: CLI-first tooling vs. MCP for agent-accessible tools
+- Angle: MCP's real costs (dual implementation, protocol versioning, JSON-RPC debugging friction); nine independent media-stack CLIs using incur + Zod as the alternative; `--llms` flag for agent discovery; TOON output format for token efficiency
+- Key code: media-cli CLAUDE.md (project spec), incur README/SKILL.md, `arrClient` shared auth pattern, `--llms` markdown manifest, incur token comparison table (3x fewer tokens vs MCP+JSON)
+- Notable: incur supports `--mcp` flag so CLI-first does not preclude MCP; composition via pipes; "can you debug it without the agent present?" as the practical test
+
 ## Areas to Avoid (already covered or thin)
 
 - General "how Construct works" tour — too broad

@@ -173,3 +173,21 @@ docs-extract:
 # Run blog commands
 blog *args="":
     cd .blog && just {{args}}
+
+# --- Lima ---
+
+# Start a lima instance (e.g., just lima-start my-instance)
+lima-start instance:
+    limactl start deploy/lima/{{instance}}.yaml
+
+# Stop a lima instance
+lima-stop instance:
+    limactl stop {{instance}}
+
+# Shell into a lima instance
+lima-shell instance:
+    limactl shell {{instance}}
+
+# Tail logs inside a lima instance
+lima-logs instance:
+    limactl shell {{instance}} journalctl --user -u construct-{{instance}} -f

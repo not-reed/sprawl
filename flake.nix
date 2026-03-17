@@ -21,6 +21,7 @@
           pkgs.pkg-config
           pkgs.gcc
           pkgs.go
+          pkgs.lima
         ];
 
         shellHook = ''

@@ -91,6 +91,7 @@ Additional formatting rules:
 - Appropriate headers to break up sections
 - Code blocks with language annotations
 - No unnecessary preamble or meta-commentary about the writing process
+- **Description must be ≤150 characters** (prose.sh database constraint). Keep it punchy: focus on the insight, not a detailed summary.
 
 ## Quality Checks
 

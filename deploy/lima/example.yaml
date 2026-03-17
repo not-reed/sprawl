@@ -1,0 +1,27 @@
+# Example Lima Template
+# Usage: limactl start example.yaml
+vmType: "qemu"
+os: "Linux"
+memory: "4GiB"
+cpus: 2
+
+images:
+  - location: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64.img"
+    arch: "x86_64"
+  - location: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-arm64.img"
+    arch: "aarch64"
+
+mounts:
+  - location: "~"
+    mountPoint: "/home/{{.User}}"
+    writable: true
+
+provision:
+  - mode: system
+    script: |
+      apt-get update && apt-get install -y curl git build-essential
+      curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir /usr/local/bin --skip-shell
+      export PATH="/usr/local/bin:$PATH"
+      fnm install 22 && fnm use 22
+      corepack enable pnpm
+      curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
