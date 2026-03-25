@@ -331,6 +331,15 @@ export async function selectSkillInstructions(
     .toSorted((a, b) => b.score - a.score)
     .slice(0, maxInstructions);
 
+  if (scored.length > 0) {
+    const scoreSummary = scored
+      .map(
+        (s) => `${s.instr.skillId}:"${s.instr.instruction.slice(0, 50)}" (${s.score.toFixed(2)})`,
+      )
+      .join(", ");
+    agentLog.debug`Instruction scores above threshold: ${scoreSummary}`;
+  }
+
   // Collect selected instructions + transitive dependencies
   const selected = new Set<string>();
   const toAdd = new Set(scored.map((s) => s.instr.id));

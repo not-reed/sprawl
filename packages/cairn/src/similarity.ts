@@ -8,6 +8,6 @@ export const SIMILARITY = {
   GRAPH_SEARCH: 0.3 as number,
   /** Tool pack selection threshold. */
   PACK_SELECTION: 0.3 as number,
-  /** Skill selection threshold. Slightly higher to avoid false matches. */
-  SKILL_SELECTION: 0.35 as number,
+  /** Skill selection threshold. Must be high enough to reject noise from short/generic queries. */
+  SKILL_SELECTION: 0.45 as number,
 };

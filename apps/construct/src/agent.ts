@@ -29,6 +29,7 @@ import {
   selectAndCreateDynamicTools,
   selectAndRetrieveSkillInstructions,
 } from "./extensions/index.js";
+import { upsertNode, upsertEdge } from "@repo/cairn";
 
 // Adapt internal tool → pi-agent-core AgentTool
 function createPiTool<T extends TSchema>(tool: InternalTool<T>): AgentTool<T, unknown> {
@@ -133,7 +134,12 @@ export async function processMessage(
   // Try to find semantically relevant memories for this specific message
   // queryEmbedding is also reused for tool pack selection below
   let queryEmbedding: number[] | undefined;
-  let relevantMemories: Array<{ content: string; category: string; score?: number }> = [];
+  let relevantMemories: Array<{
+    content: string;
+    category: string;
+    score?: number;
+    matchType?: string;
+  }> = [];
   try {
     queryEmbedding = await generateEmbedding(env.OPENROUTER_API_KEY, message, env.EMBEDDING_MODEL);
     const results = await recallMemories(db, message, {
@@ -145,7 +151,12 @@ export async function processMessage(
     const recentIds = new Set(recentMemories.map((m) => m.id));
     relevantMemories = results
       .filter((m) => !recentIds.has(m.id))
-      .map((m) => ({ content: m.content, category: m.category, score: m.score }));
+      .map((m) => ({
+        content: m.content,
+        category: m.category,
+        score: m.score,
+        matchType: m.matchType,
+      }));
   } catch {
     // Embedding call failed — no relevant memories, that's fine
     // queryEmbedding stays undefined → all tool packs will load (graceful fallback)
@@ -154,7 +165,8 @@ export async function processMessage(
   agentLog.debug`Context: ${recentMemories.length} recent memories, ${relevantMemories.length} relevant memories`;
 
   // 5. Select relevant skill instructions based on query embedding
-  const selectedInstructions = await selectAndRetrieveSkillInstructions(queryEmbedding);
+  const { formatted: selectedInstructions, instructionIds: selectedInstructionIds } =
+    await selectAndRetrieveSkillInstructions(queryEmbedding);
 
   // 5a. Validate instructions for conflicts
   if (selectedInstructions.length > 1) {
@@ -259,6 +271,9 @@ export async function processMessage(
   const totalUsage = { input: 0, output: 0, cost: 0 };
   let hasUsage = false;
 
+  const toolErrors: Array<{ toolName: string; result: string }> = [];
+  let toolSuccesses = 0;
+
   agent.subscribe((event) => {
     if (event.type === "message_update") {
       if (event.assistantMessageEvent.type === "text_delta") {
@@ -282,23 +297,12 @@ export async function processMessage(
         result: String(event.result),
       });
 
-      // TODO: On successful execution, create "applied_in" edges to skill instructions
-      // that were injected into the context. This records which instructions led to
-      // successful tool invocation for learning + observability.
-      // if (event.result?.success) {
-      //   for (const instrId of selectedInstructions) {
-      //     await memoryManager.upsertEdge(instrId, eventId, "applied_in");
-      //   }
-      // }
-
-      // TODO: On tool error, create "failed_on" edges to implicated instructions.
-      // This helps identify which instructions need fixing.
-      // if (event.result?.error) {
-      //   const implicated = getImplicatedInstructions(event.toolName, selectedInstructions);
-      //   for (const instrId of implicated) {
-      //     await memoryManager.upsertEdge(instrId, eventId, "failed_on");
-      //   }
-      // }
+      // Track tool errors for failed_on edges (processed after agent finishes)
+      if (event.isError) {
+        toolErrors.push({ toolName: event.toolName, result: String(event.result) });
+      } else {
+        toolSuccesses++;
+      }
     }
   });
 
@@ -325,6 +329,23 @@ export async function processMessage(
   const preambleTokens = estimateTokens(preamble);
   const totalContextTokens = systemTokens + preambleTokens + historyTokens;
   agentLog.info`Context breakdown: system=${systemTokens} observations=${observationTokens} recentMem=${recentMemTokens}(${recentMemories.length}) relevantMem=${relevantMemTokens}(${relevantMemories.length}) instructions=${instructionTokens}(${selectedInstructions.length}) history=${historyTokens}(${historyMessages.length}msgs) tools=${toolCount} preamble=${preambleTokens} total=${totalContextTokens}`;
+
+  // 12a. Log injected skill instructions at debug level for diagnosing bad context
+  if (selectedInstructions.length > 0) {
+    agentLog.debug`Injected skill instructions:\n${selectedInstructions.join("\n")}`;
+  }
+
+  // 12b. Log relevant memories at debug level
+  if (relevantMemories.length > 0) {
+    const memSummary = relevantMemories
+      .map((m) => {
+        const match = m.matchType ?? "unknown";
+        const score = m.score !== undefined ? ` score=${m.score.toFixed(2)}` : "";
+        return `  [${match}${score}] (${m.category}) ${m.content.slice(0, 100)}${m.content.length > 100 ? "..." : ""}`;
+      })
+      .join("\n");
+    agentLog.debug`Relevant memories:\n${memSummary}`;
+  }
 
   // 13. Run agent — prepend context preamble to first message
   // (subsequent steps renumbered: save=14, usage=15, observer=16)
@@ -357,7 +378,76 @@ export async function processMessage(
     });
   }
 
-  // 15. Run observer async after response (next turn benefits)
+  // 15. Create skill instruction graph edges (fire-and-forget)
+  if (selectedInstructionIds.length > 0 && toolCalls.length > 0) {
+    (async () => {
+      try {
+        // Create a conversation event node
+        const eventNodeName = `conv:${conversationId}:${assistantMessageId}`;
+        const eventNode = await upsertNode(db, { name: eventNodeName, type: "conversation_event" });
+
+        // Resolve instruction DB IDs → graph node IDs
+        const instrNodeIds = new Map<string, string>();
+        for (const instrId of selectedInstructionIds) {
+          const node = await upsertNode(db, { name: instrId, type: "skill_instruction" });
+          instrNodeIds.set(instrId, node.id);
+        }
+
+        if (toolErrors.length === 0 && toolSuccesses > 0) {
+          // All tools succeeded — create applied_in edges from each instruction
+          for (const graphNodeId of instrNodeIds.values()) {
+            await upsertEdge(db, {
+              source_id: graphNodeId,
+              target_id: eventNode.id,
+              relation: "applied_in",
+            });
+          }
+          agentLog.debug`Created applied_in edges: ${instrNodeIds.size} instructions → ${eventNodeName}`;
+        }
+
+        if (toolErrors.length > 0) {
+          // Tool errors — check for implicated instructions in skill_executions
+          const executions = await db
+            .selectFrom("skill_executions")
+            .where("conversation_id", "=", conversationId)
+            .where("implicated_instruction_id", "is not", null)
+            .where("had_tool_errors", "=", 1)
+            .select("implicated_instruction_id")
+            .execute();
+
+          const implicatedIds = new Set(
+            executions
+              .map((e) => e.implicated_instruction_id)
+              .filter((id): id is string => id != null),
+          );
+
+          // Use implicated instructions if available, otherwise all selected
+          const failedIds =
+            implicatedIds.size > 0 ? implicatedIds : new Set(selectedInstructionIds);
+          const errorSummary = toolErrors
+            .map((e) => `${e.toolName}: ${e.result.slice(0, 100)}`)
+            .join("; ");
+
+          for (const instrId of failedIds) {
+            const graphNodeId = instrNodeIds.get(instrId);
+            if (graphNodeId) {
+              await upsertEdge(db, {
+                source_id: graphNodeId,
+                target_id: eventNode.id,
+                relation: "failed_on",
+                properties: { errors: errorSummary },
+              });
+            }
+          }
+          agentLog.debug`Created failed_on edges: ${failedIds.size} instructions → ${eventNodeName}`;
+        }
+      } catch (err) {
+        agentLog.warning`Failed to create skill instruction graph edges: ${err}`;
+      }
+    })();
+  }
+
+  // 16. Run observer async after response (next turn benefits)
   // Non-blocking — fires and forgets. Observer only runs if un-observed
   // messages exceed the token threshold.
   memoryManager

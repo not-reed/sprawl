@@ -2,9 +2,9 @@ import type { Kysely } from "kysely";
 import {
   recallMemories,
   generateEmbedding,
-  searchNodes,
-  traverseGraph,
-  getRelatedMemoryIds,
+  searchNodesWithScores,
+  spreadActivation,
+  getRelatedMemoriesWithScores,
   storeMemory,
   type MemoryManager,
 } from "@repo/cairn";
@@ -29,7 +29,7 @@ interface SignalResult {
  */
 export async function analyzeAllTokens(
   db: Kysely<Database>,
-  _memory: MemoryManager,
+  memory: MemoryManager,
   log: (msg: string) => void,
 ): Promise<void> {
   const tokens = await getActiveTokens(db);
@@ -45,7 +45,7 @@ export async function analyzeAllTokens(
 
     for (const timeframe of ["short", "long"] as const) {
       try {
-        const result = await analyzeToken(db, token, price, timeframe, log);
+        const result = await analyzeToken(db, token, price, timeframe, log, memory);
         if (result) {
           const label = timeframe === "short" ? "24h" : "4w";
           log(
@@ -70,6 +70,7 @@ async function analyzeToken(
   },
   timeframe: "short" | "long",
   log: (msg: string) => void,
+  memory?: MemoryManager,
 ): Promise<SignalResult | null> {
   // 1. Recall relevant memories via hybrid search
   const queryText = await generateRecallQuery(token, price, timeframe);
@@ -89,35 +90,39 @@ async function analyzeToken(
     queryEmbedding,
   });
 
-  // 2. Graph context: find nodes related to this token, traverse
+  // 2. Graph context: find nodes related to this token via spreading activation
   let graphContext = "";
   try {
-    const nodes = await searchNodes(db, token.name, 5, queryEmbedding);
-    if (nodes.length > 0) {
-      const traversals = await Promise.all(
-        nodes.slice(0, 3).map((n) => traverseGraph(db, n.id, 2)),
-      );
+    const seedNodes = await searchNodesWithScores(db, token.name, 5, queryEmbedding);
+    if (seedNodes.length > 0) {
+      const seeds = seedNodes.map((s) => ({ nodeId: s.node.id, score: s.score }));
+      const activated = await spreadActivation(db, seeds, { maxDepth: 2 });
 
-      const allTraversed = traversals.flat();
-      const graphLines = allTraversed.map(
+      const graphLines = activated.map(
         (t) =>
-          `${t.node.display_name} (${t.node.node_type}) — via: ${t.via_relation ?? "root"} [depth ${t.depth}]`,
+          `${t.node.display_name} (${t.node.node_type}) [score ${t.score.toFixed(2)}, depth ${t.depth}]`,
       );
       graphContext = graphLines.join("\n");
 
-      // Get memories linked to graph nodes
-      const nodeIds = allTraversed.map((t) => t.node.id);
-      const relatedMemoryIds = await getRelatedMemoryIds(db, nodeIds);
-      const graphMemories = await Promise.all(
-        relatedMemoryIds
-          .slice(0, 5)
-          .map((id) =>
+      // Get scored memories linked to graph nodes
+      const nodeScoreMap = new Map<string, number>();
+      for (const s of seedNodes) nodeScoreMap.set(s.node.id, s.score);
+      for (const a of activated) nodeScoreMap.set(a.node.id, a.score);
+
+      const scoredMems = await getRelatedMemoriesWithScores(db, nodeScoreMap);
+      const memIds = scoredMems
+        .filter((s) => !memories.some((m) => m.id === s.memoryId))
+        .slice(0, 5)
+        .map((s) => s.memoryId);
+
+      if (memIds.length > 0) {
+        const graphMemories = await Promise.all(
+          memIds.map((id) =>
             db.selectFrom("memories").selectAll().where("id", "=", id).executeTakeFirst(),
           ),
-      );
-      for (const m of graphMemories) {
-        if (m && !memories.some((existing) => existing.id === m.id)) {
-          memories.push(m);
+        );
+        for (const m of graphMemories) {
+          if (m) memories.push(m);
         }
       }
     }
@@ -182,14 +187,32 @@ async function analyzeToken(
     timeframe,
   });
 
-  // 8. Store signal reasoning as a cairn memory (feedback loop)
-  await storeMemory(db, {
-    content: `[Signal ${token.symbol} ${timeframe}] ${parsed.signal.toUpperCase()} (${parsed.confidence.toFixed(2)}): ${parsed.reasoning}`,
+  // 8. Store signal reasoning as a cairn memory with embedding + graph extraction
+  const signalContent = `[Signal ${token.symbol} ${timeframe}] ${parsed.signal.toUpperCase()} (${parsed.confidence.toFixed(2)}): ${parsed.reasoning}`;
+  let signalEmbedding: string | null = null;
+  try {
+    const embedding = await generateEmbedding(
+      env.OPENROUTER_API_KEY,
+      signalContent,
+      env.EMBEDDING_MODEL,
+    );
+    signalEmbedding = JSON.stringify(embedding);
+  } catch {
+    // Proceed without embedding
+  }
+
+  const signalMemory = await storeMemory(db, {
+    content: signalContent,
     category: "signal",
     source: "analyzer",
     tags: JSON.stringify([token.symbol, parsed.signal]),
-    embedding: null,
+    embedding: signalEmbedding,
   });
+
+  // Fire graph extraction async so signal entities (tokens, events) get indexed
+  if (memory) {
+    memory.processStoredMemory(signalMemory.id, signalMemory.content).catch(() => {});
+  }
 
   return parsed;
 }

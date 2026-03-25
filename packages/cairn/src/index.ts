@@ -54,9 +54,12 @@ export { processMemoryForGraph } from "./graph/index.js";
 export { extractEntities, DEFAULT_ENTITY_TYPES } from "./graph/extract.js";
 export {
   searchNodes,
+  searchNodesWithScores,
   traverseGraph,
+  spreadActivation,
   getNodeEdges,
   getRelatedMemoryIds,
+  getRelatedMemoriesWithScores,
   getMemoryNodes,
   findNodeByName,
   upsertNode,

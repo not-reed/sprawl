@@ -14,7 +14,15 @@ import {
   getRecentMemories,
   trackUsage,
 } from "./db/queries.js";
-import { generateEmbedding, MemoryManager, SIMILARITY, type WorkerModelConfig } from "@repo/cairn";
+import {
+  generateEmbedding,
+  MemoryManager,
+  SIMILARITY,
+  searchNodesWithScores,
+  spreadActivation,
+  getRelatedMemoriesWithScores,
+  type WorkerModelConfig,
+} from "@repo/cairn";
 
 export interface ProcessMessageOpts {
   onDelta?: (text: string) => void;
@@ -81,8 +89,42 @@ export async function processMessage(
       queryEmbedding,
       similarityThreshold: SIMILARITY.RECALL_DEFAULT,
     });
-    const recentMems = await getRecentMemories(db, 10);
+
+    // Graph expansion — find memories connected via entity relationships
     const seen = new Set(campaignResults.map((m) => m.id));
+    try {
+      const seedNodes = await searchNodesWithScores(db, message, 5, queryEmbedding);
+      if (seedNodes.length > 0) {
+        const seeds = seedNodes.map((s) => ({ nodeId: s.node.id, score: s.score }));
+        const activated = await spreadActivation(db, seeds, { maxDepth: 2 });
+        const nodeScoreMap = new Map<string, number>();
+        for (const s of seedNodes) nodeScoreMap.set(s.node.id, s.score);
+        for (const a of activated) nodeScoreMap.set(a.node.id, a.score);
+
+        const scoredMems = await getRelatedMemoriesWithScores(db, nodeScoreMap);
+        const newMemIds = scoredMems
+          .filter((s) => !seen.has(s.memoryId))
+          .slice(0, 5)
+          .map((s) => s.memoryId);
+
+        if (newMemIds.length > 0) {
+          const graphMems = await db
+            .selectFrom("memories")
+            .selectAll()
+            .where("id", "in", newMemIds)
+            .where("archived_at", "is", null)
+            .execute();
+          for (const m of graphMems) {
+            campaignResults.push(m);
+            seen.add(m.id);
+          }
+        }
+      }
+    } catch {
+      // Graph expansion is optional — proceed without it
+    }
+
+    const recentMems = await getRecentMemories(db, 10);
     const combined = [...campaignResults];
     for (const m of recentMems) {
       if (!seen.has(m.id) && m.category !== "rules") {

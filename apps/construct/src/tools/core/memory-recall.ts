@@ -3,9 +3,9 @@ import type { Kysely } from "kysely";
 import {
   recallMemories,
   generateEmbedding,
-  searchNodes,
-  traverseGraph,
-  getRelatedMemoryIds,
+  searchNodesWithScores,
+  spreadActivation,
+  getRelatedMemoriesWithScores,
   type Memory,
 } from "@repo/cairn";
 import type { Database } from "../../db/schema.js";
@@ -23,6 +23,16 @@ const MemoryRecallParams = Type.Object({
   limit: Type.Optional(
     Type.Number({
       description: "Max number of results to return (default: 10)",
+    }),
+  ),
+  since: Type.Optional(
+    Type.String({
+      description: "ISO date (YYYY-MM-DD). Only return memories created on or after this date.",
+    }),
+  ),
+  before: Type.Optional(
+    Type.String({
+      description: "ISO date (YYYY-MM-DD). Only return memories created before this date.",
     }),
   ),
 });
@@ -54,39 +64,43 @@ export function createMemoryRecallTool(
         category: args.category,
         limit: args.limit,
         queryEmbedding,
+        since: args.since,
+        before: args.before,
       });
 
-      // Expand via graph traversal — find related memories not in direct results
-      let graphMemories: (Memory & { matchType: string })[] = [];
+      // Expand via graph spreading activation — find related memories not in direct results
+      let graphMemories: (Memory & { matchType: string; score?: number })[] = [];
       try {
         const seen = new Set(memories.map((m) => m.id));
-        const graphNodes = await searchNodes(db, args.query, 5, queryEmbedding);
+        const seedNodes = await searchNodesWithScores(db, args.query, 5, queryEmbedding);
 
-        if (graphNodes.length > 0) {
-          // Traverse 1-2 hops from matching nodes
-          const allNodeIds = new Set<string>();
-          for (const node of graphNodes) {
-            allNodeIds.add(node.id);
-            const traversed = await traverseGraph(db, node.id, 2);
-            for (const t of traversed) {
-              allNodeIds.add(t.node.id);
-            }
-          }
+        if (seedNodes.length > 0) {
+          const seeds = seedNodes.map((s) => ({ nodeId: s.node.id, score: s.score }));
+          const activated = await spreadActivation(db, seeds, { maxDepth: 2 });
 
-          // Find memories linked to these nodes
-          const relatedMemIds = await getRelatedMemoryIds(db, [...allNodeIds]);
-          const newMemIds = relatedMemIds.filter((id) => !seen.has(id));
+          // Build node→score map from seeds + activated nodes
+          const nodeScoreMap = new Map<string, number>();
+          for (const s of seedNodes) nodeScoreMap.set(s.node.id, s.score);
+          for (const a of activated) nodeScoreMap.set(a.node.id, a.score);
 
-          if (newMemIds.length > 0) {
+          // Get memories with scores derived from their linked nodes
+          const scoredMems = await getRelatedMemoriesWithScores(db, nodeScoreMap);
+          const newScoredMems = scoredMems.filter((s) => !seen.has(s.memoryId));
+
+          if (newScoredMems.length > 0) {
+            const memIds = newScoredMems.slice(0, 5).map((s) => s.memoryId);
+            const scoreMap = new Map(newScoredMems.map((s) => [s.memoryId, s.score]));
+
             const relatedMems = await db
               .selectFrom("memories")
               .selectAll()
-              .where("id", "in", newMemIds)
+              .where("id", "in", memIds)
               .where("archived_at", "is", null)
-              .limit(5)
               .execute();
 
-            graphMemories = relatedMems.map((m) => ({ ...m, matchType: "graph" }));
+            graphMemories = relatedMems
+              .map((m) => ({ ...m, matchType: "graph", score: scoreMap.get(m.id) }))
+              .toSorted((a, b) => (b.score ?? 0) - (a.score ?? 0));
           }
         }
       } catch (err) {

@@ -21,6 +21,7 @@ import { extractInstructions, resolveDependencyIds } from "./instructions.js";
 import { agentLog } from "../logger.js";
 import { ExtensionError } from "../errors.js";
 import { nanoid } from "nanoid";
+import { upsertNode, upsertEdge } from "@repo/cairn";
 
 // Singleton registry
 let registry: ExtensionRegistry = {
@@ -146,26 +147,73 @@ async function doReload(): Promise<ExtensionRegistry> {
  * Skills get exported from here later for dynamic edges.
  */
 async function syncAllSkillsToGraph(db: Kysely<Database>): Promise<void> {
-  // Note: This syncs the static structure. Dynamic edges (applied_in, failed_on)
-  // are added during execution in agent.ts when we have the memory manager.
-  // For now, this is a placeholder that logs the count.
   try {
-    const skillCount = await db
+    // Load all active skills
+    const skills = await db
       .selectFrom("skills")
       .where("status", "=", "active")
-      .select(db.fn.count<number>("id").as("count"))
-      .executeTakeFirstOrThrow();
+      .select(["id", "name", "description"])
+      .execute();
 
-    const instrCount = await db
-      .selectFrom("skill_instructions")
-      .innerJoin("skills", "skills.id", "skill_instructions.skill_id")
-      .where("skills.status", "=", "active")
-      .select(db.fn.count<number>("skill_instructions.id").as("count"))
-      .executeTakeFirstOrThrow();
+    if (skills.length === 0) return;
 
-    agentLog.debug`Ready for graph sync: ${skillCount.count} skills, ${instrCount.count} instructions (dynamic edges added during execution)`;
+    // Load all instructions for active skills
+    const instructions = await db
+      .selectFrom("skill_instructions as si")
+      .innerJoin("skills as s", "s.id", "si.skill_id")
+      .where("s.status", "=", "active")
+      .select(["si.id", "si.skill_id", "si.instruction"])
+      .execute();
+
+    // Load all instruction deps
+    const deps = await db
+      .selectFrom("skill_instruction_deps as d")
+      .innerJoin("skill_instructions as si", "si.id", "d.from_id")
+      .innerJoin("skills as s", "s.id", "si.skill_id")
+      .where("s.status", "=", "active")
+      .select(["d.from_id", "d.to_id", "d.relation"])
+      .execute();
+
+    // Map from DB ID → graph node ID for edge creation
+    const nodeIdMap = new Map<string, string>();
+
+    // Upsert skill nodes
+    for (const skill of skills) {
+      const node = await upsertNode(db, {
+        name: skill.id,
+        type: "skill",
+        description: skill.description,
+      });
+      nodeIdMap.set(skill.id, node.id);
+    }
+
+    // Upsert instruction nodes + contains edges
+    for (const instr of instructions) {
+      const node = await upsertNode(db, {
+        name: instr.id,
+        type: "skill_instruction",
+        description: instr.instruction,
+      });
+      nodeIdMap.set(instr.id, node.id);
+
+      const skillNodeId = nodeIdMap.get(instr.skill_id);
+      if (skillNodeId) {
+        await upsertEdge(db, { source_id: skillNodeId, target_id: node.id, relation: "contains" });
+      }
+    }
+
+    // Upsert dependency edges
+    for (const dep of deps) {
+      const fromNodeId = nodeIdMap.get(dep.from_id);
+      const toNodeId = nodeIdMap.get(dep.to_id);
+      if (fromNodeId && toNodeId) {
+        await upsertEdge(db, { source_id: fromNodeId, target_id: toNodeId, relation: "requires" });
+      }
+    }
+
+    agentLog.info`Graph sync: ${skills.length} skills, ${instructions.length} instructions, ${deps.length} deps`;
   } catch (err) {
-    agentLog.warning`Failed to count skills for graph: ${err}`;
+    agentLog.warning`Failed to sync skills to graph: ${err}`;
   }
 }
 
@@ -346,58 +394,6 @@ async function extractInstructionsInBackground(
   }
 }
 
-/**
- * Sync skill instructions to Cairn graph.
- * Called from agent.ts after skill instructions are retrieved, with memory manager available.
- * Creates: instruction nodes + dependency edges.
- * Dynamic edges (applied_in, failed_on) are added during execution.
- */
-export async function syncSkillInstructionsToGraph(
-  instructionIds: string[],
-  deps: Array<{ fromId: string; toId: string; relation: string }>,
-  memoryManager: any,
-): Promise<void> {
-  try {
-    const { upsertNode, upsertEdge } = memoryManager;
-
-    // Upsert instruction nodes
-    for (const instrId of instructionIds) {
-      const instr = await dbRef
-        ?.selectFrom("skill_instructions")
-        .where("id", "=", instrId)
-        .select(["instruction", "skill_id"])
-        .executeTakeFirst();
-
-      if (instr) {
-        // Instruction node
-        await upsertNode(instrId, "skill_instruction", instr.instruction, "");
-
-        // Skill node (may already exist)
-        const skill = await dbRef
-          ?.selectFrom("skills")
-          .where("id", "=", instr.skill_id)
-          .select(["name", "description"])
-          .executeTakeFirst();
-
-        if (skill) {
-          await upsertNode(instr.skill_id, "skill", skill.name, skill.description);
-
-          // Edge: skill contains instruction
-          await upsertEdge(instr.skill_id, instrId, "contains");
-        }
-      }
-    }
-
-    // Upsert dependency edges between instructions
-    for (const dep of deps) {
-      await upsertEdge(dep.fromId, dep.toId, "requires");
-    }
-  } catch (err) {
-    agentLog.warning`Failed to sync instructions to graph: ${err}`;
-    // Non-fatal — instructions are already in DB
-  }
-}
-
 /** Get the current extension registry. */
 export function getExtensionRegistry(): ExtensionRegistry {
   return registry;
@@ -432,12 +428,19 @@ export function selectAndCreateDynamicTools(
   return tools;
 }
 
+export interface SelectedInstructions {
+  /** Formatted lines for system prompt injection */
+  formatted: string[];
+  /** Raw instruction IDs for graph edge creation */
+  instructionIds: string[];
+}
+
 /**
  * Select and retrieve relevant skill instructions for a query, including transitive dependencies.
  */
 export async function selectAndRetrieveSkillInstructions(
   queryEmbedding: number[] | undefined,
-): Promise<string[]> {
+): Promise<SelectedInstructions> {
   const instructions = await selectSkillInstructions(queryEmbedding);
 
   if (instructions.length > 0) {
@@ -467,5 +470,8 @@ export async function selectAndRetrieveSkillInstructions(
     }
   }
 
-  return formatted;
+  return {
+    formatted,
+    instructionIds: instructions.map((i) => i.id),
+  };
 }
