@@ -12,6 +12,7 @@ target/
 .cairn/
 .direnv/
 .plans/
+.superset/
 .blog/drafts/
 deploy/lima/case.yaml
 deploy/lima/cairn.yaml

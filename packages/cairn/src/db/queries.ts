@@ -5,6 +5,133 @@ import { cosineSimilarity } from "../embeddings.js";
 import { SIMILARITY } from "../similarity.js";
 import type { CairnDatabase, Memory, NewMemory, NewAiUsage } from "./types.js";
 
+/**
+ * Common English stop words filtered from FTS5 queries.
+ * These produce high-frequency, low-signal matches when OR'd together.
+ */
+const FTS_STOP_WORDS = new Set([
+  "a",
+  "an",
+  "the",
+  "and",
+  "or",
+  "but",
+  "not",
+  "no",
+  "nor",
+  "is",
+  "am",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+  "do",
+  "does",
+  "did",
+  "has",
+  "have",
+  "had",
+  "having",
+  "will",
+  "would",
+  "shall",
+  "should",
+  "may",
+  "might",
+  "can",
+  "could",
+  "it",
+  "its",
+  "this",
+  "that",
+  "these",
+  "those",
+  "i",
+  "me",
+  "my",
+  "we",
+  "us",
+  "our",
+  "you",
+  "your",
+  "he",
+  "him",
+  "his",
+  "she",
+  "her",
+  "they",
+  "them",
+  "their",
+  "in",
+  "on",
+  "at",
+  "to",
+  "for",
+  "of",
+  "with",
+  "by",
+  "from",
+  "as",
+  "into",
+  "about",
+  "between",
+  "through",
+  "up",
+  "out",
+  "off",
+  "over",
+  "under",
+  "again",
+  "then",
+  "once",
+  "if",
+  "so",
+  "than",
+  "too",
+  "very",
+  "just",
+  "also",
+  "now",
+  "what",
+  "which",
+  "who",
+  "whom",
+  "when",
+  "where",
+  "why",
+  "how",
+  "all",
+  "each",
+  "every",
+  "both",
+  "few",
+  "more",
+  "most",
+  "some",
+  "any",
+  "other",
+  "here",
+  "there",
+  "own",
+  "same",
+  "such",
+  "dont",
+  "im",
+  "ive",
+  "its",
+  "thats",
+  "youre",
+  "were",
+  "theyre",
+  "wont",
+  "cant",
+  "didnt",
+  "doesnt",
+  "isnt",
+]);
+
 // Kysely is invariant in its type parameter: Kysely<A> is not assignable to
 // Kysely<B> even when A extends B. To allow consumers with their own extended
 // database interfaces (e.g. `interface Database extends CairnDatabase { ... }`)
@@ -72,6 +199,10 @@ export async function recallMemories(
     limit?: number;
     queryEmbedding?: number[];
     similarityThreshold?: number;
+    /** ISO date (YYYY-MM-DD). Only return memories created on or after this date. */
+    since?: string;
+    /** ISO date (YYYY-MM-DD). Only return memories created before this date. */
+    before?: string;
   },
 ): Promise<(Memory & { score?: number; matchType?: string })[]> {
   const d = typed(db);
@@ -83,9 +214,9 @@ export async function recallMemories(
   try {
     const ftsQuery = query
       .split(/\s+/)
-      .filter((w) => w.length > 1)
-      .map((w) => `"${w.replace(/"/g, "")}"`)
-      .filter((w) => w !== '""')
+      .map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, ""))
+      .filter((w) => w.length > 1 && !FTS_STOP_WORDS.has(w))
+      .map((w) => `"${w}"`)
       .join(" OR ");
 
     if (ftsQuery) {
@@ -96,6 +227,8 @@ export async function recallMemories(
         WHERE memories_fts MATCH ${ftsQuery}
           AND m.archived_at IS NULL
           ${opts?.category ? sql`AND m.category = ${opts.category}` : sql``}
+          ${opts?.since ? sql`AND m.created_at >= ${opts.since}` : sql``}
+          ${opts?.before ? sql`AND m.created_at < ${opts.before}` : sql``}
         ORDER BY fts.rank
         LIMIT ${limit * 2}
       `.execute(d);
@@ -130,6 +263,8 @@ export async function recallMemories(
       .where("archived_at", "is", null)
       .where("embedding", "is not", null)
       .$if(!!opts.category, (qb) => qb.where("category", "=", opts!.category!))
+      .$if(!!opts.since, (qb) => qb.where("created_at", ">=", opts!.since!))
+      .$if(!!opts.before, (qb) => qb.where("created_at", "<", opts!.before!))
       .execute();
 
     const scored = allWithEmbeddings

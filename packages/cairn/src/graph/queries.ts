@@ -159,6 +159,64 @@ export async function searchNodes(
   return merged;
 }
 
+/**
+ * Like searchNodes but returns similarity scores for use as spreading activation seeds.
+ * LIKE-only matches get a default score of 0.5.
+ */
+export async function searchNodesWithScores(
+  db: AnyDB,
+  query: string,
+  limit = 10,
+  queryEmbedding?: number[],
+): Promise<Array<{ node: GraphNode; score: number }>> {
+  const d = typed(db);
+  const pattern = `%${query.toLowerCase().trim()}%`;
+  const likeResults = await d
+    .selectFrom("graph_nodes")
+    .selectAll()
+    .where("name", "like", pattern)
+    .orderBy("updated_at", "desc")
+    .limit(limit)
+    .execute();
+
+  if (!queryEmbedding) {
+    return (likeResults as GraphNode[]).map((n) => ({ node: n, score: 0.5 }));
+  }
+
+  const threshold = SIMILARITY.GRAPH_SEARCH;
+  const allWithEmbeddings = await d
+    .selectFrom("graph_nodes")
+    .selectAll()
+    .where("embedding", "is not", null)
+    .execute();
+
+  const embeddingMatches = allWithEmbeddings
+    .map((n) => ({
+      node: n as GraphNode,
+      score: cosineSimilarity(queryEmbedding, JSON.parse(n.embedding!)),
+    }))
+    .filter((n) => n.score >= threshold)
+    .toSorted((a, b) => b.score - a.score)
+    .slice(0, limit);
+
+  const seen = new Set<string>();
+  const merged: Array<{ node: GraphNode; score: number }> = [];
+  for (const item of embeddingMatches) {
+    if (!seen.has(item.node.id) && merged.length < limit) {
+      seen.add(item.node.id);
+      merged.push(item);
+    }
+  }
+  for (const node of likeResults) {
+    if (!seen.has(node.id) && merged.length < limit) {
+      seen.add(node.id);
+      merged.push({ node: node as GraphNode, score: 0.5 });
+    }
+  }
+
+  return merged;
+}
+
 // --- Edges ---
 
 /**
@@ -305,6 +363,95 @@ export async function traverseGraph(
 }
 
 /**
+ * Spreading activation: BFS from seed nodes with exponential score decay.
+ * Each hop reduces activation by `decay * edgeWeight`. Nodes reached via
+ * multiple paths accumulate the max activation (not sum — avoids inflation).
+ * @param seeds - Starting nodes with initial activation scores.
+ * @param opts.decay - Score multiplier per hop (default 0.5).
+ * @param opts.maxDepth - Maximum traversal hops (default 2).
+ * @param opts.minActivation - Floor below which nodes are pruned (default 0.01).
+ * @returns Nodes sorted by activation score descending.
+ */
+export async function spreadActivation(
+  db: AnyDB,
+  seeds: Array<{ nodeId: string; score: number }>,
+  opts?: { decay?: number; maxDepth?: number; minActivation?: number },
+): Promise<Array<{ node: GraphNode; score: number; depth: number }>> {
+  const decay = opts?.decay ?? 0.5;
+  const maxDepth = opts?.maxDepth ?? 2;
+  const minActivation = opts?.minActivation ?? 0.01;
+
+  // Track best activation per node
+  const activation = new Map<string, { score: number; depth: number }>();
+
+  // Initialize seeds
+  for (const seed of seeds) {
+    const existing = activation.get(seed.nodeId);
+    if (!existing || seed.score > existing.score) {
+      activation.set(seed.nodeId, { score: seed.score, depth: 0 });
+    }
+  }
+
+  // BFS frontier
+  let frontier = seeds.map((s) => ({ nodeId: s.nodeId, score: s.score, depth: 0 }));
+
+  for (let hop = 0; hop < maxDepth; hop++) {
+    const nextFrontier: typeof frontier = [];
+
+    for (const current of frontier) {
+      const edges = await getNodeEdges(db, current.nodeId);
+
+      for (const edge of edges) {
+        const neighborId = edge.source_id === current.nodeId ? edge.target_id : edge.source_id;
+        // Weight=1 is baseline. Higher weights decay less (up to 1.0 = no decay).
+        // Formula: decay is reduced proportionally to weight, capped so score never exceeds parent.
+        const weightBoost = Math.min(edge.weight, 10) / 10; // 0.1–1.0
+        const effectiveDecay = decay + (1 - decay) * weightBoost; // decay..1.0
+        const neighborScore = current.score * effectiveDecay;
+
+        if (neighborScore < minActivation) continue;
+
+        const existing = activation.get(neighborId);
+        if (!existing || neighborScore > existing.score) {
+          activation.set(neighborId, { score: neighborScore, depth: hop + 1 });
+          nextFrontier.push({ nodeId: neighborId, score: neighborScore, depth: hop + 1 });
+        }
+      }
+    }
+
+    frontier = nextFrontier;
+    if (frontier.length === 0) break;
+  }
+
+  // Remove seed nodes from results (callers already have them)
+  const seedIds = new Set(seeds.map((s) => s.nodeId));
+  const resultIds = [...activation.entries()]
+    .filter(([id]) => !seedIds.has(id))
+    .filter(([, a]) => a.score >= minActivation)
+    .toSorted(([, a], [, b]) => b.score - a.score);
+
+  if (resultIds.length === 0) return [];
+
+  // Batch-fetch all result nodes
+  const nodeIds = resultIds.map(([id]) => id);
+  const nodes = await typed(db)
+    .selectFrom("graph_nodes")
+    .selectAll()
+    .where("id", "in", nodeIds)
+    .execute();
+
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+
+  return resultIds
+    .map(([id, a]) => {
+      const node = nodeMap.get(id);
+      if (!node) return null;
+      return { node: node as GraphNode, score: a.score, depth: a.depth };
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null);
+}
+
+/**
  * Find memories connected to a set of nodes via edges.
  * Returns unique memory IDs from all edges connected to the given nodes.
  */
@@ -320,6 +467,45 @@ export async function getRelatedMemoryIds(db: AnyDB, nodeIds: string[]): Promise
     .execute();
 
   return results.map((r) => r.memory_id!).filter(Boolean);
+}
+
+/**
+ * Find memories connected to scored nodes and assign each memory the
+ * best activation score from its linked nodes.
+ * Use after spreadActivation to rank graph-expanded memories.
+ * @param nodeScoreMap - Map of node ID → activation score (from seeds + spread results).
+ * @returns Scored memory IDs sorted by score descending.
+ */
+export async function getRelatedMemoriesWithScores(
+  db: AnyDB,
+  nodeScoreMap: Map<string, number>,
+): Promise<Array<{ memoryId: string; score: number }>> {
+  const nodeIds = [...nodeScoreMap.keys()];
+  if (nodeIds.length === 0) return [];
+
+  const edges = await typed(db)
+    .selectFrom("graph_edges")
+    .select(["source_id", "target_id", "memory_id"])
+    .where("memory_id", "is not", null)
+    .where((eb) => eb.or([eb("source_id", "in", nodeIds), eb("target_id", "in", nodeIds)]))
+    .execute();
+
+  // For each memory, take the max score from any connected scored node
+  const memoryScores = new Map<string, number>();
+  for (const edge of edges) {
+    const memId = edge.memory_id!;
+    const sourceScore = nodeScoreMap.get(edge.source_id) ?? 0;
+    const targetScore = nodeScoreMap.get(edge.target_id) ?? 0;
+    const best = Math.max(sourceScore, targetScore);
+    const current = memoryScores.get(memId) ?? 0;
+    if (best > current) {
+      memoryScores.set(memId, best);
+    }
+  }
+
+  return [...memoryScores.entries()]
+    .map(([memoryId, score]) => ({ memoryId, score }))
+    .toSorted((a, b) => b.score - a.score);
 }
 
 /**

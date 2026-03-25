@@ -41,10 +41,13 @@ export function renderObservationsWithBudget(
     return { text: "", included: 0, evicted: 0, totalTokens: 0 };
   }
 
-  // Sort by priority desc, then created_at desc (newest first) for greedy packing
+  // Sort by priority desc, then generation desc (survived more compression = more durable),
+  // then created_at desc (newest first) for greedy packing
   const sorted = [...observations].toSorted((a, b) => {
     const pDiff = PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority];
     if (pDiff !== 0) return pDiff;
+    const gDiff = (b.generation ?? 0) - (a.generation ?? 0);
+    if (gDiff !== 0) return gDiff;
     return b.created_at.localeCompare(a.created_at);
   });
 
