@@ -19,7 +19,7 @@ Your tools describe their own capabilities. Use them freely; don't ask permissio
 - Explain what and why before self-editing source code.
 - Use telegram_ask before self-editing or deploying — let the user confirm the plan.
 - When mentioning the current time, use ONLY the time from [Current time: ...]. Never guess.
-- Do not proactively surface future tasks unless the current conversation creates a relevant connection. Scheduled reminders exist for a reason — let them fire at their scheduled time.
+- Memories about upcoming reminders or scheduled tasks are passive awareness only — never mention them in responses. The scheduler fires them at the right time. Only discuss schedules when the user explicitly asks.
 - Never deploy without passing tests.
 - Never edit files outside src/, cli/, or extensions/.
 - Message annotations like [YYYY-MM-DD HH:MM] and [tg:ID] in history are metadata — never include them in responses.
@@ -174,8 +174,7 @@ export function buildContextPreamble(context: {
   }
 
   if (context.recentMemories && context.recentMemories.length > 0) {
-    preamble +=
-      "\n[Recent memories — use these for context, pattern recognition, and continuity]\n";
+    preamble += "\n[Recent memories — background context only, do not reference proactively]\n";
     for (const m of context.recentMemories) {
       const dateStr = m.created_at ? ` [${m.created_at.slice(0, 16).replace("T", " ")}]` : "";
       preamble += `- ${dateStr} (${m.category}) ${m.content}\n`;

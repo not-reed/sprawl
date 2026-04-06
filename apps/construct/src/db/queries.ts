@@ -304,3 +304,7 @@ export async function setSetting(db: DB, key: string, value: string) {
     .onConflict((oc) => oc.column("key").doUpdateSet({ value, updated_at: now }))
     .execute();
 }
+
+export async function deleteSetting(db: DB, key: string): Promise<void> {
+  await db.deleteFrom("settings").where("key", "=", key).execute();
+}

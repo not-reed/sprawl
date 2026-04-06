@@ -15,6 +15,8 @@ import {
   recallMemories,
   saveMessage,
   trackUsage,
+  getSetting,
+  setSetting,
 } from "./db/queries.js";
 import { generateEmbedding, estimateTokens, SIMILARITY, type WorkerModelConfig } from "@repo/cairn";
 import {
@@ -468,13 +470,53 @@ export async function processMessage(
 
           if (extracted.length > 0) {
             agentLog.info`Extracted ${extracted.length} potential skill(s) from observations`;
-            for (const skill of extracted) {
-              if (skill.confidence >= 0.6) {
-                agentLog.info`Emergent skill: "${skill.name}" (confidence: ${(skill.confidence * 100).toFixed(0)}%)`;
+
+            // Only nudge on Telegram — proactive messaging requires bot
+            if (opts.source === "telegram" && opts.chatId && opts.chatId !== "unknown") {
+              try {
+                const candidate = extracted
+                  .filter((s) => s.confidence >= 0.7)
+                  .toSorted((a, b) => b.confidence - a.confidence)[0];
+
+                if (candidate) {
+                  // Name-based dedup: skip if skill already exists
+                  const exists = await db
+                    .selectFrom("skills")
+                    .select("id")
+                    .where("name", "=", candidate.name)
+                    .executeTakeFirst();
+
+                  if (!exists) {
+                    const normalizedName = candidate.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
+                    const ignoredAt = await getSetting(db, `ignored_skill:${normalizedName}`);
+                    const stillIgnored =
+                      ignoredAt &&
+                      Date.now() - new Date(ignoredAt).getTime() < 7 * 24 * 60 * 60 * 1000;
+
+                    const lastNudge = await getSetting(db, `skill_nudge_cooldown:${opts.chatId}`);
+                    const onCooldown =
+                      lastNudge && Date.now() - new Date(lastNudge).getTime() < 24 * 60 * 60 * 1000;
+
+                    if (!stillIgnored && !onCooldown) {
+                      const payload = JSON.stringify({
+                        name: candidate.name,
+                        description: candidate.description,
+                        body: candidate.body,
+                      });
+                      await setSetting(db, `skill_nudge:${opts.chatId}`, payload);
+                      await setSetting(
+                        db,
+                        `skill_nudge_cooldown:${opts.chatId}`,
+                        new Date().toISOString(),
+                      );
+                      agentLog.info`Queued skill nudge for chat ${opts.chatId}: "${candidate.name}"`;
+                    }
+                  }
+                }
+              } catch (err) {
+                agentLog.warning`Failed to queue skill nudge: ${err}`;
               }
             }
-            // TODO: Optionally create skills via skill_create tool
-            // or announce to user: "I noticed a pattern... would you like me to save it as a skill?"
           }
         } catch (err) {
           agentLog.warning`Failed to extract skills from observations: ${err}`;

@@ -16,3 +16,4 @@ target/
 .blog/drafts/
 deploy/lima/case.yaml
 deploy/lima/cairn.yaml
+plans/
