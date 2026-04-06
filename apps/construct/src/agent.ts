@@ -18,7 +18,13 @@ import {
   getSetting,
   setSetting,
 } from "./db/queries.js";
-import { generateEmbedding, estimateTokens, SIMILARITY, type WorkerModelConfig } from "@repo/cairn";
+import {
+  generateEmbedding,
+  cosineSimilarity,
+  estimateTokens,
+  SIMILARITY,
+  type WorkerModelConfig,
+} from "@repo/cairn";
 import {
   ConstructMemoryManager,
   CONSTRUCT_OBSERVER_PROMPT,
@@ -131,11 +137,12 @@ export async function processMessage(
   }
 
   // 4. Load memories for context injection
-  const recentMemories = await getRecentMemories(db, 10);
+  const recentMemoriesRaw = await getRecentMemories(db, 10);
 
   // Try to find semantically relevant memories for this specific message
   // queryEmbedding is also reused for tool pack selection below
   let queryEmbedding: number[] | undefined;
+  let recentMemories: typeof recentMemoriesRaw = [];
   let relevantMemories: Array<{
     content: string;
     category: string;
@@ -144,6 +151,21 @@ export async function processMessage(
   }> = [];
   try {
     queryEmbedding = await generateEmbedding(env.OPENROUTER_API_KEY, message, env.EMBEDDING_MODEL);
+
+    // Filter recent memories by minimum similarity to the current message.
+    // Prevents injecting unrelated memories that the model may volunteer unprompted.
+    // Note: memories without an embedding are skipped — embeddings are generated async
+    // after memory_store, so a just-stored memory may not appear here until the next turn.
+    recentMemories = recentMemoriesRaw.filter((m) => {
+      if (!m.embedding) return false;
+      try {
+        const sim = cosineSimilarity(queryEmbedding!, JSON.parse(m.embedding.toString()));
+        return sim >= SIMILARITY.RECENT_MEMORY_MIN;
+      } catch {
+        return false;
+      }
+    });
+
     const results = await recallMemories(db, message, {
       limit: 5,
       queryEmbedding,
@@ -160,8 +182,9 @@ export async function processMessage(
         matchType: m.matchType,
       }));
   } catch {
-    // Embedding call failed — no relevant memories, that's fine
+    // Embedding call failed — fall back to unfiltered recent memories
     // queryEmbedding stays undefined → all tool packs will load (graceful fallback)
+    recentMemories = recentMemoriesRaw;
   }
 
   agentLog.debug`Context: ${recentMemories.length} recent memories, ${relevantMemories.length} relevant memories`;
