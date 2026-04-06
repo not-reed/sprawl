@@ -36,7 +36,7 @@ export function createMemoryStoreTool(
   return {
     name: "memory_store",
     description:
-      "Store a memory for long-term recall. Use this proactively when the user shares facts, preferences, notes, or anything worth remembering.",
+      "Store a memory for long-term recall. Use this proactively when the user shares facts, preferences, notes, or anything worth remembering. For appointments and one-time events, always include the specific date (YYYY-MM-DD) in the content — never just the day of week.",
     parameters: MemoryStoreParams,
     execute: async (_toolCallId: string, args: MemoryStoreInput) => {
       const memory = await storeMemory(db, {
