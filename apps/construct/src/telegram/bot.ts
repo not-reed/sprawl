@@ -12,6 +12,9 @@ import {
   getPendingAskById,
   resolvePendingAsk,
   setPendingAskTelegramId,
+  getSetting,
+  setSetting,
+  deleteSetting,
 } from "../db/queries.js";
 import type { AskPayload, TelegramSideEffects, TelegramContext } from "./types.js";
 import { markdownToTelegramHtml } from "./format.js";
@@ -228,6 +231,34 @@ export function createBot(db: Kysely<Database>) {
           await sendReply(ctx, response.text, sideEffects, response.messageId);
         }
 
+        // Check for pending skill nudge (queued by async observer chain)
+        try {
+          const nudgePayload = await getSetting(db, `skill_nudge:${chatId}`);
+          if (nudgePayload) {
+            await deleteSetting(db, `skill_nudge:${chatId}`);
+            const candidate = JSON.parse(nudgePayload) as {
+              name: string;
+              description: string;
+              body: string;
+            };
+            await setSetting(db, `skill_nudge_pending:${chatId}`, nudgePayload);
+            const keyboard = new InlineKeyboard()
+              .text("Save it", `skillnudge:save:${chatId}`)
+              .text("Ignore", `skillnudge:ignore:${chatId}`);
+            await bot.api
+              .sendMessage(
+                chatId,
+                markdownToTelegramHtml(
+                  `I noticed a reusable pattern — want me to save it as a skill?\n\n**${candidate.name}**\n${candidate.description}`,
+                ),
+                { reply_markup: keyboard, parse_mode: "HTML" as const },
+              )
+              .catch((err) => telegramLog.error`Failed to send skill nudge: ${err}`);
+          }
+        } catch (err) {
+          telegramLog.error`Error checking skill nudge: ${err}`;
+        }
+
         telegramLog.info`Reply sent to chat ${chatId} (${response.text.length} chars, suppress=${!!sideEffects.suppressText})`;
       } catch (err) {
         telegramLog.error`Error processing message: ${err}`;
@@ -246,6 +277,71 @@ export function createBot(db: Kysely<Database>) {
     }
 
     const data = ctx.callbackQuery.data;
+
+    // Skill nudge callbacks
+    const nudgeMatch = data.match(/^skillnudge:(save|ignore):(.+)$/);
+    if (nudgeMatch) {
+      const [, action, nudgeChatId] = nudgeMatch;
+      await ctx.answerCallbackQuery({ text: action === "save" ? "Creating skill..." : "Got it." });
+
+      const stored = await getSetting(db, `skill_nudge_pending:${nudgeChatId}`);
+      if (!stored) {
+        await ctx.editMessageText("This suggestion has expired.").catch(() => {});
+        return;
+      }
+
+      await deleteSetting(db, `skill_nudge_pending:${nudgeChatId}`);
+      const candidate = JSON.parse(stored) as { name: string; description: string; body: string };
+
+      if (action === "save") {
+        await ctx
+          .editMessageText(markdownToTelegramHtml(`Creating skill **${candidate.name}**...`), {
+            parse_mode: "HTML",
+          })
+          .catch(() => {});
+
+        enqueue(nudgeChatId, async () => {
+          const sendTyping = () => bot.api.sendChatAction(nudgeChatId, "typing").catch(() => {});
+          const typingInterval = setInterval(sendTyping, 4000);
+          await sendTyping();
+          try {
+            const instruction = [
+              `Use the skill_create tool to save this skill now. Do not ask for confirmation.`,
+              `Name: "${candidate.name}"`,
+              `Description: "${candidate.description}"`,
+              `Body:\n${candidate.body}`,
+            ].join("\n");
+
+            const response = await processMessage(db, instruction, {
+              source: "telegram",
+              externalId: nudgeChatId,
+              chatId: nudgeChatId,
+            });
+
+            if (response.text.trim()) {
+              await bot.api
+                .sendMessage(nudgeChatId, markdownToTelegramHtml(response.text), {
+                  parse_mode: "HTML" as const,
+                })
+                .catch(async () => {
+                  await bot.api.sendMessage(nudgeChatId, response.text);
+                });
+            }
+          } catch (err) {
+            telegramLog.error`Error creating skill from nudge: ${err}`;
+            await bot.api.sendMessage(nudgeChatId, "Failed to create skill. Check the logs.");
+          } finally {
+            clearInterval(typingInterval);
+          }
+        });
+      } else {
+        const normalizedName = candidate.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
+        await setSetting(db, `ignored_skill:${normalizedName}`, new Date().toISOString());
+        await ctx.editMessageText("Got it, skipping that one.").catch(() => {});
+      }
+      return;
+    }
+
     const match = data.match(/^ask:([^:]+):(\d+)$/);
     if (!match) {
       await ctx.answerCallbackQuery();
