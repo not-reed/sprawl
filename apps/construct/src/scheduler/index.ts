@@ -63,10 +63,15 @@ async function fireAgentSchedule(db: Kysely<Database>, bot: Bot, schedule: Sched
   const instruction = schedule.prompt ?? schedule.message;
   schedulerLog.info`Firing agent schedule [${schedule.id}]: ${schedule.description} → instruction: "${instruction}"`;
   try {
-    // Frame the instruction so the agent knows this schedule is firing NOW
-    // and should execute/deliver it, not re-schedule it.
+    // Frame the instruction so the agent knows this schedule is firing NOW.
+    // Give explicit permission to suppress — the agent sees full conversation
+    // history and should use judgment rather than blindly executing.
     const framedInstruction = [
-      `[Scheduled task "${schedule.description}" is firing now. Execute the instruction — do not re-schedule it.]`,
+      `[Scheduled task "${schedule.description}" is firing now. Do not re-schedule it.]`,
+      `[Before responding, review recent conversation history and use judgment:`,
+      ` - If the user has clearly acknowledged or acted on this topic (e.g. said "ok", "got it", "on it", or moved on), respond with nothing — silent suppression is correct.`,
+      ` - If the user seems distracted (many unrelated messages since this was last mentioned), deliver the reminder.`,
+      ` - If this reminder was scheduled for a specific time for a reason (e.g. "not too early"), honour the timing intent and deliver it even if it came up earlier.]`,
       instruction,
     ].join("\n");
 
