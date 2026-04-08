@@ -32,6 +32,8 @@ const envSchema = z.object({
     .transform((p) => resolve(p)),
   EMBEDDING_MODEL: z.string().default("qwen/qwen3-embedding-8b"),
   MEMORY_WORKER_MODEL: z.string().optional(),
+  LAMINAR_API_KEY: z.string().optional(),
+  LAMINAR_BASE_URL: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);

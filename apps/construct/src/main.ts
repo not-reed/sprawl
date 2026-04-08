@@ -1,5 +1,6 @@
 import { env } from "./env.js";
 import { setupLogging, log } from "./logger.js";
+import { initTracing } from "./tracing.js";
 import { createDb } from "@repo/db";
 import type { Database } from "./db/schema.js";
 import { runMigrations } from "./db/migrate.js";
@@ -11,6 +12,7 @@ import { initExtensions } from "./extensions/index.js";
 
 async function main() {
   await setupLogging(env.LOG_LEVEL, env.LOG_FILE);
+  initTracing(env.LAMINAR_API_KEY, env.LAMINAR_BASE_URL);
 
   log.info`Starting Construct`;
   log.info`Model: ${env.OPENROUTER_MODEL}`;
