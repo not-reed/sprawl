@@ -2,7 +2,7 @@
  * Graph quality tests — verifies that real LLM extraction produces
  * a useful, connected knowledge graph over multiple memories.
  *
- * ~8 LLM calls using gemini-2.5-flash-lite (pennies per run).
+ * ~8 LLM calls using the OpenRouter worker model (pennies per run).
  * Run: OPENROUTER_API_KEY=<key> npm run test:ai
  */
 
@@ -24,7 +24,7 @@ const API_KEY = process.env.OPENROUTER_API_KEY ?? "";
 
 const WORKER_CONFIG: WorkerModelConfig = {
   apiKey: API_KEY,
-  model: "google/gemini-2.5-flash-lite",
+  model: process.env.MEMORY_WORKER_MODEL ?? "google/gemini-2.5-flash-lite",
   baseUrl: "https://openrouter.ai/api/v1/chat/completions",
 };
 

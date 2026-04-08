@@ -9,15 +9,25 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // --- Model pricing ($/M tokens) — update from https://openrouter.ai as needed ---
 // Values are [inputPricePerM, outputPricePerM]
+// Eval results (overall/judge): minimax=0.94/0.93, gpt-oss-120b=0.93/0.91, gemini-2.5-flash-lite=0.88/0.78,
+// glm-4.7-flash=0.94/0.93, mimo-v2-flash=0.87/0.74 (hallucinated), qwen=0.62/0.52 (slow + unreliable)
+// stepfun/step-3.5-flash skipped — no compression on case 2, similar cost to minimax
+// glm-4.5-air skipped — empty response on case 5
 const MODEL_PRICING: Record<string, [number, number]> = {
-  "deepseek/deepseek-v3-2": [0.26, 0.38],
-  "minimax/minimax-m2.5": [0.118, 0.99],
-  "qwen/qwen3.5-flash-02-23": [0.065, 0.26],
+  // --- Judge ---
+  "deepseek/deepseek-v3.2": [0.26, 0.38],
+  // --- Tested memory workers (best to worst overall score) ---
+  "minimax/minimax-m2.5": [0.118, 0.99], // overall=0.94, reliable
+  "z-ai/glm-4.7-flash": [0.06, 0.4], // overall=0.94, reliable
+  "openai/gpt-oss-120b": [0.039, 0.19], // overall=0.93, best value (5x cheaper than minimax)
+  "google/gemini-2.5-flash-lite": [0.1, 0.4],
+  "xiaomi/mimo-v2-flash": [0.09, 0.29], // overall=0.87, hallucinated Oregon + Ratatui
+  "qwen/qwen3.5-flash-02-23": [0.065, 0.26], // overall=0.62, slow + ignores max_tokens
+  "z-ai/glm-4.5-air": [0.13, 0.85],
+  // --- Untested / future models ---
   "google/gemini-3-flash-preview": [0.5, 3],
   "google/gemini-3.1-flash-lite-preview": [0.25, 1.5],
-  "xiaomi/mimo-v2-flash": [0.09, 0.29],
   "xiaomi/mimo-v2-omni": [0.4, 2],
-  "stepfun/step-3.5-flash": [0.1, 0.3],
 };
 
 function estimateCost(model: string, inputTokens: number, outputTokens: number): string {

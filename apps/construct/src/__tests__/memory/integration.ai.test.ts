@@ -1,6 +1,6 @@
 /**
  * Integration tests for the memory system (requires LLM API access).
- * Uses google/gemini-2.5-flash-lite via OpenRouter for cheap real LLM calls.
+ * Uses OpenRouter worker model for cheap real LLM calls.
  * Skips gracefully when OPENROUTER_API_KEY is not set.
  *
  * Run: OPENROUTER_API_KEY=<key> npm run test:ai
@@ -34,7 +34,7 @@ const API_KEY = process.env.OPENROUTER_API_KEY ?? "";
 
 const WORKER_CONFIG: WorkerModelConfig = {
   apiKey: API_KEY,
-  model: "google/gemini-2.5-flash-lite",
+  model: process.env.MEMORY_WORKER_MODEL ?? "google/gemini-2.5-flash-lite",
   baseUrl: "https://openrouter.ai/api/v1/chat/completions",
 };
 
