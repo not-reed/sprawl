@@ -29,8 +29,18 @@ describe("buildContextPreamble — full preamble", () => {
         },
       ],
       relevantMemories: [
-        { content: "Alex is allergic to shellfish", category: "health", score: 0.95 },
-        { content: "Alex works at DataPipe", category: "work", score: 0.82 },
+        {
+          content: "Alex is allergic to shellfish",
+          category: "health",
+          score: 0.95,
+          matchType: "embedding",
+        },
+        {
+          content: "Alex works at DataPipe",
+          category: "work",
+          score: 0.82,
+          matchType: "embedding",
+        },
       ],
       skillInstructions: ["[Daily Standup]", "- Ask about blockers and progress."],
       replyContext: "What should I have for dinner?",
@@ -46,12 +56,12 @@ describe("buildContextPreamble — full preamble", () => {
 
     // Recent memories section
     expect(preamble).toContain("[Recent memories");
-    expect(preamble).toContain("(personal) Alex has a cat named Miso");
+    expect(preamble).toContain('[personal] "Alex has a cat named Miso"');
 
     // Relevant memories with scores
     expect(preamble).toContain("[Potentially relevant memories]");
-    expect(preamble).toContain("(health) Alex is allergic to shellfish (95% match)");
-    expect(preamble).toContain("(work) Alex works at DataPipe (82% match)");
+    expect(preamble).toContain('[95% match] [health] "Alex is allergic to shellfish"');
+    expect(preamble).toContain('[82% match] [work] "Alex works at DataPipe"');
 
     // Skill instructions section
     expect(preamble).toContain("[Relevant skill instructions");
@@ -81,21 +91,24 @@ describe("buildContextPreamble — observations only", () => {
 });
 
 describe("buildContextPreamble — relevant memories with scores", () => {
-  it("formats scores as percentages", () => {
+  it("formats embedding scores as percentages and fts5 as keyword match", () => {
     const preamble = buildContextPreamble({
       timezone: "UTC",
       source: "test",
       relevantMemories: [
-        { content: "Memory A", category: "work", score: 0.456 },
-        { content: "Memory B", category: "personal", score: 1.0 },
-        { content: "Memory C", category: "health" }, // no score
+        { content: "Memory A", category: "work", score: 0.456, matchType: "embedding" },
+        { content: "Memory B", category: "personal", score: 1.0, matchType: "embedding" },
+        { content: "Memory C", category: "health", score: 3.76, matchType: "fts5" },
+        { content: "Memory D", category: "fact" }, // no score or matchType
       ],
     });
 
-    expect(preamble).toContain("(work) Memory A (46% match)");
-    expect(preamble).toContain("(personal) Memory B (100% match)");
-    expect(preamble).toContain("(health) Memory C");
+    expect(preamble).toContain('[46% match] [work] "Memory A"');
+    expect(preamble).toContain('[100% match] [personal] "Memory B"');
+    expect(preamble).toContain('[keyword match] [health] "Memory C"');
     expect(preamble).not.toMatch(/Memory C.*%/);
+    expect(preamble).toContain('[fact] "Memory D"');
+    expect(preamble).not.toMatch(/Memory D.*(match|%)/);
   });
 });
 

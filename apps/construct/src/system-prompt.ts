@@ -141,6 +141,7 @@ export function buildContextPreamble(context: {
     content: string;
     category: string;
     score?: number;
+    matchType?: string;
     created_at?: string;
   }>;
   skillInstructions?: string[];
@@ -177,7 +178,7 @@ export function buildContextPreamble(context: {
     preamble += "\n[Recent memories — background context only, do not reference proactively]\n";
     for (const m of context.recentMemories) {
       const dateStr = m.created_at ? ` [${m.created_at.slice(0, 16).replace("T", " ")}]` : "";
-      preamble += `- ${dateStr} (${m.category}) ${m.content}\n`;
+      preamble += `-${dateStr} [${m.category}] "${m.content}"\n`;
     }
   }
 
@@ -185,8 +186,13 @@ export function buildContextPreamble(context: {
     preamble += "\n[Potentially relevant memories]\n";
     for (const m of context.relevantMemories) {
       const dateStr = m.created_at ? ` [${m.created_at.slice(0, 16).replace("T", " ")}]` : "";
-      const score = m.score !== undefined ? ` (${(m.score * 100).toFixed(0)}% match)` : "";
-      preamble += `- ${dateStr} (${m.category}) ${m.content}${score}\n`;
+      const matchLabel =
+        m.matchType === "embedding" && m.score !== undefined
+          ? ` [${(m.score * 100).toFixed(0)}% match]`
+          : m.matchType === "fts5"
+            ? " [keyword match]"
+            : "";
+      preamble += `-${dateStr}${matchLabel} [${m.category}] "${m.content}"\n`;
     }
   }
 
