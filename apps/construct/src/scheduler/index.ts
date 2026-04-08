@@ -79,6 +79,7 @@ async function fireAgentSchedule(db: Kysely<Database>, bot: Bot, schedule: Sched
       source: "telegram",
       externalId: schedule.chat_id,
       chatId: schedule.chat_id,
+      scheduleId: schedule.id,
     });
     await markScheduleRun(db, schedule.id);
 
