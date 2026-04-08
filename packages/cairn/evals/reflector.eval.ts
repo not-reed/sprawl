@@ -163,8 +163,8 @@ Respond with JSON only: {"score": <1-10>, "rationale": "<one sentence>"}`;
     const text = body.choices[0]?.message?.content ?? "";
 
     // Track judge token usage
-    const key = caseKey(data);
-    const existing = caseTokens.get(key) ?? {
+    const caseId = caseKey(data);
+    const existing = caseTokens.get(caseId) ?? {
       reflector: { in: 0, out: 0 },
       judge: { in: 0, out: 0 },
     };
@@ -172,7 +172,7 @@ Respond with JSON only: {"score": <1-10>, "rationale": "<one sentence>"}`;
       in: body.usage?.prompt_tokens ?? 0,
       out: body.usage?.completion_tokens ?? 0,
     };
-    caseTokens.set(key, existing);
+    caseTokens.set(caseId, existing);
 
     try {
       const jsonMatch = text.match(/\{[\s\S]*\}/);
