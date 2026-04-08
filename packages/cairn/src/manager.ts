@@ -309,14 +309,16 @@ export class MemoryManager {
    * Run the reflector to condense observations when they exceed the threshold.
    * Returns true if observations were condensed.
    */
-  async runReflector(conversationId: string): Promise<boolean> {
-    if (!this.workerConfig) return false;
+  async runReflector(
+    conversationId: string,
+  ): Promise<{ ran: boolean; usage?: { input_tokens: number; output_tokens: number } }> {
+    if (!this.workerConfig) return { ran: false };
 
     const observations = await this.getActiveObservations(conversationId);
-    if (observations.length === 0) return false;
+    if (observations.length === 0) return { ran: false };
 
     const totalTokens = observations.reduce((sum, o) => sum + o.token_count, 0);
-    if (totalTokens < REFLECTOR_THRESHOLD) return false;
+    if (totalTokens < REFLECTOR_THRESHOLD) return { ran: false };
 
     this.log.info(
       `Reflector triggered: ${observations.length} observations, ~${totalTokens} tokens`,
@@ -369,10 +371,10 @@ export class MemoryManager {
         });
       }
 
-      return true;
+      return { ran: true, usage: result.usage };
     } catch (err) {
       this.log.error(`Reflector failed: ${err}`);
-      return false;
+      return { ran: false };
     }
   }
 

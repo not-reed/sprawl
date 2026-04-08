@@ -39,6 +39,7 @@ import {
   selectAndRetrieveSkillInstructions,
 } from "./extensions/index.js";
 import { upsertNode, upsertEdge } from "@repo/cairn";
+import { estimateCost } from "./model-pricing.js";
 
 // Adapt internal tool → pi-agent-core AgentTool
 function createPiTool<T extends TSchema>(tool: InternalTool<T>): AgentTool<T, unknown> {
@@ -611,7 +612,8 @@ export async function processMessage(
             obsBefore.map((o) => `[${o.id}] (${o.priority}, ${o.observation_date}) ${o.content}`),
           );
 
-          const reflectorRan = await memoryManager.runReflector(conversationId);
+          const { ran: reflectorRan, usage: reflectorUsage } =
+            await memoryManager.runReflector(conversationId);
           span.setAttribute("ran", reflectorRan);
 
           if (reflectorRan) {
@@ -625,6 +627,18 @@ export async function processMessage(
               observations_delta: obsBefore.length - obsAfter.length,
               tokens_delta: tokensBefore - tokensAfter,
             });
+            if (reflectorUsage && workerConfig) {
+              const cost = estimateCost(
+                workerConfig.model,
+                reflectorUsage.input_tokens,
+                reflectorUsage.output_tokens,
+              );
+              span.setAttributes({
+                input_tokens: reflectorUsage.input_tokens,
+                output_tokens: reflectorUsage.output_tokens,
+                cost_usd: cost,
+              });
+            }
             span.setOutput({
               kept: obsAfter.map((o) => `[${o.priority}] ${o.content}`),
               dropped: dropped.map((o) => `[${o.priority}] ${o.content}`),

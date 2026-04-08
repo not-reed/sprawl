@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<clickhouse>
+    <users>
+        <clickhouse_ro>
+            <password>clickhouse_ro</password>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <profile>lmnr_ro</profile>
+            <quota>default</quota>
+        </clickhouse_ro>
+    </users>
+</clickhouse>

@@ -9,6 +9,8 @@ data/
 dist/
 target/
 
+**/evals/data-private/
+
 .cairn/
 .direnv/
 .plans/

@@ -37,6 +37,8 @@ export interface ObserverOutput {
 
 export interface ReflectorInput {
   observations: Observation[];
+  /** Override today's date (ISO, e.g. "2025-04-01"). Defaults to current date. Used in evals for reproducibility. */
+  today?: string;
 }
 
 export interface ReflectorOutput {

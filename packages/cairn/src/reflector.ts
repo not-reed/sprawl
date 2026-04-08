@@ -83,7 +83,7 @@ export async function reflect(
   logger?: CairnLogger,
   prompt?: string,
 ): Promise<ReflectorOutput & { usage?: { input_tokens: number; output_tokens: number } }> {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = input.today ?? new Date().toISOString().slice(0, 10);
   const observationsText =
     `Today's date: ${today}\n\n` +
     input.observations

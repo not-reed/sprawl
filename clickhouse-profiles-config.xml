@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<clickhouse>
+    <profiles>
+        <default>
+            <date_time_input_format replace="replace">best_effort</date_time_input_format>
+        </default>
+        <!-- readonly=2: SELECT only, but allows changing session settings (e.g. max_execution_time) -->
+        <lmnr_ro>
+            <date_time_input_format replace="replace">best_effort</date_time_input_format>
+            <readonly>2</readonly>
+        </lmnr_ro>
+    </profiles>
+</clickhouse>

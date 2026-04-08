@@ -56,6 +56,12 @@ test-construct:
 test-ai:
     pnpm --filter @repo/construct vitest run --config apps/construct/vitest.ai.config.ts
 
+# Run reflector scored evals against local (or prod) Laminar. Requires .env.test with
+# LMNR_PROJECT_API_KEY, LMNR_BASE_URL, OPENROUTER_API_KEY, MEMORY_WORKER_MODEL.
+# Set EVAL_GROUP_ID to label the run (e.g. "reflector-aggressive-prompt").
+eval-reflector:
+    node --env-file=.env.test --import tsx/esm packages/cairn/evals/reflector.eval.ts
+
 # --- Typecheck ---
 
 # Typecheck all packages

@@ -1,0 +1,152 @@
+name: lmnr-local
+
+# Local Laminar instance for dev evals. Uses the same .env as prod but overrides URLs to localhost.
+# Start: docker compose -f docker-compose.laminar.yml --env-file .env.laminar up -d
+# Stop:  docker compose -f docker-compose.laminar.yml down
+
+services:
+  postgres:
+    image: postgres:16
+    hostname: postgres
+    volumes:
+      - postgres-local-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 5s
+      retries: 5
+    networks:
+      internal:
+        aliases:
+          - postgres
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    hostname: clickhouse
+    volumes:
+      - clickhouse-local-data:/var/lib/clickhouse/
+      - clickhouse-local-logs:/var/log/clickhouse-server/
+      - ./clickhouse-profiles-config.xml:/etc/clickhouse-server/users.d/lmnr.xml
+      - ./clickhouse-users-config.xml:/etc/clickhouse-server/users.d/lmnr-users.xml
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    networks:
+      internal:
+        aliases:
+          - clickhouse
+
+  query-engine:
+    image: ghcr.io/lmnr-ai/query-engine
+    hostname: query-engine
+    pull_policy: always
+    networks:
+      internal:
+        aliases:
+          - query-engine
+
+  quickwit:
+    image: quickwit/quickwit:v0.8.2
+    hostname: quickwit
+    environment:
+      QW_DATA_DIR: /quickwit/qwdata
+    command: ["run"]
+    volumes:
+      - quickwit-local-data:/quickwit/qwdata
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7280/health/livez"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      internal:
+        aliases:
+          - quickwit
+
+  frontend:
+    image: ghcr.io/lmnr-ai/frontend
+    hostname: frontend
+    pull_policy: always
+    ports:
+      - "5667:5667"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      quickwit:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      PORT: 5667
+      BACKEND_URL: http://app-server:8000
+      BACKEND_RT_URL: http://app-server:8002
+      SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
+      NEXTAUTH_URL: http://localhost:5667
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXT_PUBLIC_URL: http://localhost:5667
+      ENVIRONMENT: LITE
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_RO_USER: ${CLICKHOUSE_RO_USER}
+      CLICKHOUSE_RO_PASSWORD: ${CLICKHOUSE_RO_PASSWORD}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
+      QUICKWIT_SEARCH_URL: http://quickwit:7280
+      GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY:-}
+    networks:
+      internal:
+        aliases:
+          - frontend
+
+  app-server:
+    image: ghcr.io/lmnr-ai/app-server
+    hostname: app-server
+    pull_policy: always
+    ports:
+      - "8000:8000"
+      - "8443:8443"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_started
+      quickwit:
+        condition: service_healthy
+    environment:
+      PORT: 8000
+      GRPC_PORT: 8443
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_RO_USER: ${CLICKHOUSE_RO_USER}
+      CLICKHOUSE_RO_PASSWORD: ${CLICKHOUSE_RO_PASSWORD}
+      ENVIRONMENT: LITE
+      AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
+      QUERY_ENGINE_URL: http://query-engine:8903
+      QUICKWIT_SEARCH_URL: http://quickwit:7280
+      QUICKWIT_INGEST_URL: http://quickwit:7281
+      QUICKWIT_SPANS_INDEX_ID: spans_v2
+      GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY:-}
+    networks:
+      internal:
+        aliases:
+          - app-server
+
+volumes:
+  postgres-local-data:
+  clickhouse-local-data:
+  clickhouse-local-logs:
+  quickwit-local-data:
+
+networks:
+  internal:
