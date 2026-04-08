@@ -318,25 +318,14 @@ export class MemoryManager {
     const totalTokens = observations.reduce((sum, o) => sum + o.token_count, 0);
     if (totalTokens < REFLECTOR_THRESHOLD) return false;
 
-    // Batch to at most REFLECTOR_THRESHOLD tokens — oldest first (most stale).
-    // Under normal operation this is always the full set. For bloated state it
-    // takes a few turns to fully compress rather than one oversized LLM call.
-    const batch: typeof observations = [];
-    let batchTokens = 0;
-    for (const obs of observations) {
-      if (batchTokens + obs.token_count > REFLECTOR_THRESHOLD && batch.length > 0) break;
-      batch.push(obs);
-      batchTokens += obs.token_count;
-    }
-
     this.log.info(
-      `Reflector triggered: ${batch.length}/${observations.length} observations, ~${batchTokens} tokens`,
+      `Reflector triggered: ${observations.length} observations, ~${totalTokens} tokens`,
     );
 
     try {
       const result = await reflect(
         this.workerConfig,
-        { observations: batch },
+        { observations },
         this.log,
         this.reflectorPrompt,
       );
@@ -351,7 +340,7 @@ export class MemoryManager {
       }
 
       // Insert new condensed observations
-      const maxGen = Math.max(...batch.map((o) => o.generation), 0);
+      const maxGen = Math.max(...observations.map((o) => o.generation), 0);
       for (const obs of result.observations) {
         await this.storeObservation(conversationId, obs, null, maxGen + 1);
       }

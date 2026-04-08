@@ -133,6 +133,7 @@ export async function processMessage(
       apiKey: env.OPENROUTER_API_KEY,
       observerPrompt: CONSTRUCT_OBSERVER_PROMPT,
       reflectorPrompt: CONSTRUCT_REFLECTOR_PROMPT,
+      logger: agentLog,
     });
 
     // 3. Load context: observations (stable prefix) + un-observed messages (active suffix)

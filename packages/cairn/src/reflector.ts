@@ -100,7 +100,7 @@ export async function reflect(
         { role: "user", content: observationsText },
       ],
       temperature: 0,
-      max_tokens: 4096,
+      max_tokens: 32768,
       ...config.extraBody,
     }),
   });
