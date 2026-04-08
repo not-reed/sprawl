@@ -386,7 +386,9 @@ export class MemoryManager {
   async promoteObservations(conversationId: string): Promise<number> {
     if (!this.workerConfig) return 0;
 
-    // 1. Get unpromoted medium/high observations
+    // 1. Get unpromoted medium/high observations (generation=0 only — reflector-merged
+    //    observations are derived from already-promoted facts; re-promoting them risks
+    //    near-duplicate memories)
     const candidates = await this.db
       .selectFrom("observations")
       .selectAll()
@@ -394,6 +396,7 @@ export class MemoryManager {
       .where("superseded_at", "is", null)
       .where("promoted_at", "is", null)
       .where("priority", "in", ["medium", "high"])
+      .where("generation", "=", 0)
       .orderBy("created_at", "asc")
       .execute();
 

@@ -607,6 +607,9 @@ export async function processMessage(
             observations_before: obsBefore.length,
             tokens_before: tokensBefore,
           });
+          span.setInput(
+            obsBefore.map((o) => `[${o.id}] (${o.priority}, ${o.observation_date}) ${o.content}`),
+          );
 
           const reflectorRan = await memoryManager.runReflector(conversationId);
           span.setAttribute("ran", reflectorRan);
@@ -614,11 +617,17 @@ export async function processMessage(
           if (reflectorRan) {
             const obsAfter = await memoryManager.getActiveObservations(conversationId);
             const tokensAfter = obsAfter.reduce((sum, o) => sum + (o.token_count ?? 0), 0);
+            const afterIds = new Set(obsAfter.map((o) => o.id));
+            const dropped = obsBefore.filter((o) => !afterIds.has(o.id));
             span.setAttributes({
               observations_after: obsAfter.length,
               tokens_after: tokensAfter,
               observations_delta: obsBefore.length - obsAfter.length,
               tokens_delta: tokensBefore - tokensAfter,
+            });
+            span.setOutput({
+              kept: obsAfter.map((o) => `[${o.priority}] ${o.content}`),
+              dropped: dropped.map((o) => `[${o.priority}] ${o.content}`),
             });
           }
         });

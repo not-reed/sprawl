@@ -11,12 +11,16 @@ export function initTracing(apiKey: string | undefined, baseUrl: string | undefi
 export interface TracingSpan {
   setAttribute(key: string, value: string | number | boolean): void;
   setAttributes(attrs: Record<string, string | number | boolean>): void;
+  setInput(value: unknown): void;
+  setOutput(value: unknown): void;
   end(): void;
 }
 
 const noopSpan: TracingSpan = {
   setAttribute() {},
   setAttributes() {},
+  setInput() {},
+  setOutput() {},
   end() {},
 };
 
@@ -45,6 +49,7 @@ export async function withSpan<T>(
 export function startActiveSpan(opts: SpanOptions): TracingSpan {
   if (!enabled) return noopSpan;
   const span = Laminar.startActiveSpan(opts);
+  const laminarSpan = Laminar.getCurrentSpan();
   return {
     setAttribute(key, value) {
       span.setAttribute(key, value);
@@ -53,6 +58,12 @@ export function startActiveSpan(opts: SpanOptions): TracingSpan {
       for (const [k, v] of Object.entries(attrs)) {
         span.setAttribute(k, v);
       }
+    },
+    setInput(value) {
+      laminarSpan?.setInput(value);
+    },
+    setOutput(value) {
+      laminarSpan?.setOutput(value);
     },
     end() {
       span.end();

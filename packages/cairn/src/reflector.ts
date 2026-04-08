@@ -83,9 +83,12 @@ export async function reflect(
   logger?: CairnLogger,
   prompt?: string,
 ): Promise<ReflectorOutput & { usage?: { input_tokens: number; output_tokens: number } }> {
-  const observationsText = input.observations
-    .map((o) => `[${o.id}] (${o.priority}, ${o.observation_date}) ${o.content}`)
-    .join("\n");
+  const today = new Date().toISOString().slice(0, 10);
+  const observationsText =
+    `Today's date: ${today}\n\n` +
+    input.observations
+      .map((o) => `[${o.id}] (${o.priority}, ${o.observation_date}) ${o.content}`)
+      .join("\n");
 
   const response = await fetch(config.baseUrl ?? "https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
