@@ -30,6 +30,18 @@ export interface SpanOptions {
   metadata?: Record<string, unknown>;
 }
 
+export async function withSpan<T>(
+  opts: SpanOptions,
+  fn: (span: TracingSpan) => Promise<T>,
+): Promise<T> {
+  const span = startActiveSpan(opts);
+  try {
+    return await fn(span);
+  } finally {
+    span.end();
+  }
+}
+
 export function startActiveSpan(opts: SpanOptions): TracingSpan {
   if (!enabled) return noopSpan;
   const span = Laminar.startActiveSpan(opts);

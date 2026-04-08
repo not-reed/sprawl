@@ -5,7 +5,7 @@ import type { Kysely } from "kysely";
 
 import { env } from "./env.js";
 import { getSystemPrompt, buildContextPreamble } from "./system-prompt.js";
-import { startActiveSpan } from "./tracing.js";
+import { startActiveSpan, withSpan } from "./tracing.js";
 import { agentLog, toolLog } from "./logger.js";
 import type { Database } from "./db/schema.js";
 import type { TelegramContext } from "./telegram/types.js";
@@ -599,7 +599,28 @@ export async function processMessage(
         // Reflector runs every turn — threshold guard inside makes it a no-op when
         // observations are below threshold. Decoupled from observer so accumulated
         // observations get condensed even on quiet turns.
-        await memoryManager.runReflector(conversationId);
+        await withSpan({ name: "reflector", spanType: "DEFAULT" }, async (span) => {
+          const obsBefore = await memoryManager.getActiveObservations(conversationId);
+          const tokensBefore = obsBefore.reduce((sum, o) => sum + (o.token_count ?? 0), 0);
+          span.setAttributes({
+            observations_before: obsBefore.length,
+            tokens_before: tokensBefore,
+          });
+
+          const reflectorRan = await memoryManager.runReflector(conversationId);
+          span.setAttribute("ran", reflectorRan);
+
+          if (reflectorRan) {
+            const obsAfter = await memoryManager.getActiveObservations(conversationId);
+            const tokensAfter = obsAfter.reduce((sum, o) => sum + (o.token_count ?? 0), 0);
+            span.setAttributes({
+              observations_after: obsAfter.length,
+              tokens_after: tokensAfter,
+              observations_delta: obsBefore.length - obsAfter.length,
+              tokens_delta: tokensBefore - tokensAfter,
+            });
+          }
+        });
       })
       .catch((err: unknown) => agentLog.error`Post-response observation failed: ${err}`);
 
