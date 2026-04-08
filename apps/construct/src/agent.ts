@@ -594,10 +594,12 @@ export async function processMessage(
           } catch (err) {
             agentLog.warning`Failed to extract skills from observations: ${err}`;
           }
-
-          // Then check if reflector should condense
-          return memoryManager.runReflector(conversationId);
         }
+
+        // Reflector runs every turn — threshold guard inside makes it a no-op when
+        // observations are below threshold. Decoupled from observer so accumulated
+        // observations get condensed even on quiet turns.
+        await memoryManager.runReflector(conversationId);
       })
       .catch((err: unknown) => agentLog.error`Post-response observation failed: ${err}`);
 
