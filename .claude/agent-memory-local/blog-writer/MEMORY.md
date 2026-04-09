@@ -85,6 +85,13 @@
 - Key code: media-cli CLAUDE.md (project spec), incur README/SKILL.md, `arrClient` shared auth pattern, `--llms` markdown manifest, incur token comparison table (3x fewer tokens vs MCP+JSON)
 - Notable: incur supports `--mcp` flag so CLI-first does not preclude MCP; composition via pipes; "can you debug it without the agent present?" as the practical test
 
+12. **Tracing and Evals for a Memory Pipeline That Was Quietly Broken** (`.blog/drafts/laminar-tracing-evals.md`)
+
+- Topic: Laminar tracing + scored eval harness for the Cairn reflector
+- Angle: Silent supersession bug accumulating 500+ stale observations; tracing the shape (observations_delta) not just status; model sweep showing gpt-oss-120b as best value at 0.93; judge ≠ executor rule
+- Key systems: `apps/construct/src/tracing.ts` (TracingSpan wrapper, noopSpan), `packages/cairn/evals/reflector.eval.ts` (evaluate(), 4 evaluators, judge cache), `docker-compose.laminar.yml` (local Laminar stack)
+- Notable: judgeCache via Map<string, Promise> avoids double LLM call; `today` field pinned in each datapoint for temporal reproducibility; NixOS DNS needs explicit `hostname` + `aliases` on each Docker service; Qwen ignored max_tokens and returned 82k output tokens; observations dropped 600→94 overnight via natural expiry without reflector running
+
 ## Areas to Avoid (already covered or thin)
 
 - General "how Construct works" tour — too broad

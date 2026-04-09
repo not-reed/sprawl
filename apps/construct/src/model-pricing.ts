@@ -3,6 +3,7 @@
 export const MODEL_PRICING: Record<string, [number, number]> = {
   "deepseek/deepseek-v3.2": [0.26, 0.38],
   "minimax/minimax-m2.5": [0.118, 0.99],
+  "minimax/minimax-m2.7": [0.3, 1.2],
   "openai/gpt-oss-120b": [0.039, 0.19],
   "google/gemini-2.5-flash-lite": [0.1, 0.4],
   "google/gemini-3-flash-preview": [0.5, 3],

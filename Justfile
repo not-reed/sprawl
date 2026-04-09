@@ -62,6 +62,12 @@ test-ai:
 eval-reflector:
     node --env-file=.env.test --import tsx/esm packages/cairn/evals/reflector.eval.ts
 
+# Run main model scored evals. Set OPENROUTER_MODEL and EVAL_GROUP_ID to compare models.
+# Requires .env.test with LMNR_PROJECT_API_KEY, OPENROUTER_API_KEY.
+# Example: OPENROUTER_MODEL=minimax/minimax-m2.7 EVAL_GROUP_ID=main-minimax just eval-main-model
+eval-main-model:
+    node --env-file=.env.test --import tsx/esm apps/construct/evals/main-model.eval.ts
+
 # --- Typecheck ---
 
 # Typecheck all packages

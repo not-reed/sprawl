@@ -1,4 +1,4 @@
-// No need to import Skill type anymore
+import { encode } from "@toon-format/toon";
 
 /**
  * Base system prompt — static part that enables prompt caching.
@@ -176,24 +176,32 @@ export function buildContextPreamble(context: {
 
   if (context.recentMemories && context.recentMemories.length > 0) {
     preamble += "\n[Recent memories — background context only, do not reference proactively]\n";
-    for (const m of context.recentMemories) {
-      const dateStr = m.created_at ? ` [${m.created_at.slice(0, 16).replace("T", " ")}]` : "";
-      preamble += `-${dateStr} [${m.category}] "${m.content}"\n`;
-    }
+    preamble += encode({
+      memories: context.recentMemories.map((m) => ({
+        date: m.created_at ? m.created_at.slice(0, 16).replace("T", " ") : "",
+        category: m.category,
+        content: m.content,
+      })),
+    });
+    preamble += "\n";
   }
 
   if (context.relevantMemories && context.relevantMemories.length > 0) {
     preamble += "\n[Potentially relevant memories]\n";
-    for (const m of context.relevantMemories) {
-      const dateStr = m.created_at ? ` [${m.created_at.slice(0, 16).replace("T", " ")}]` : "";
-      const matchLabel =
-        m.matchType === "embedding" && m.score !== undefined
-          ? ` [${(m.score * 100).toFixed(0)}% match]`
-          : m.matchType === "fts5"
-            ? " [keyword match]"
-            : "";
-      preamble += `-${dateStr}${matchLabel} [${m.category}] "${m.content}"\n`;
-    }
+    preamble += encode({
+      memories: context.relevantMemories.map((m) => ({
+        date: m.created_at ? m.created_at.slice(0, 16).replace("T", " ") : "",
+        match:
+          m.matchType === "embedding" && m.score !== undefined
+            ? `${(m.score * 100).toFixed(0)}%`
+            : m.matchType === "fts5"
+              ? "keyword"
+              : "",
+        category: m.category,
+        content: m.content,
+      })),
+    });
+    preamble += "\n";
   }
 
   if (context.skillInstructions && context.skillInstructions.length > 0) {
