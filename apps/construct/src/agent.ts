@@ -265,8 +265,6 @@ export async function processMessage(
       },
     });
 
-    agent.setModel(model);
-
     // 8. Select tool packs based on message embedding and create tools
     const chatId = opts.chatId ?? opts.externalId ?? "unknown";
     const toolCtx = {
@@ -287,36 +285,42 @@ export async function processMessage(
     const builtinTools = selectAndCreateTools(queryEmbedding, toolCtx);
     const dynamicTools = selectAndCreateDynamicTools(queryEmbedding, toolCtx);
     const tools = [...builtinTools, ...dynamicTools];
-    agent.setTools(tools.map((t) => createPiTool(t)));
+    agent.state.tools = tools.map((t) => createPiTool(t));
 
     // 9. Replay conversation history so the agent has multi-turn context
     for (const msg of historyMessages) {
       const tgPrefix = msg.telegram_message_id ? `[tg:${msg.telegram_message_id}] ` : "";
       const timeStr = msg.created_at ? `[${msg.created_at.slice(0, 16).replace("T", " ")}] ` : "";
       if (msg.role === "user") {
-        agent.appendMessage({
-          role: "user",
-          content: timeStr + tgPrefix + msg.content,
-          timestamp: Date.now(),
-        });
-      } else if (msg.role === "assistant") {
-        agent.appendMessage({
-          role: "assistant",
-          content: [{ type: "text", text: msg.content }],
-          api: "openrouter",
-          provider: "openrouter",
-          model: env.OPENROUTER_MODEL,
-          usage: {
-            input: 0,
-            output: 0,
-            cacheRead: 0,
-            cacheWrite: 0,
-            totalTokens: 0,
-            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        agent.state.messages = [
+          ...agent.state.messages,
+          {
+            role: "user",
+            content: timeStr + tgPrefix + msg.content,
+            timestamp: Date.now(),
           },
-          stopReason: "stop",
-          timestamp: Date.now(),
-        });
+        ];
+      } else if (msg.role === "assistant") {
+        agent.state.messages = [
+          ...agent.state.messages,
+          {
+            role: "assistant",
+            content: [{ type: "text", text: msg.content }],
+            api: "openrouter",
+            provider: "openrouter",
+            model: env.OPENROUTER_MODEL,
+            usage: {
+              input: 0,
+              output: 0,
+              cacheRead: 0,
+              cacheWrite: 0,
+              totalTokens: 0,
+              cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+            },
+            stopReason: "stop",
+            timestamp: Date.now(),
+          },
+        ];
       }
     }
 

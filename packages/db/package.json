@@ -11,6 +11,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "kysely": "^0.28.11"
+    "kysely": "^0.28.15"
   }
 }

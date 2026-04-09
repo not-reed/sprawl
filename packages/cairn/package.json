@@ -17,11 +17,11 @@
   },
   "dependencies": {
     "@repo/db": "workspace:*",
-    "kysely": "^0.28.11",
-    "nanoid": "^5.1.6"
+    "kysely": "^0.28.15",
+    "nanoid": "^5.1.7"
   },
   "devDependencies": {
-    "@lmnr-ai/lmnr": "^0.8.16",
-    "vitest": "^4.0.18"
+    "@lmnr-ai/lmnr": "^0.8.17",
+    "vitest": "^4.1.3"
   }
 }

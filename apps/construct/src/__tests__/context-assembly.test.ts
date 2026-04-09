@@ -56,12 +56,12 @@ describe("buildContextPreamble — full preamble", () => {
 
     // Recent memories section
     expect(preamble).toContain("[Recent memories");
-    expect(preamble).toContain('[personal] "Alex has a cat named Miso"');
+    expect(preamble).toContain("personal,Alex has a cat named Miso");
 
     // Relevant memories with scores
     expect(preamble).toContain("[Potentially relevant memories]");
-    expect(preamble).toContain('[95% match] [health] "Alex is allergic to shellfish"');
-    expect(preamble).toContain('[82% match] [work] "Alex works at DataPipe"');
+    expect(preamble).toContain("95%,health,Alex is allergic to shellfish");
+    expect(preamble).toContain("82%,work,Alex works at DataPipe");
 
     // Skill instructions section
     expect(preamble).toContain("[Relevant skill instructions");
@@ -103,11 +103,11 @@ describe("buildContextPreamble — relevant memories with scores", () => {
       ],
     });
 
-    expect(preamble).toContain('[46% match] [work] "Memory A"');
-    expect(preamble).toContain('[100% match] [personal] "Memory B"');
-    expect(preamble).toContain('[keyword match] [health] "Memory C"');
+    expect(preamble).toContain("46%,work,Memory A");
+    expect(preamble).toContain("100%,personal,Memory B");
+    expect(preamble).toContain("keyword,health,Memory C");
     expect(preamble).not.toMatch(/Memory C.*%/);
-    expect(preamble).toContain('[fact] "Memory D"');
+    expect(preamble).toContain("fact,Memory D");
     expect(preamble).not.toMatch(/Memory D.*(match|%)/);
   });
 });

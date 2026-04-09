@@ -9,24 +9,25 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@lmnr-ai/lmnr": "^0.8.16",
-    "@mariozechner/pi-agent-core": "^0.54.2",
-    "@mariozechner/pi-ai": "^0.54.2",
+    "@lmnr-ai/lmnr": "^0.8.17",
+    "@mariozechner/pi-agent-core": "^0.66.1",
+    "@mariozechner/pi-ai": "^0.66.1",
     "@repo/cairn": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/env": "workspace:*",
     "@repo/log": "workspace:*",
-    "@sinclair/typebox": "^0.34.48",
-    "citty": "^0.2.1",
+    "@sinclair/typebox": "^0.34.49",
+    "@toon-format/toon": "^2.1.0",
+    "citty": "^0.2.2",
     "croner": "^10.0.1",
-    "grammy": "^1.40.0",
+    "grammy": "^1.42.0",
     "jiti": "^2.6.1",
-    "kysely": "^0.28.11",
-    "nanoid": "^5.1.6",
-    "yaml": "^2.8.2",
+    "kysely": "^0.28.15",
+    "nanoid": "^5.1.7",
+    "yaml": "^2.8.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "vitest": "^4.0.18"
+    "vitest": "^4.1.3"
   }
 }

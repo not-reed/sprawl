@@ -158,30 +158,34 @@ export async function processMessage(
       model,
     },
   });
-  agent.setModel(model);
-
   // 7. Replay history
   for (const msg of historyMessages) {
     if (msg.role === "user") {
-      agent.appendMessage({ role: "user", content: msg.content, timestamp: Date.now() });
+      agent.state.messages = [
+        ...agent.state.messages,
+        { role: "user", content: msg.content, timestamp: Date.now() },
+      ];
     } else if (msg.role === "assistant") {
-      agent.appendMessage({
-        role: "assistant",
-        content: [{ type: "text", text: msg.content }],
-        api: "openrouter" as any,
-        provider: "openrouter" as any,
-        model: env.OPENROUTER_MODEL,
-        usage: {
-          input: 0,
-          output: 0,
-          cacheRead: 0,
-          cacheWrite: 0,
-          totalTokens: 0,
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      agent.state.messages = [
+        ...agent.state.messages,
+        {
+          role: "assistant",
+          content: [{ type: "text", text: msg.content }],
+          api: "openrouter" as any,
+          provider: "openrouter" as any,
+          model: env.OPENROUTER_MODEL,
+          usage: {
+            input: 0,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 0,
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+          },
+          stopReason: "stop",
+          timestamp: Date.now(),
         },
-        stopReason: "stop",
-        timestamp: Date.now(),
-      });
+      ];
     }
   }
 
