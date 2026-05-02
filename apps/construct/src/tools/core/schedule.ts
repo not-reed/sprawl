@@ -62,11 +62,15 @@ function getTimeCandidates(
   });
 }
 
+interface CreateArgs {
+  description: string;
+  instruction: string;
+  cron_expression?: string;
+  run_at?: string;
+}
+
 /** Fast dedup: Levenshtein on instruction/prompt content + description. */
-function findFastDuplicate(
-  candidates: Schedule[],
-  args: ScheduleCreateInput,
-): Schedule | undefined {
+function findFastDuplicate(candidates: Schedule[], args: CreateArgs): Schedule | undefined {
   return candidates.find((s) => {
     // Check prompt/message content against new instruction
     const existingInstruction = s.prompt ?? s.message;
@@ -104,36 +108,37 @@ async function findEmbeddingDuplicate(
   return undefined;
 }
 
-// --- schedule_create ---
+// --- Unified schedule tool ---
 
-const ScheduleCreateParams = Type.Object({
-  description: Type.String({
-    description: 'Human-readable description (e.g. "Dentist appointment reminder")',
+const ScheduleParams = Type.Object({
+  action: Type.Union([Type.Literal("create"), Type.Literal("list"), Type.Literal("cancel")], {
+    description: 'Action: "create" a reminder, "list" existing reminders, "cancel" a reminder',
   }),
-  instruction: Type.String({
-    description:
-      'What the agent should do when the schedule fires. The agent runs this with full context and tool access (e.g. "Remind the user about their dentist appointment and check if they need directions").',
-  }),
+  description: Type.Optional(
+    Type.String({ description: 'For "create": human-readable description of the reminder' }),
+  ),
+  instruction: Type.Optional(
+    Type.String({ description: 'For "create": what the agent should do when the reminder fires' }),
+  ),
   cron_expression: Type.Optional(
     Type.String({
-      description:
-        'Cron expression for recurring schedules (e.g. "0 9 * * 1" for every Monday at 9am). Uses the user\'s configured timezone.',
+      description: 'For "create": cron expression for recurring schedules (e.g. "0 9 * * 1")',
     }),
   ),
   run_at: Type.Optional(
     Type.String({
-      description:
-        "Datetime in user's local timezone, without Z or offset (e.g. '2025-03-05T09:00:00')",
+      description: 'For "create": datetime in local timezone, without Z or offset',
     }),
   ),
+  active_only: Type.Optional(
+    Type.Boolean({ description: 'For "list": only show active schedules (default: true)' }),
+  ),
+  id: Type.Optional(Type.String({ description: 'For "cancel": schedule ID to cancel' })),
 });
 
-type ScheduleCreateInput = Static<typeof ScheduleCreateParams>;
+type ScheduleInput = Static<typeof ScheduleParams>;
 
-/**
- * chatId is auto-injected from conversation context — the LLM never needs to know it.
- */
-export function createScheduleCreateTool(
+export function createScheduleTool(
   db: Kysely<Database>,
   chatId: string,
   timezone: string,
@@ -141,148 +146,142 @@ export function createScheduleCreateTool(
   embeddingModel?: string,
 ) {
   return {
-    name: "schedule_create",
+    name: "schedule" as const,
     description:
-      "Create a scheduled reminder or agent task. All reminders run through the agent with full context and tool access. Provide cron_expression for recurring, or run_at for one-shot.",
-    parameters: ScheduleCreateParams,
-    execute: async (_toolCallId: string, args: ScheduleCreateInput) => {
-      if (!args.cron_expression && !args.run_at) {
-        return {
-          output: "Please provide either a cron_expression (recurring) or run_at (one-shot).",
-          details: {},
-        };
+      'Schedule reminders and agent tasks. Actions: "create" (cron or one-shot), "list" existing, "cancel" by ID.',
+    parameters: ScheduleParams,
+    execute: async (_toolCallId: string, args: unknown) => {
+      const typed = args as ScheduleInput;
+
+      switch (typed.action) {
+        case "create": {
+          if (!typed.description || !typed.instruction) {
+            return {
+              output: 'The "create" action requires "description" and "instruction" parameters.',
+              details: { error: "missing_params" },
+            };
+          }
+          if (!typed.cron_expression && !typed.run_at) {
+            return {
+              output: "Please provide either a cron_expression (recurring) or run_at (one-shot).",
+              details: {},
+            };
+          }
+
+          const normalizedRunAt = typed.run_at ? stripTimezoneOffset(typed.run_at) : null;
+
+          const existing = await listSchedules(db, true);
+          const candidates = getTimeCandidates(
+            existing,
+            chatId,
+            true,
+            typed.cron_expression,
+            normalizedRunAt,
+          );
+
+          let duplicate = findFastDuplicate(candidates, {
+            description: typed.description,
+            instruction: typed.instruction,
+            cron_expression: typed.cron_expression,
+            run_at: typed.run_at,
+          });
+
+          if (!duplicate && candidates.length > 0) {
+            duplicate = await findEmbeddingDuplicate(
+              candidates,
+              typed.description,
+              apiKey,
+              embeddingModel,
+            );
+          }
+
+          if (duplicate) {
+            const type = duplicate.cron_expression ? "recurring" : "one-shot";
+            const when = duplicate.cron_expression ?? duplicate.run_at;
+            toolLog.info`Dedup: returning existing schedule [${duplicate.id}] instead of creating duplicate`;
+            return {
+              output: `Schedule already exists — ${type} [${duplicate.id}]: "${duplicate.description}" — ${when} (${timezone})`,
+              details: { schedule: duplicate, deduplicated: true },
+            };
+          }
+
+          toolLog.info`Creating schedule: ${typed.description} for chat ${chatId}`;
+
+          const schedule = await createSchedule(db, {
+            description: typed.description,
+            message: typed.description,
+            prompt: typed.instruction,
+            chat_id: chatId,
+            cron_expression: typed.cron_expression ?? null,
+            run_at: normalizedRunAt,
+          });
+
+          const type = schedule.cron_expression ? "recurring" : "one-shot";
+          const when = schedule.cron_expression ?? schedule.run_at;
+
+          toolLog.info`Created ${type} schedule [${schedule.id}]: ${typed.description} — ${when}`;
+
+          return {
+            output: `Created ${type} schedule [${schedule.id}]: "${schedule.description}" — ${when} (${timezone})`,
+            details: { schedule },
+          };
+        }
+
+        case "list": {
+          const schedules = await listSchedules(db, typed.active_only ?? true);
+
+          if (schedules.length === 0) {
+            return {
+              output: "No scheduled reminders found.",
+              details: { schedules: [] },
+            };
+          }
+
+          const lines = schedules.map((s) => {
+            const sType = s.cron_expression
+              ? `cron: ${s.cron_expression}`
+              : `at: ${s.run_at} (${timezone})`;
+            const status = s.active ? "active" : "inactive";
+            const badge = s.prompt ? " [agent]" : "";
+            return `[${s.id}] (${status})${badge} ${s.description} — ${sType}`;
+          });
+
+          return {
+            output: `${schedules.length} schedules:\n${lines.join("\n")}`,
+            details: { schedules },
+          };
+        }
+
+        case "cancel": {
+          if (!typed.id) {
+            return {
+              output: 'The "cancel" action requires an "id" parameter.',
+              details: { error: "missing_params" },
+            };
+          }
+
+          const success = await cancelSchedule(db, typed.id);
+
+          if (success) {
+            toolLog.info`Cancelled schedule [${typed.id}]`;
+            return {
+              output: `Cancelled schedule [${typed.id}].`,
+              details: { cancelled: typed.id },
+            };
+          }
+
+          return {
+            output: `Schedule [${typed.id}] not found or already cancelled.`,
+            details: { cancelled: null },
+          };
+        }
+
+        default:
+          return {
+            output: `Unknown action: ${typed.action}`,
+            details: { error: "unknown_action" },
+          };
       }
-
-      // Normalize run_at: strip any Z or offset the LLM may have added
-      const normalizedRunAt = args.run_at ? stripTimezoneOffset(args.run_at) : null;
-
-      // Dedup: two-pass — fast Levenshtein, then embedding similarity for same-time schedules
-      const existing = await listSchedules(db, true);
-      const candidates = getTimeCandidates(
-        existing,
-        chatId,
-        true,
-        args.cron_expression,
-        normalizedRunAt,
-      );
-
-      // Fast pass: Levenshtein on content + description (no API call)
-      let duplicate = findFastDuplicate(candidates, args);
-
-      // Slow pass: embedding similarity on descriptions (only if fast pass missed)
-      if (!duplicate && candidates.length > 0) {
-        duplicate = await findEmbeddingDuplicate(
-          candidates,
-          args.description,
-          apiKey,
-          embeddingModel,
-        );
-      }
-
-      if (duplicate) {
-        const type = duplicate.cron_expression ? "recurring" : "one-shot";
-        const when = duplicate.cron_expression ?? duplicate.run_at;
-        toolLog.info`Dedup: returning existing schedule [${duplicate.id}] instead of creating duplicate`;
-        return {
-          output: `Schedule already exists — ${type} [${duplicate.id}]: "${duplicate.description}" — ${when} (${timezone})`,
-          details: { schedule: duplicate, deduplicated: true },
-        };
-      }
-
-      toolLog.info`Creating schedule: ${args.description} for chat ${chatId}`;
-
-      const schedule = await createSchedule(db, {
-        description: args.description,
-        message: args.description, // satisfies NOT NULL column
-        prompt: args.instruction,
-        chat_id: chatId,
-        cron_expression: args.cron_expression ?? null,
-        run_at: normalizedRunAt,
-      });
-
-      const type = schedule.cron_expression ? "recurring" : "one-shot";
-      const when = schedule.cron_expression ?? schedule.run_at;
-
-      toolLog.info`Created ${type} schedule [${schedule.id}]: ${args.description} — ${when}`;
-
-      return {
-        output: `Created ${type} schedule [${schedule.id}]: "${schedule.description}" — ${when} (${timezone})`,
-        details: { schedule },
-      };
-    },
-  };
-}
-
-// --- schedule_list ---
-
-const ScheduleListParams = Type.Object({
-  active_only: Type.Optional(
-    Type.Boolean({ description: "Only show active schedules (default: true)" }),
-  ),
-});
-
-type ScheduleListInput = Static<typeof ScheduleListParams>;
-
-export function createScheduleListTool(db: Kysely<Database>, timezone: string) {
-  return {
-    name: "schedule_list",
-    description: "List all scheduled reminders.",
-    parameters: ScheduleListParams,
-    execute: async (_toolCallId: string, args: ScheduleListInput) => {
-      const schedules = await listSchedules(db, args.active_only ?? true);
-
-      if (schedules.length === 0) {
-        return {
-          output: "No scheduled reminders found.",
-          details: { schedules: [] },
-        };
-      }
-
-      const lines = schedules.map((s) => {
-        const type = s.cron_expression
-          ? `cron: ${s.cron_expression}`
-          : `at: ${s.run_at} (${timezone})`;
-        const status = s.active ? "active" : "inactive";
-        const badge = s.prompt ? " [agent]" : "";
-        return `[${s.id}] (${status})${badge} ${s.description} — ${type}`;
-      });
-
-      return {
-        output: `${schedules.length} schedules:\n${lines.join("\n")}`,
-        details: { schedules },
-      };
-    },
-  };
-}
-
-// --- schedule_cancel ---
-
-const ScheduleCancelParams = Type.Object({
-  id: Type.String({ description: "The schedule ID to cancel" }),
-});
-
-type ScheduleCancelInput = Static<typeof ScheduleCancelParams>;
-
-export function createScheduleCancelTool(db: Kysely<Database>) {
-  return {
-    name: "schedule_cancel",
-    description: "Cancel (deactivate) a scheduled reminder.",
-    parameters: ScheduleCancelParams,
-    execute: async (_toolCallId: string, args: ScheduleCancelInput) => {
-      const success = await cancelSchedule(db, args.id);
-
-      if (success) {
-        toolLog.info`Cancelled schedule [${args.id}]`;
-        return {
-          output: `Cancelled schedule [${args.id}].`,
-          details: { cancelled: args.id },
-        };
-      }
-
-      return {
-        output: `Schedule [${args.id}] not found or already cancelled.`,
-        details: { cancelled: null },
-      };
     },
   };
 }

@@ -7,7 +7,7 @@ import type { Database } from "../db/schema.js";
 import { runMigrations } from "../db/migrate.js";
 import { env } from "../env.js";
 import { processMessage, isDev } from "../agent.js";
-import { selectAndCreateTools } from "../tools/packs.js";
+import { createAllTools } from "../tools/packs.js";
 import { initExtensions, selectAndCreateDynamicTools } from "../extensions/index.js";
 import { skillsCommand } from "./skills.js";
 
@@ -123,7 +123,7 @@ async function runTool(db: Kysely<Database>, toolName: string, argsJson?: string
     logFile: env.LOG_FILE,
     isDev,
   };
-  const builtinTools = selectAndCreateTools(undefined, ctx);
+  const builtinTools = createAllTools(ctx);
 
   // Also load dynamic extension tools
   await initExtensions(env.EXTENSIONS_DIR, env.OPENROUTER_API_KEY, db, env.EMBEDDING_MODEL);

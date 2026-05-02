@@ -6,7 +6,6 @@ import type { Database } from "./db/schema.js";
 import { runMigrations } from "./db/migrate.js";
 import { createBot } from "./telegram/bot.js";
 import { startScheduler, stopScheduler } from "./scheduler/index.js";
-import { initPackEmbeddings } from "./tools/packs.js";
 import { syncEnvSecrets } from "./extensions/secrets.js";
 import { initExtensions } from "./extensions/index.js";
 
@@ -46,11 +45,6 @@ async function main() {
   // Start Telegram long polling
   log.info`Construct is running`;
   bot.start({ allowed_updates: ["message", "message_reaction", "callback_query"] });
-
-  // Fire-and-forget: compute tool pack embeddings (only 2 API calls, not worth caching)
-  initPackEmbeddings(env.OPENROUTER_API_KEY, env.EMBEDDING_MODEL).catch((err) => {
-    log.warning`Background pack embedding computation failed: ${err}`;
-  });
 
   // Graceful shutdown
   const shutdown = async () => {
