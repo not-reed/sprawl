@@ -183,7 +183,7 @@ export function buildContextPreamble(context: {
 
   if (context.observations) {
     preamble +=
-      "\n[Conversation observations — compressed context from earlier in this conversation]\n";
+      "\n[Conversation observations — dates prefixed are when recorded, not event dates. Relative references in content are relative to that date, not today.]\n";
     preamble += context.observations + "\n";
   }
 
