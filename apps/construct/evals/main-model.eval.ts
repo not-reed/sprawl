@@ -191,7 +191,7 @@ async function callModel(message: string): Promise<ExecResult> {
         { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
-          content: `[Current time: 8:00 AM | Tuesday, April 8, 2025 | UTC | telegram]\n\n${message}`,
+          content: `[Current time: ${new Date().toLocaleString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })} | ${new Date().toLocaleString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} | UTC | telegram]\n\n${message}`,
         },
       ],
       tools: TOOLS,

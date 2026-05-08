@@ -34,6 +34,9 @@ vi.mock("@repo/cairn/embeddings", () => {
     generateEmbedding: vi.fn((_apiKey: string, text: string) =>
       Promise.resolve(getEmbedding(text)),
     ),
+    generateEmbeddings: vi.fn((_apiKey: string, texts: string[]) =>
+      Promise.resolve(texts.map((text, index) => ({ embedding: getEmbedding(text), index }))),
+    ),
     cosineSimilarity: vi.fn((a: number[], b: number[]): number => {
       if (a.length !== b.length) return 0;
       let dot = 0,
@@ -101,7 +104,7 @@ async function insertObservation(
 describe("promoteObservations", () => {
   it("promotes novel medium/high observations to memories", async () => {
     const mm = new MemoryManager(db, {
-      workerConfig: { apiKey: "test", model: "test-model" },
+      workerConfig: { apiKey: "test", model: "test-model", baseUrl: "" },
       apiKey: "test",
     });
     const convId = await getOrCreateConversation(db, "cli", null);
@@ -125,7 +128,7 @@ describe("promoteObservations", () => {
 
   it("skips low-priority observations", async () => {
     const mm = new MemoryManager(db, {
-      workerConfig: { apiKey: "test", model: "test-model" },
+      workerConfig: { apiKey: "test", model: "test-model", baseUrl: "" },
       apiKey: "test",
     });
     const convId = await getOrCreateConversation(db, "cli", null);
@@ -147,7 +150,7 @@ describe("promoteObservations", () => {
 
   it("skips near-duplicate observations (sim >= 0.85)", async () => {
     const mm = new MemoryManager(db, {
-      workerConfig: { apiKey: "test", model: "test-model" },
+      workerConfig: { apiKey: "test", model: "test-model", baseUrl: "" },
       apiKey: "test",
     });
     const convId = await getOrCreateConversation(db, "cli", null);
@@ -172,7 +175,7 @@ describe("promoteObservations", () => {
 
   it("marks all candidates promoted_at regardless of outcome", async () => {
     const mm = new MemoryManager(db, {
-      workerConfig: { apiKey: "test", model: "test-model" },
+      workerConfig: { apiKey: "test", model: "test-model", baseUrl: "" },
       apiKey: "test",
     });
     const convId = await getOrCreateConversation(db, "cli", null);
@@ -221,7 +224,7 @@ describe("promoteObservations", () => {
 
   it("does not re-promote already-promoted observations", async () => {
     const mm = new MemoryManager(db, {
-      workerConfig: { apiKey: "test", model: "test-model" },
+      workerConfig: { apiKey: "test", model: "test-model", baseUrl: "" },
       apiKey: "test",
     });
     const convId = await getOrCreateConversation(db, "cli", null);
@@ -238,7 +241,7 @@ describe("promoteObservations", () => {
 
   it("deduplicates within the same batch", async () => {
     const mm = new MemoryManager(db, {
-      workerConfig: { apiKey: "test", model: "test-model" },
+      workerConfig: { apiKey: "test", model: "test-model", baseUrl: "" },
       apiKey: "test",
     });
     const convId = await getOrCreateConversation(db, "cli", null);

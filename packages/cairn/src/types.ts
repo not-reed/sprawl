@@ -120,7 +120,7 @@ export interface ContextWindow {
 export interface WorkerModelConfig {
   apiKey: string;
   model: string;
-  baseUrl?: string;
+  baseUrl: string;
   /** Extra body params merged into every LLM request (e.g. { reasoning: { max_tokens: 1 } }) */
   extraBody?: Record<string, unknown>;
 }

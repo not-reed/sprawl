@@ -20,7 +20,7 @@ import { reflect } from "./reflector.js";
 import { renderObservations, renderObservationsWithBudget, OBSERVATION_BUDGET } from "./context.js";
 import { estimateTokens, estimateMessageTokens } from "./tokens.js";
 import { storeMemory, trackUsage } from "./db/queries.js";
-import { generateEmbedding, cosineSimilarity } from "./embeddings.js";
+import { generateEmbeddings, cosineSimilarity } from "./embeddings.js";
 
 /** Token thresholds for triggering observer/reflector */
 export const OBSERVER_THRESHOLD = 3000;
@@ -307,6 +307,9 @@ export class MemoryManager {
 
   /**
    * Run the reflector to condense observations when they exceed the threshold.
+   * Wrap supersede + store in a transaction so failures don't leave partial state.
+   * Skips condensed observations whose content already exists in active observations
+   * (prevents duplicate condensed entries on re-run).
    * Returns true if observations were condensed.
    */
   async runReflector(
@@ -332,20 +335,27 @@ export class MemoryManager {
         this.reflectorPrompt,
       );
 
-      // Mark superseded observations
-      if (result.superseded_ids.length > 0) {
-        await this.db
-          .updateTable("observations")
-          .set({ superseded_at: sql<string>`datetime('now')` })
-          .where("id", "in", result.superseded_ids)
-          .execute();
-      }
+      // Collect existing active observation content for dedup
+      const existingContents = new Set(observations.map((o) => o.content));
 
-      // Insert new condensed observations
-      const maxGen = Math.max(...observations.map((o) => o.generation), 0);
-      for (const obs of result.observations) {
-        await this.storeObservation(conversationId, obs, null, maxGen + 1);
-      }
+      // Wrap supersede + store in a transaction
+      await this.db.transaction().execute(async (trx) => {
+        if (result.superseded_ids.length > 0) {
+          await trx
+            .updateTable("observations")
+            .set({ superseded_at: sql<string>`datetime('now')` })
+            .where("id", "in", result.superseded_ids)
+            .execute();
+        }
+
+        const maxGen = Math.max(...observations.map((o) => o.generation), 0);
+        for (const obs of result.observations) {
+          // Skip if an active observation already has this content (idempotency)
+          if (existingContents.has(obs.content)) continue;
+
+          await this.storeObservation(conversationId, obs, null, maxGen + 1);
+        }
+      });
 
       // Update observation token count
       const newObservations = await this.getActiveObservations(conversationId);
@@ -381,8 +391,9 @@ export class MemoryManager {
   /**
    * Promote novel medium/high-priority observations into the memories table.
    * Uses embedding-based dedup against existing memories (threshold: 0.85).
-   * Only observations that pass dedup get graph extraction (cost savings).
-   * All candidates are marked promoted_at regardless of outcome.
+   * Embeddings are generated in parallel; dedup and storage run sequentially.
+   * Only observations that were successfully processed get marked promoted_at —
+   * failures remain eligible for retry on the next turn.
    * Returns count of promoted observations.
    */
   async promoteObservations(conversationId: string): Promise<number> {
@@ -416,31 +427,63 @@ export class MemoryManager {
       (m) => JSON.parse(m.embedding!) as number[],
     );
 
-    // Track new embeddings for intra-batch dedup
+    // 3. Generate embeddings in parallel for all candidates
+    const results = await generateEmbeddings(
+      this.apiKey,
+      candidates.map((c) => c.content),
+      this.embeddingModel,
+    );
+
+    // 4. Process results sequentially for intra-batch dedup.
+    //    Each observation is marked promoted_at individually as it is processed,
+    //    so partial progress survives crashes. Novel memories are wrapped in a
+    //    transaction to keep insert + promoted_at update atomic.
     const batchEmbeddings: number[][] = [];
     let promoted = 0;
 
-    for (const obs of candidates) {
-      try {
-        const embedding = await generateEmbedding(this.apiKey, obs.content, this.embeddingModel);
+    for (const result of results) {
+      if ("error" in result) {
+        this.log.error(
+          `Embedding failed for observation [${candidates[result.index].id}]: ${result.error}`,
+        );
+        continue;
+      }
 
+      const obs = candidates[result.index];
+      const embedding = result.embedding;
+
+      try {
         // Check against existing + batch embeddings
-        const allToCheck = [...existingEmbeddings, ...batchEmbeddings];
         let maxSim = 0;
-        for (const other of allToCheck) {
+        for (const other of existingEmbeddings) {
+          const sim = cosineSimilarity(embedding, other);
+          if (sim > maxSim) maxSim = sim;
+        }
+        for (const other of batchEmbeddings) {
           const sim = cosineSimilarity(embedding, other);
           if (sim > maxSim) maxSim = sim;
         }
 
         if (maxSim < 0.85) {
-          // Novel — store as memory
-          const memory = await storeMemory(this.db, {
-            content: obs.content,
-            category: "observation",
-            source: "observer",
-            embedding: JSON.stringify(embedding),
-            tags: null,
+          // Novel — store memory + mark promoted atomically
+          const memory = await this.db.transaction().execute(async (trx) => {
+            const mem = await storeMemory(trx, {
+              content: obs.content,
+              category: "observation",
+              source: "observer",
+              embedding: JSON.stringify(embedding),
+              tags: null,
+            });
+
+            await trx
+              .updateTable("observations")
+              .set({ promoted_at: sql<string>`datetime('now')` })
+              .where("id", "=", obs.id)
+              .execute();
+
+            return mem;
           });
+
           batchEmbeddings.push(embedding);
           existingEmbeddings.push(embedding);
           promoted++;
@@ -457,19 +500,19 @@ export class MemoryManager {
           this.log.debug(
             `Skipped duplicate observation (sim=${maxSim.toFixed(3)}): ${obs.content.slice(0, 60)}`,
           );
+
+          // Mark duplicate as processed so it won't be re-candidate
+          await this.db
+            .updateTable("observations")
+            .set({ promoted_at: sql<string>`datetime('now')` })
+            .where("id", "=", obs.id)
+            .execute();
         }
       } catch (err) {
-        this.log.error(`Failed to promote observation [${obs.id}]: ${err}`);
+        this.log.error(`Failed to store promoted observation [${obs.id}]: ${err}`);
+        // Don't mark — will retry next turn
       }
     }
-
-    // 3. Mark all candidates as promoted (regardless of outcome)
-    const candidateIds = candidates.map((c) => c.id);
-    await this.db
-      .updateTable("observations")
-      .set({ promoted_at: sql<string>`datetime('now')` })
-      .where("id", "in", candidateIds)
-      .execute();
 
     if (promoted > 0) {
       this.log.info(`Promoted ${promoted}/${candidates.length} observations to memories`);

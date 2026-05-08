@@ -3,6 +3,7 @@ import { z } from "zod";
 const envSchema = z.object({
   OPENROUTER_API_KEY: z.string(),
   OPENROUTER_MODEL: z.string().default("google/gemini-3-flash-preview"),
+  OPENROUTER_BASE_URL: z.string().default("https://openrouter.ai/api/v1/chat/completions"),
   DATABASE_URL: z.string().default("./data/loom.db"),
   PORT: z.coerce.number().default(4900),
   EMBEDDING_MODEL: z.string().default("qwen/qwen3-embedding-4b"),

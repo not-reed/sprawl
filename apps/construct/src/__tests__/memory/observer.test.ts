@@ -78,7 +78,7 @@ describe("MemoryManager observations", () => {
   it("runObserver skips when messages below threshold", async () => {
     // Use a fake config — it won't be reached since threshold won't be met
     const mm = new MemoryManager(db, {
-      workerConfig: { apiKey: "fake", model: "fake" },
+      workerConfig: { apiKey: "fake", model: "fake", baseUrl: "" },
       apiKey: "fake",
     });
     const convId = await getOrCreateConversation(db, "cli", null);

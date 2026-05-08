@@ -11,6 +11,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().default("./data/cortex.db"),
   TRACKED_TOKENS: csvFromEnv("bitcoin,ethereum"),
   EMBEDDING_MODEL: z.string().default("qwen/qwen3-embedding-4b"),
+  OPENROUTER_BASE_URL: z.string().default("https://openrouter.ai/api/v1/chat/completions"),
   MEMORY_WORKER_MODEL: z.string().default("google/gemini-3-flash-preview"),
   ANALYZER_MODEL: z.string().optional(),
 

@@ -44,7 +44,8 @@ export type { BudgetedObservations } from "./context.js";
 export { estimateTokens, estimateMessageTokens } from "./tokens.js";
 
 // Embeddings
-export { generateEmbedding, cosineSimilarity } from "./embeddings.js";
+export { generateEmbedding, generateEmbeddings, cosineSimilarity } from "./embeddings.js";
+export type { EmbeddingResult } from "./embeddings.js";
 
 // Similarity thresholds
 export { SIMILARITY } from "./similarity.js";
@@ -109,3 +110,18 @@ export {
   DEFAULT_OBSERVER_PROMPT,
 } from "./observer.js";
 export { reflect, validateSupersededIds, DEFAULT_REFLECTOR_PROMPT } from "./reflector.js";
+
+// Pipeline queue
+export { PipelineQueue } from "./queue.js";
+export type { PipelineJobRecord, PipelineStatus, PipelineQueueOptions } from "./queue.js";
+
+// Retry infrastructure
+export {
+  withRetry,
+  withEmbeddingRetry,
+  withMemoryRetry,
+  shouldRetry,
+  retryAfterFromHeaders,
+  fetchErrorFromResponse,
+} from "./retry.js";
+export type { RetryOpts, FetchError } from "./retry.js";

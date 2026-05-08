@@ -10,8 +10,8 @@ default:
 dev: construct-dev
 
 # Run construct in dev mode with file watching
-construct-dev:
-    node --env-file=.env.construct --import=tsx --watch-path=apps/construct/src apps/construct/src/main.ts
+construct-dev instance="construct":
+    node --env-file=.env.{{instance}} --import=tsx --watch-path=apps/construct/src apps/construct/src/main.ts
 
 # Run deck in dev mode
 deck-dev instance:

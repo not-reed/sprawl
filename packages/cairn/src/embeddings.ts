@@ -1,9 +1,12 @@
-import { EmbeddingError } from "./errors.js";
+import { withEmbeddingRetry, fetchErrorFromResponse } from "./retry.js";
 
 const DEFAULT_EMBEDDING_MODEL = "qwen/qwen3-embedding-4b";
 
 /**
  * Generate an embedding vector via OpenRouter's OpenAI-compatible endpoint.
+ * Wrapped with retry for resilience against transient network failures (TypeError),
+ * 5xx server errors, and 429 rate limits (respects Retry-After header).
+ *
  * @param apiKey - OpenRouter API key.
  * @param text - Text to embed.
  * @param model - Embedding model (defaults to qwen/qwen3-embedding-4b).
@@ -13,28 +16,64 @@ export async function generateEmbedding(
   text: string,
   model?: string,
 ): Promise<number[]> {
-  const response = await fetch("https://openrouter.ai/api/v1/embeddings", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: model ?? DEFAULT_EMBEDDING_MODEL,
-      input: text,
-    }),
+  return withEmbeddingRetry(async () => {
+    const response = await fetch("https://openrouter.ai/api/v1/embeddings", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: model ?? DEFAULT_EMBEDDING_MODEL,
+        input: text,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw fetchErrorFromResponse(response, body, "OpenRouter embeddings");
+    }
+
+    const data = (await response.json()) as {
+      data: Array<{ embedding: number[] }>;
+    };
+
+    return data.data[0].embedding;
   });
+}
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new EmbeddingError(`Embedding API error: ${response.status} ${body}`);
-  }
+/** Result for an individual text in a batch embedding call. */
+export type EmbeddingResult =
+  | { embedding: number[]; index: number }
+  | { error: string; index: number };
 
-  const data = (await response.json()) as {
-    data: Array<{ embedding: number[] }>;
-  };
-
-  return data.data[0].embedding;
+/**
+ * Generate embeddings for multiple texts in parallel.
+ * Each text is individually retried — a failure for one text does not affect others.
+ *
+ * @param apiKey - OpenRouter API key.
+ * @param texts - Texts to embed.
+ * @param model - Embedding model (defaults to qwen/qwen3-embedding-4b).
+ * @returns Array of results, each with an `index` matching the input position.
+ */
+export async function generateEmbeddings(
+  apiKey: string,
+  texts: string[],
+  model?: string,
+): Promise<EmbeddingResult[]> {
+  return Promise.all(
+    texts.map(async (text, index) => {
+      try {
+        const embedding = await generateEmbedding(apiKey, text, model);
+        return { embedding, index };
+      } catch (err) {
+        return {
+          error: err instanceof Error ? err.message : String(err),
+          index,
+        };
+      }
+    }),
+  );
 }
 
 /**

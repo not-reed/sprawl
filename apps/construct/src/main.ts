@@ -6,9 +6,14 @@ import type { Database } from "./db/schema.js";
 import { runMigrations } from "./db/migrate.js";
 import { createBot } from "./telegram/bot.js";
 import { startScheduler, stopScheduler } from "./scheduler/index.js";
-import { initPackEmbeddings } from "./tools/packs.js";
 import { syncEnvSecrets } from "./extensions/secrets.js";
 import { initExtensions } from "./extensions/index.js";
+import {
+  ConstructMemoryManager,
+  CONSTRUCT_OBSERVER_PROMPT,
+  CONSTRUCT_REFLECTOR_PROMPT,
+} from "./memory.js";
+import { PipelineQueue } from "@repo/cairn";
 
 async function main() {
   await setupLogging(env.LOG_LEVEL, env.LOG_FILE);
@@ -37,8 +42,29 @@ async function main() {
     env.MEMORY_WORKER_MODEL || env.OPENROUTER_MODEL,
   );
 
-  // Create Telegram bot
-  const bot = createBot(db);
+  // Create memory manager for the pipeline queue (shared instance)
+  const memoryManager = new ConstructMemoryManager(db, {
+    workerConfig: env.MEMORY_WORKER_MODEL
+      ? {
+          apiKey: env.OPENROUTER_API_KEY,
+          model: env.MEMORY_WORKER_MODEL,
+          baseUrl: env.OPENROUTER_BASE_URL,
+          extraBody: { reasoning: { max_tokens: 1 } },
+        }
+      : null,
+    embeddingModel: env.EMBEDDING_MODEL,
+    apiKey: env.OPENROUTER_API_KEY,
+    observerPrompt: CONSTRUCT_OBSERVER_PROMPT,
+    reflectorPrompt: CONSTRUCT_REFLECTOR_PROMPT,
+  });
+
+  // Create and start pipeline queue for crash-recoverable post-turn processing
+  const pipelineQueue = new PipelineQueue(db, memoryManager);
+  await pipelineQueue.start();
+  log.info`Pipeline queue started`;
+
+  // Create Telegram bot with queue reference
+  const bot = createBot(db, pipelineQueue);
 
   // Start scheduler
   await startScheduler(db, bot, env.TIMEZONE);
@@ -47,17 +73,32 @@ async function main() {
   log.info`Construct is running`;
   bot.start({ allowed_updates: ["message", "message_reaction", "callback_query"] });
 
-  // Fire-and-forget: compute tool pack embeddings (only 2 API calls, not worth caching)
-  initPackEmbeddings(env.OPENROUTER_API_KEY, env.EMBEDDING_MODEL).catch((err) => {
-    log.warning`Background pack embedding computation failed: ${err}`;
-  });
+  // Graceful shutdown — idempotent, with hard timeout + force-exit on repeat signal
+  let shuttingDown = false;
+  const SHUTDOWN_TIMEOUT_MS = 3000;
 
-  // Graceful shutdown
-  const shutdown = async () => {
-    log.info`Shutting down`;
-    stopScheduler();
-    bot.stop();
-    await db.destroy();
+  const shutdown = async (signal: NodeJS.Signals) => {
+    if (shuttingDown) {
+      log.warning`Received ${signal} during shutdown — forcing exit`;
+      process.exit(1);
+    }
+    shuttingDown = true;
+    log.info`Shutting down (${signal})`;
+
+    const hardExit = setTimeout(() => {
+      log.warning`Shutdown timed out after ${SHUTDOWN_TIMEOUT_MS}ms — forcing exit`;
+      process.exit(1);
+    }, SHUTDOWN_TIMEOUT_MS);
+    hardExit.unref();
+
+    try {
+      pipelineQueue.stop();
+      stopScheduler();
+      await bot.stop();
+      await db.destroy();
+    } catch (err) {
+      log.error`Error during shutdown: ${err}`;
+    }
     process.exit(0);
   };
 
