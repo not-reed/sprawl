@@ -16,6 +16,7 @@ import {
   getRelatedMemoriesWithScores,
   type Memory,
   type MemoryManager,
+  type PipelineQueue,
 } from "@repo/cairn";
 import type { Database } from "../../db/schema.js";
 import { getUsageStats } from "../../db/queries.js";
@@ -29,10 +30,11 @@ const MemoryParams = Type.Object({
       Type.Literal("forget"),
       Type.Literal("graph"),
       Type.Literal("stats"),
+      Type.Literal("health"),
     ],
     {
       description:
-        'Action: "store" a memory, "recall" memories, "forget" (archive) a memory, "graph" explore concept connections, "stats" show usage statistics',
+        'Action: "store" a memory, "recall" memories, "forget" (archive) a memory, "graph" explore concept connections, "stats" show usage statistics, "health" show pipeline queue and memory health',
     },
   ),
   // store params
@@ -91,11 +93,12 @@ export function createMemoryTool(
   apiKey?: string,
   memoryManager?: MemoryManager,
   embeddingModel?: string,
+  pipelineQueue?: PipelineQueue,
 ) {
   return {
     name: "memory" as const,
     description:
-      'Long-term memory and usage stats. Actions: "store" saves a fact/note/preference, "recall" searches memories, "forget" archives a memory, "graph" explores concept connections, "stats" shows AI usage statistics.',
+      'Long-term memory and usage stats. Actions: "store" saves a fact/note/preference, "recall" searches memories, "forget" archives a memory, "graph" explores concept connections, "stats" shows AI usage statistics, "health" shows pipeline queue status and memory system health.',
     parameters: MemoryParams,
     execute: async (_toolCallId: string, args: unknown) => {
       const typed = args as MemoryInput;
@@ -371,6 +374,87 @@ export function createMemoryTool(
           return {
             output: lines.join("\n"),
             details: stats,
+          };
+        }
+
+        // --- health ---
+        case "health": {
+          const lines: string[] = ["## Memory System Health", ""];
+
+          // Queue status
+          if (pipelineQueue) {
+            try {
+              const status = await pipelineQueue.getStatus();
+              lines.push(
+                "### Pipeline Queue",
+                `  Pending:     ${status.pending}`,
+                `  Running:     ${status.running}`,
+                `  Completed:   ${status.completed}`,
+                `  Failed:      ${status.failed}`,
+                `  Dead letter: ${status.dead_letter}`,
+                "",
+              );
+            } catch (err) {
+              toolLog.error`Failed to get queue status: ${err}`;
+            }
+          } else {
+            lines.push("### Pipeline Queue", "  (not configured)", "");
+          }
+
+          // Memory statistics
+          try {
+            const [[obsRow], [memRow], [nodeRow], [edgeRow]] = await Promise.all([
+              db.selectFrom("observations").select(db.fn.countAll<number>().as("count")).execute(),
+              db
+                .selectFrom("memories")
+                .select(db.fn.countAll<number>().as("count"))
+                .where("archived_at", "is", null)
+                .execute(),
+              db.selectFrom("graph_nodes").select(db.fn.countAll<number>().as("count")).execute(),
+              db.selectFrom("graph_edges").select(db.fn.countAll<number>().as("count")).execute(),
+            ]);
+
+            lines.push(
+              "### Memory Statistics",
+              `  Observations:   ${obsRow?.count ?? 0}`,
+              `  Memories:       ${memRow?.count ?? 0}`,
+              `  Graph nodes:    ${nodeRow?.count ?? 0}`,
+              `  Graph edges:    ${edgeRow?.count ?? 0}`,
+              "",
+            );
+          } catch (err) {
+            toolLog.error`Failed to get memory stats: ${err}`;
+          }
+
+          // Recent dead letter failures
+          try {
+            const failures = await db
+              .selectFrom("pipeline_jobs")
+              .select(["id", "type", "last_error", "created_at", "attempts"])
+              .where("status", "=", "dead_letter")
+              .orderBy("created_at", "desc")
+              .limit(5)
+              .execute();
+
+            if (failures.length > 0) {
+              lines.push("### Recent Failures (dead letter)");
+              for (const f of failures) {
+                const time = f.created_at ? f.created_at.slice(0, 16).replace("T", " ") : "?";
+                const errBrief = f.last_error?.slice(0, 120) ?? "(no error detail)";
+                lines.push(
+                  `  [${f.id.slice(0, 8)}] ${f.type} | ${time} | attempts: ${f.attempts}`,
+                  `    ${errBrief}`,
+                );
+              }
+              lines.push("");
+            }
+          } catch (err) {
+            toolLog.error`Failed to get recent failures: ${err}`;
+          }
+
+          return {
+            output: lines.join("\n"),
+            details: { pipelineQueueConfigured: !!pipelineQueue },
           };
         }
 

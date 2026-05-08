@@ -25,6 +25,7 @@ import {
   estimateTokens,
   SIMILARITY,
   type WorkerModelConfig,
+  PipelineQueue as PipelineQueueClass,
 } from "@repo/cairn";
 import {
   ConstructMemoryManager,
@@ -46,6 +47,7 @@ const workerConfig = (): WorkerModelConfig | null =>
     ? {
         apiKey: env.OPENROUTER_API_KEY,
         model: env.MEMORY_WORKER_MODEL,
+        baseUrl: env.OPENROUTER_BASE_URL,
         extraBody: { reasoning: { max_tokens: 1 } },
       }
     : null;
@@ -94,6 +96,7 @@ export interface ProcessMessageOpts {
   replyContext?: string;
   incomingTelegramMessageId?: number;
   scheduleId?: string;
+  pipelineQueue?: PipelineQueueClass;
 }
 
 export const isDev = env.NODE_ENV === "development";
@@ -358,6 +361,7 @@ async function executeTurn(
     telegram: opts.telegram,
     memoryManager: ctx.memoryManager,
     embeddingModel: env.EMBEDDING_MODEL,
+    pipelineQueue: opts.pipelineQueue,
   };
   const builtinTools = createAllTools(toolCtx);
   const dynamicTools = selectAndCreateDynamicTools(ctx.queryEmbedding, toolCtx);
@@ -603,117 +607,188 @@ async function runPostTurn(
   }
 
   try {
-    const ran = await memoryManager.runObserver(conversationId);
-    if (ran) {
-      await memoryManager.promoteObservations(conversationId);
+    if (opts.pipelineQueue) {
+      // Enqueue the full post-turn pipeline (observer → promoter → reflector)
+      // via the queue for crash-recoverable execution.
+      opts.pipelineQueue
+        .enqueue("post_turn", conversationId)
+        .catch((err: unknown) => agentLog.error`Pipeline enqueue failed: ${err}`);
 
-      try {
-        const activeObs = await memoryManager.getActiveObservations(conversationId);
-        const extracted = await extractSkillsFromObservations(
-          activeObs,
-          env.OPENROUTER_API_KEY,
-          env.EMBEDDING_MODEL,
-        );
+      // Skill extraction runs as fire-and-forget independently
+      runSkillExtraction(db, opts, memoryManager, conversationId).catch(
+        (err: unknown) => agentLog.warning`Skill extraction failed: ${err}`,
+      );
+    } else {
+      const ran = await memoryManager.runObserver(conversationId);
+      if (ran) {
+        await memoryManager.promoteObservations(conversationId);
 
-        if (extracted.length > 0) {
-          agentLog.info`Extracted ${extracted.length} potential skill(s) from observations`;
+        try {
+          const activeObs = await memoryManager.getActiveObservations(conversationId);
+          const extracted = await extractSkillsFromObservations(
+            activeObs,
+            env.OPENROUTER_API_KEY,
+            env.EMBEDDING_MODEL,
+          );
 
-          if (opts.source === "telegram" && opts.chatId && opts.chatId !== "unknown") {
-            try {
-              const candidate = extracted
-                .filter((s) => s.confidence >= 0.7)
-                .toSorted((a, b) => b.confidence - a.confidence)[0];
+          if (extracted.length > 0) {
+            agentLog.info`Extracted ${extracted.length} potential skill(s) from observations`;
 
-              if (candidate) {
-                const exists = await db
-                  .selectFrom("skills")
-                  .select("id")
-                  .where("name", "=", candidate.name)
-                  .executeTakeFirst();
+            if (opts.source === "telegram" && opts.chatId && opts.chatId !== "unknown") {
+              try {
+                const candidate = extracted
+                  .filter((s) => s.confidence >= 0.7)
+                  .toSorted((a, b) => b.confidence - a.confidence)[0];
 
-                if (!exists) {
-                  const normalizedName = candidate.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
-                  const ignoredAt = await getSetting(db, `ignored_skill:${normalizedName}`);
-                  const stillIgnored =
-                    ignoredAt &&
-                    Date.now() - new Date(ignoredAt).getTime() < 7 * 24 * 60 * 60 * 1000;
+                if (candidate) {
+                  const exists = await db
+                    .selectFrom("skills")
+                    .select("id")
+                    .where("name", "=", candidate.name)
+                    .executeTakeFirst();
 
-                  const lastNudge = await getSetting(db, `skill_nudge_cooldown:${opts.chatId}`);
-                  const onCooldown =
-                    lastNudge && Date.now() - new Date(lastNudge).getTime() < 24 * 60 * 60 * 1000;
+                  if (!exists) {
+                    const normalizedName = candidate.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
+                    const ignoredAt = await getSetting(db, `ignored_skill:${normalizedName}`);
+                    const stillIgnored =
+                      ignoredAt &&
+                      Date.now() - new Date(ignoredAt).getTime() < 7 * 24 * 60 * 60 * 1000;
 
-                  if (!stillIgnored && !onCooldown) {
-                    const payload = JSON.stringify({
-                      name: candidate.name,
-                      description: candidate.description,
-                      body: candidate.body,
-                    });
-                    await setSetting(db, `skill_nudge:${opts.chatId}`, payload);
-                    await setSetting(
-                      db,
-                      `skill_nudge_cooldown:${opts.chatId}`,
-                      new Date().toISOString(),
-                    );
-                    agentLog.info`Queued skill nudge for chat ${opts.chatId}: "${candidate.name}"`;
+                    const lastNudge = await getSetting(db, `skill_nudge_cooldown:${opts.chatId}`);
+                    const onCooldown =
+                      lastNudge && Date.now() - new Date(lastNudge).getTime() < 24 * 60 * 60 * 1000;
+
+                    if (!stillIgnored && !onCooldown) {
+                      const payload = JSON.stringify({
+                        name: candidate.name,
+                        description: candidate.description,
+                        body: candidate.body,
+                      });
+                      await setSetting(db, `skill_nudge:${opts.chatId}`, payload);
+                      await setSetting(
+                        db,
+                        `skill_nudge_cooldown:${opts.chatId}`,
+                        new Date().toISOString(),
+                      );
+                      agentLog.info`Queued skill nudge for chat ${opts.chatId}: "${candidate.name}"`;
+                    }
                   }
                 }
+              } catch (err) {
+                agentLog.warning`Failed to queue skill nudge: ${err}`;
               }
-            } catch (err) {
-              agentLog.warning`Failed to queue skill nudge: ${err}`;
             }
           }
+        } catch (err) {
+          agentLog.warning`Failed to extract skills from observations: ${err}`;
         }
-      } catch (err) {
-        agentLog.warning`Failed to extract skills from observations: ${err}`;
       }
-    }
 
-    await withSpan({ name: "reflector", spanType: "DEFAULT" }, async (span) => {
-      const obsBefore = await memoryManager.getActiveObservations(conversationId);
-      const tokensBefore = obsBefore.reduce((sum, o) => sum + (o.token_count ?? 0), 0);
-      span.setAttributes({
-        observations_before: obsBefore.length,
-        tokens_before: tokensBefore,
-      });
-      span.setInput(
-        obsBefore.map((o) => `[${o.id}] (${o.priority}, ${o.observation_date}) ${o.content}`),
-      );
-
-      const { ran: reflectorRan, usage: reflectorUsage } =
-        await memoryManager.runReflector(conversationId);
-      span.setAttribute("ran", reflectorRan);
-
-      if (reflectorRan) {
-        const obsAfter = await memoryManager.getActiveObservations(conversationId);
-        const tokensAfter = obsAfter.reduce((sum, o) => sum + (o.token_count ?? 0), 0);
-        const afterIds = new Set(obsAfter.map((o) => o.id));
-        const dropped = obsBefore.filter((o) => !afterIds.has(o.id));
+      await withSpan({ name: "reflector", spanType: "DEFAULT" }, async (span) => {
+        const obsBefore = await memoryManager.getActiveObservations(conversationId);
+        const tokensBefore = obsBefore.reduce((sum, o) => sum + (o.token_count ?? 0), 0);
         span.setAttributes({
-          observations_after: obsAfter.length,
-          tokens_after: tokensAfter,
-          observations_delta: obsBefore.length - obsAfter.length,
-          tokens_delta: tokensBefore - tokensAfter,
+          observations_before: obsBefore.length,
+          tokens_before: tokensBefore,
         });
-        const wc = workerConfig();
-        if (reflectorUsage && wc) {
-          const cost = estimateCost(
-            wc.model,
-            reflectorUsage.input_tokens,
-            reflectorUsage.output_tokens,
-          );
+        span.setInput(
+          obsBefore.map((o) => `[${o.id}] (${o.priority}, ${o.observation_date}) ${o.content}`),
+        );
+
+        const { ran: reflectorRan, usage: reflectorUsage } =
+          await memoryManager.runReflector(conversationId);
+        span.setAttribute("ran", reflectorRan);
+
+        if (reflectorRan) {
+          const obsAfter = await memoryManager.getActiveObservations(conversationId);
+          const tokensAfter = obsAfter.reduce((sum, o) => sum + (o.token_count ?? 0), 0);
+          const afterIds = new Set(obsAfter.map((o) => o.id));
+          const dropped = obsBefore.filter((o) => !afterIds.has(o.id));
           span.setAttributes({
-            input_tokens: reflectorUsage.input_tokens,
-            output_tokens: reflectorUsage.output_tokens,
-            cost_usd: cost,
+            observations_after: obsAfter.length,
+            tokens_after: tokensAfter,
+            observations_delta: obsBefore.length - obsAfter.length,
+            tokens_delta: tokensBefore - tokensAfter,
+          });
+          const wc = workerConfig();
+          if (reflectorUsage && wc) {
+            const cost = estimateCost(
+              wc.model,
+              reflectorUsage.input_tokens,
+              reflectorUsage.output_tokens,
+            );
+            span.setAttributes({
+              input_tokens: reflectorUsage.input_tokens,
+              output_tokens: reflectorUsage.output_tokens,
+              cost_usd: cost,
+            });
+          }
+          span.setOutput({
+            kept: obsAfter.map((o) => `[${o.priority}] ${o.content}`),
+            dropped: dropped.map((o) => `[${o.priority}] ${o.content}`),
           });
         }
-        span.setOutput({
-          kept: obsAfter.map((o) => `[${o.priority}] ${o.content}`),
-          dropped: dropped.map((o) => `[${o.priority}] ${o.content}`),
-        });
-      }
-    });
+      });
+    }
   } catch (err) {
     agentLog.error`Post-response observation failed: ${err}`;
   }
+}
+
+/**
+ * Fire-and-forget skill extraction from observations.
+ * Reads active observations and extracts potential skills via LLM.
+ * Runs independently of the memory pipeline (observations are already stored).
+ */
+async function runSkillExtraction(
+  db: Kysely<Database>,
+  opts: ProcessMessageOpts,
+  memoryManager: ConstructMemoryManager,
+  conversationId: string,
+): Promise<void> {
+  const activeObs = await memoryManager.getActiveObservations(conversationId);
+  const extracted = await extractSkillsFromObservations(
+    activeObs,
+    env.OPENROUTER_API_KEY,
+    env.EMBEDDING_MODEL,
+  );
+
+  if (extracted.length === 0) return;
+
+  agentLog.info`Extracted ${extracted.length} potential skill(s) from observations`;
+
+  if (opts.source !== "telegram" || !opts.chatId || opts.chatId === "unknown") return;
+
+  const candidate = extracted
+    .filter((s) => s.confidence >= 0.7)
+    .toSorted((a, b) => b.confidence - a.confidence)[0];
+
+  if (!candidate) return;
+
+  const exists = await db
+    .selectFrom("skills")
+    .select("id")
+    .where("name", "=", candidate.name)
+    .executeTakeFirst();
+
+  if (exists) return;
+
+  const normalizedName = candidate.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
+  const ignoredAt = await getSetting(db, `ignored_skill:${normalizedName}`);
+  const stillIgnored =
+    ignoredAt && Date.now() - new Date(ignoredAt).getTime() < 7 * 24 * 60 * 60 * 1000;
+  if (stillIgnored) return;
+
+  const lastNudge = await getSetting(db, `skill_nudge_cooldown:${opts.chatId}`);
+  const onCooldown = lastNudge && Date.now() - new Date(lastNudge).getTime() < 24 * 60 * 60 * 1000;
+  if (onCooldown) return;
+
+  const payload = JSON.stringify({
+    name: candidate.name,
+    description: candidate.description,
+    body: candidate.body,
+  });
+  await setSetting(db, `skill_nudge:${opts.chatId}`, payload);
+  await setSetting(db, `skill_nudge_cooldown:${opts.chatId}`, new Date().toISOString());
+  agentLog.info`Queued skill nudge for chat ${opts.chatId}: "${candidate.name}"`;
 }

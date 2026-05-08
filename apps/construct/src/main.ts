@@ -8,6 +8,12 @@ import { createBot } from "./telegram/bot.js";
 import { startScheduler, stopScheduler } from "./scheduler/index.js";
 import { syncEnvSecrets } from "./extensions/secrets.js";
 import { initExtensions } from "./extensions/index.js";
+import {
+  ConstructMemoryManager,
+  CONSTRUCT_OBSERVER_PROMPT,
+  CONSTRUCT_REFLECTOR_PROMPT,
+} from "./memory.js";
+import { PipelineQueue } from "@repo/cairn";
 
 async function main() {
   await setupLogging(env.LOG_LEVEL, env.LOG_FILE);
@@ -36,8 +42,29 @@ async function main() {
     env.MEMORY_WORKER_MODEL || env.OPENROUTER_MODEL,
   );
 
-  // Create Telegram bot
-  const bot = createBot(db);
+  // Create memory manager for the pipeline queue (shared instance)
+  const memoryManager = new ConstructMemoryManager(db, {
+    workerConfig: env.MEMORY_WORKER_MODEL
+      ? {
+          apiKey: env.OPENROUTER_API_KEY,
+          model: env.MEMORY_WORKER_MODEL,
+          baseUrl: env.OPENROUTER_BASE_URL,
+          extraBody: { reasoning: { max_tokens: 1 } },
+        }
+      : null,
+    embeddingModel: env.EMBEDDING_MODEL,
+    apiKey: env.OPENROUTER_API_KEY,
+    observerPrompt: CONSTRUCT_OBSERVER_PROMPT,
+    reflectorPrompt: CONSTRUCT_REFLECTOR_PROMPT,
+  });
+
+  // Create and start pipeline queue for crash-recoverable post-turn processing
+  const pipelineQueue = new PipelineQueue(db, memoryManager);
+  await pipelineQueue.start();
+  log.info`Pipeline queue started`;
+
+  // Create Telegram bot with queue reference
+  const bot = createBot(db, pipelineQueue);
 
   // Start scheduler
   await startScheduler(db, bot, env.TIMEZONE);
@@ -49,6 +76,7 @@ async function main() {
   // Graceful shutdown
   const shutdown = async () => {
     log.info`Shutting down`;
+    pipelineQueue.stop();
     stopScheduler();
     bot.stop();
     await db.destroy();

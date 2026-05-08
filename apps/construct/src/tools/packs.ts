@@ -2,7 +2,7 @@ import type { TSchema } from "@sinclair/typebox";
 import type { Kysely } from "kysely";
 import type { Database } from "../db/schema.js";
 import type { TelegramContext } from "../telegram/types.js";
-import type { MemoryManager } from "@repo/cairn";
+import type { MemoryManager, PipelineQueue } from "@repo/cairn";
 
 import { createMemoryTool } from "./core/memory.js";
 import { createScheduleTool } from "./core/schedule.js";
@@ -37,6 +37,7 @@ export interface ToolContext {
   telegram?: TelegramContext;
   memoryManager?: MemoryManager;
   embeddingModel?: string;
+  pipelineQueue?: PipelineQueue;
 }
 
 // --- Create all built-in tools ---
@@ -55,6 +56,7 @@ export function createAllTools(ctx: ToolContext): InternalTool<TSchema>[] {
       ctx.apiKey,
       ctx.memoryManager,
       ctx.embeddingModel,
+      ctx.pipelineQueue,
     ) as InternalTool<TSchema>,
     createScheduleTool(
       ctx.db,

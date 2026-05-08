@@ -17,6 +17,7 @@ export interface Database extends CairnDatabase {
   skill_instructions: SkillInstructionTable;
   skill_instruction_deps: SkillInstructionDepTable;
   skill_executions: SkillExecutionTable;
+  pipeline_jobs: PipelineJobTable;
   [key: string]: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
@@ -122,3 +123,20 @@ export interface SkillExecutionTable {
 
 export type SkillExecution = Selectable<SkillExecutionTable>;
 export type NewSkillExecution = Insertable<SkillExecutionTable>;
+
+export interface PipelineJobTable {
+  id: string;
+  type: string;
+  conversation_id: string;
+  status: Generated<string>;
+  attempts: Generated<number>;
+  max_attempts: Generated<number>;
+  last_error: string | null;
+  created_at: Generated<string>;
+  next_attempt_at: Generated<string>;
+  completed_at: string | null;
+}
+
+export type PipelineJob = Selectable<PipelineJobTable>;
+export type NewPipelineJob = Insertable<PipelineJobTable>;
+export type PipelineJobUpdate = Updateable<PipelineJobTable>;

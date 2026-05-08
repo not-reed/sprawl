@@ -18,8 +18,9 @@ import {
 } from "../db/queries.js";
 import type { AskPayload, TelegramSideEffects, TelegramContext } from "./types.js";
 import { markdownToTelegramHtml } from "./format.js";
+import type { PipelineQueue } from "@repo/cairn";
 
-export function createBot(db: Kysely<Database>) {
+export function createBot(db: Kysely<Database>, pipelineQueue?: PipelineQueue) {
   const bot = new Bot(env.TELEGRAM_BOT_TOKEN);
   const allowedIds = env.ALLOWED_TELEGRAM_IDS;
 
@@ -197,6 +198,7 @@ export function createBot(db: Kysely<Database>) {
           telegram: telegramCtx,
           replyContext,
           incomingTelegramMessageId: ctx.message.message_id,
+          pipelineQueue,
         });
 
         // Process side effects: reaction
@@ -316,6 +318,7 @@ export function createBot(db: Kysely<Database>) {
               source: "telegram",
               externalId: nudgeChatId,
               chatId: nudgeChatId,
+              pipelineQueue,
             });
 
             if (response.text.trim()) {
@@ -411,6 +414,7 @@ export function createBot(db: Kysely<Database>) {
           externalId: chatId,
           chatId,
           telegram: telegramCtx,
+          pipelineQueue,
         });
 
         // Process side effects: reaction (on the ask message itself)
@@ -491,6 +495,7 @@ export function createBot(db: Kysely<Database>) {
           externalId: chatId,
           chatId,
           telegram: telegramCtx,
+          pipelineQueue,
         });
 
         // Process reaction side-effect on the reacted message
