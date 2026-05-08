@@ -33,6 +33,7 @@ sessionRoutes.get("/sessions/:id/observations", async (c) => {
     ? {
         apiKey: env.OPENROUTER_API_KEY,
         model: env.MEMORY_WORKER_MODEL,
+        baseUrl: env.OPENROUTER_BASE_URL,
         extraBody: { reasoning: { max_tokens: 1 } },
       }
     : null;

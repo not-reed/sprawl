@@ -17,6 +17,7 @@ const envSchema = z.object({
   NODE_ENV: z.string().default("production"),
   TAVILY_API_KEY: z.string().optional(),
   OPENROUTER_MODEL: z.string().default("google/gemini-3-flash-preview"),
+  OPENROUTER_BASE_URL: z.string().default("https://openrouter.ai/api/v1/chat/completions"),
   DATABASE_URL: z.string().default("./data/construct.db"),
   ALLOWED_TELEGRAM_IDS: csvFromEnv(""),
   TIMEZONE: z.string().default("UTC"),
