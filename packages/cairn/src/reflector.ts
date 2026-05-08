@@ -1,6 +1,7 @@
 import type { WorkerModelConfig, ReflectorInput, ReflectorOutput, CairnLogger } from "./types.js";
 import { MemoryError } from "./errors.js";
 import { isDegenerateRaw, sanitizeObservations } from "./observer.js";
+import { withMemoryRetry, fetchErrorFromResponse } from "./retry.js";
 
 export const DEFAULT_REFLECTOR_PROMPT = `You reorganize and condense observations. Your output replaces the input — any information you drop is permanently lost. Treat this as the sole memory of the conversation.
 
@@ -24,6 +25,7 @@ Only supersede observations whose IDs appear in the input. Never invent IDs.
 ## Temporal Handling
 
 Preserve observation_date on every output observation.
+Never collapse resolved dates back into relative references — "on 2026-05-02" must stay as "on 2026-05-02", do not revert to "this weekend".
 Recent observations (last few days) should retain full detail. Older observations can be compressed more aggressively, but do not drop high-priority facts regardless of age.
 When merging observations from different dates, use the most recent date.
 
@@ -90,28 +92,34 @@ export async function reflect(
       .map((o) => `[${o.id}] (${o.priority}, ${o.observation_date}) ${o.content}`)
       .join("\n");
 
-  const response = await fetch(config.baseUrl ?? "https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.apiKey}`,
-    },
-    body: JSON.stringify({
-      model: config.model,
-      messages: [
-        { role: "system", content: prompt ?? DEFAULT_REFLECTOR_PROMPT },
-        { role: "user", content: observationsText },
-      ],
-      temperature: 0,
-      max_tokens: 32768,
-      ...config.extraBody,
-    }),
-  });
+  const requestBody = {
+    model: config.model,
+    messages: [
+      { role: "system" as const, content: prompt ?? DEFAULT_REFLECTOR_PROMPT },
+      { role: "user" as const, content: observationsText },
+    ],
+    temperature: 0,
+    max_tokens: 32768,
+    ...config.extraBody,
+  };
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new MemoryError(`Reflector API error: ${response.status} ${body}`);
-  }
+  const response = await withMemoryRetry(async () => {
+    const res = await fetch(config.baseUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw fetchErrorFromResponse(res, body, "Reflector");
+    }
+
+    return res;
+  });
 
   const data = (await response.json()) as {
     choices: Array<{ message: { content: string } }>;

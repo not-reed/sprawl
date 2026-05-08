@@ -1,5 +1,6 @@
 import type { WorkerModelConfig, ObserverInput, ObserverOutput, CairnLogger } from "./types.js";
 import { MemoryError } from "./errors.js";
+import { withMemoryRetry, fetchErrorFromResponse } from "./retry.js";
 
 export const DEFAULT_OBSERVER_PROMPT = `You extract observations from conversation. You compress raw messages into facts, events, preferences, and state changes. Each observation is a standalone record — it may be the only trace of what was said.
 
@@ -16,6 +17,8 @@ Every observation must include the date it was said in observation_date (YYYY-MM
 Messages have timestamps — use them as the baseline date.
 Resolve relative references to calendar dates: "next Tuesday" on 2025-01-06 → 2025-01-14.
 "Yesterday", "last week", "two days ago" → compute from the message timestamp.
+Weekend references: "this weekend", "next weekend", "this past weekend" → resolve to actual dates in content.
+  Example: "I'm playing basketball this weekend" on 2026-05-01 (Friday) → content: "User plans to play basketball on the weekend of 2026-05-02"
 Vague references ("recently", "soon", "a while ago") stay as-is in content — do not fabricate specific dates for them.
 Future dates go in content: "User has a dentist appointment on 2025-03-05." The observation_date is still when it was said.
 
@@ -127,28 +130,34 @@ export async function observe(
     })
     .join("\n");
 
-  const response = await fetch(config.baseUrl ?? "https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.apiKey}`,
-    },
-    body: JSON.stringify({
-      model: config.model,
-      messages: [
-        { role: "system", content: prompt ?? DEFAULT_OBSERVER_PROMPT },
-        { role: "user", content: messagesText },
-      ],
-      temperature: 0,
-      max_tokens: 2048,
-      ...config.extraBody,
-    }),
-  });
+  const requestBody = {
+    model: config.model,
+    messages: [
+      { role: "system", content: prompt ?? DEFAULT_OBSERVER_PROMPT },
+      { role: "user", content: messagesText },
+    ] as Array<{ role: string; content: string }>,
+    temperature: 0,
+    max_tokens: 2048,
+    ...config.extraBody,
+  };
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new MemoryError(`Observer API error: ${response.status} ${body}`);
-  }
+  const response = await withMemoryRetry(async () => {
+    const res = await fetch(config.baseUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw fetchErrorFromResponse(res, body, "Observer");
+    }
+
+    return res;
+  });
 
   const data = (await response.json()) as {
     choices: Array<{ message: { content: string } }>;

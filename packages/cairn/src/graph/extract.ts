@@ -36,7 +36,7 @@ export async function extractEntities(
   entityTypes?: string[],
 ): Promise<ExtractionResult> {
   const types = entityTypes ?? DEFAULT_ENTITY_TYPES;
-  const response = await fetch(config.baseUrl ?? "https://openrouter.ai/api/v1/chat/completions", {
+  const response = await fetch(config.baseUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
