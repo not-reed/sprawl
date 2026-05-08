@@ -43,6 +43,7 @@ export interface PipelineQueueOptions {
 export class PipelineQueue {
   private running = false;
   private draining = false;
+  private wakeupTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly options: Required<Omit<PipelineQueueOptions, "logger">>;
   private readonly log: CairnLogger;
 
@@ -100,6 +101,10 @@ export class PipelineQueue {
   /** Stop the drain loop. In-flight job completes, but no new jobs are picked up. */
   stop(): void {
     this.running = false;
+    if (this.wakeupTimer) {
+      clearTimeout(this.wakeupTimer);
+      this.wakeupTimer = null;
+    }
   }
 
   /** Get aggregate status for health checks. */
@@ -128,11 +133,11 @@ export class PipelineQueue {
 
   private _kickDrain(): void {
     if (this.draining || !this.running) return;
-    this._drainLoop().finally(() => {
-      this.draining = false;
-      // If more jobs were enqueued during drain, re-kick
-      if (this.running) this._kickDrain();
-    });
+    if (this.wakeupTimer) {
+      clearTimeout(this.wakeupTimer);
+      this.wakeupTimer = null;
+    }
+    void this._drainLoop();
   }
 
   private async _drainLoop(): Promise<void> {
@@ -143,9 +148,38 @@ export class PipelineQueue {
         if (!job) break;
         await this._executeJob(job);
       }
+      // Drain ended with no work — schedule a wakeup if there are future-pending jobs (retries).
+      // Without this, retried jobs would never fire unless a new enqueue() arrived.
+      if (this.running) await this._scheduleNextWakeup();
     } catch (err) {
       this.log.error(`PipelineQueue: drain loop error: ${err}`);
+    } finally {
+      this.draining = false;
     }
+  }
+
+  /**
+   * Look up the earliest pending job whose next_attempt_at is in the future and
+   * schedule a single timer to re-kick the drain at that time. Macrotask-based,
+   * so it yields the event loop to other I/O (Telegram polling, signal handlers).
+   */
+  private async _scheduleNextWakeup(): Promise<void> {
+    const next = await this.db
+      .selectFrom("pipeline_jobs")
+      .select("next_attempt_at")
+      .where("status", "=", "pending")
+      .orderBy("next_attempt_at", "asc")
+      .limit(1)
+      .executeTakeFirst();
+    if (!next || !this.running) return;
+
+    const delay = Math.max(0, new Date(next.next_attempt_at).getTime() - Date.now());
+    const capped = Math.min(delay, this.options.maxBackoffMs);
+    this.wakeupTimer = setTimeout(() => {
+      this.wakeupTimer = null;
+      this._kickDrain();
+    }, capped);
+    this.wakeupTimer.unref();
   }
 
   private async _dequeueNext(): Promise<PipelineJobRecord | null> {

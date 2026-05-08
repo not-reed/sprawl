@@ -73,13 +73,32 @@ async function main() {
   log.info`Construct is running`;
   bot.start({ allowed_updates: ["message", "message_reaction", "callback_query"] });
 
-  // Graceful shutdown
-  const shutdown = async () => {
-    log.info`Shutting down`;
-    pipelineQueue.stop();
-    stopScheduler();
-    bot.stop();
-    await db.destroy();
+  // Graceful shutdown — idempotent, with hard timeout + force-exit on repeat signal
+  let shuttingDown = false;
+  const SHUTDOWN_TIMEOUT_MS = 3000;
+
+  const shutdown = async (signal: NodeJS.Signals) => {
+    if (shuttingDown) {
+      log.warning`Received ${signal} during shutdown — forcing exit`;
+      process.exit(1);
+    }
+    shuttingDown = true;
+    log.info`Shutting down (${signal})`;
+
+    const hardExit = setTimeout(() => {
+      log.warning`Shutdown timed out after ${SHUTDOWN_TIMEOUT_MS}ms — forcing exit`;
+      process.exit(1);
+    }, SHUTDOWN_TIMEOUT_MS);
+    hardExit.unref();
+
+    try {
+      pipelineQueue.stop();
+      stopScheduler();
+      await bot.stop();
+      await db.destroy();
+    } catch (err) {
+      log.error`Error during shutdown: ${err}`;
+    }
     process.exit(0);
   };
 
