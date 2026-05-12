@@ -15,6 +15,9 @@
     "tsx": "^4.21.0",
     "typescript": "^6.0.2"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "packageManager": "pnpm@10.33.0",
   "pnpm": {
     "onlyBuiltDependencies": [

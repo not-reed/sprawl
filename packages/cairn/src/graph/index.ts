@@ -8,6 +8,7 @@ import {
   searchNodes,
   traverseGraph,
   getNodeEdges,
+  getEdgesForNodes,
   getRelatedMemoryIds,
   getMemoryNodes,
 } from "./queries.js";
@@ -18,6 +19,7 @@ export {
   searchNodes,
   traverseGraph,
   getNodeEdges,
+  getEdgesForNodes,
   getRelatedMemoryIds,
   getMemoryNodes,
 };
@@ -30,20 +32,24 @@ export {
  * @param config - Worker model config for entity extraction LLM call.
  * @param memoryId - ID of the source memory (linked to edges).
  * @param content - Memory text to extract entities from.
- * @param embeddingOpts - If provided, generates embeddings for upserted graph nodes.
- * @param entityTypes - Allowed entity types (defaults to person, place, concept, event, entity).
+ * @param opts - Optional embedding/logger/entityType configuration.
  * @returns Extraction result with entities, relationships, and token usage.
  */
+export interface ProcessMemoryForGraphOpts {
+  embeddingOpts?: { apiKey?: string; embeddingModel?: string };
+  logger?: CairnLogger;
+  entityTypes?: string[];
+}
+
 export async function processMemoryForGraph(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Kysely invariance, see db/queries.ts
   db: Kysely<any>,
   config: WorkerModelConfig,
   memoryId: string,
   content: string,
-  embeddingOpts?: { apiKey?: string; embeddingModel?: string },
-  logger?: CairnLogger,
-  entityTypes?: string[],
+  opts: ProcessMemoryForGraphOpts = {},
 ): Promise<ExtractionResult> {
+  const { embeddingOpts, logger, entityTypes } = opts;
   const result = await extractEntities(config, content, logger, entityTypes);
 
   if (result.entities.length === 0 && result.relationships.length === 0) {

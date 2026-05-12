@@ -133,94 +133,42 @@ export async function pollSignals(ctx: LoopContext): Promise<void> {
   }
 }
 
-async function handleBuySignal(
-  ctx: LoopContext,
-  signal: import("../cortex/types.js").CortexSignal,
-  tokenSymbols: Map<string, string>,
-  sizeConfig: import("./position-sizer.js").SizeConfig,
-  riskConfig: import("./risk.js").RiskConfig,
+type CortexSignal = import("../cortex/types.js").CortexSignal;
+type SizeConfig = import("./position-sizer.js").SizeConfig;
+type RiskConfig = import("./risk.js").RiskConfig;
+
+async function logSkippedSignal(
+  db: Kysely<Database>,
+  signal: CortexSignal,
+  reason: string,
 ): Promise<void> {
-  const { db, executor, log } = ctx;
+  await logSignal(db, {
+    cortex_signal_id: signal.id,
+    token_id: signal.token_id,
+    signal_type: signal.signal_type,
+    confidence: signal.confidence,
+    timeframe: signal.timeframe,
+    action: "skipped",
+    skip_reason: reason,
+  });
+}
 
-  const state = await getPortfolioState(db);
-  if (!state) return;
-
-  const openPositions = await getOpenPositions(db);
-
-  // Pre-trade risk checks
-  const canOpen = canOpenPosition(state, openPositions.length, riskConfig);
-  if (!canOpen.allowed) {
-    await logSignal(db, {
-      cortex_signal_id: signal.id,
-      token_id: signal.token_id,
-      signal_type: signal.signal_type,
-      confidence: signal.confidence,
-      timeframe: signal.timeframe,
-      action: "skipped",
-      skip_reason: canOpen.reason,
-    });
-    return;
-  }
-
-  // Position sizing
-  const sizing = computePositionSize(
-    signal.confidence,
-    state.total_value_usd,
-    state.cash_usd,
-    sizeConfig,
-  );
-  if (!sizing.viable) {
-    await logSignal(db, {
-      cortex_signal_id: signal.id,
-      token_id: signal.token_id,
-      signal_type: signal.signal_type,
-      confidence: signal.confidence,
-      timeframe: signal.timeframe,
-      action: "skipped",
-      skip_reason: sizing.reason,
-    });
-    return;
-  }
-
-  // Exposure check
-  const existingExposure = openPositions
-    .filter((p) => p.token_id === signal.token_id)
-    .reduce((sum, p) => sum + p.current_price_usd * p.quantity, 0);
-
-  const exposureCheck = checkExposureLimit(
-    sizing.sizeUsd,
-    existingExposure,
-    state.total_value_usd,
-    riskConfig,
-  );
-  if (!exposureCheck.allowed) {
-    await logSignal(db, {
-      cortex_signal_id: signal.id,
-      token_id: signal.token_id,
-      signal_type: signal.signal_type,
-      confidence: signal.confidence,
-      timeframe: signal.timeframe,
-      action: "skipped",
-      skip_reason: exposureCheck.reason,
-    });
-    await logRiskEvent(db, {
-      event_type: "exposure_limit",
-      details: exposureCheck.reason,
-    });
-    return;
-  }
-
-  // Execute paper trade
-  const result = await executor.buy(signal.token_id, sizing.sizeUsd);
-
-  // Compute stop/take-profit
+async function recordOpenedPosition(args: {
+  db: Kysely<Database>;
+  signal: CortexSignal;
+  tokenSymbols: Map<string, string>;
+  result: import("../types.js").ExecutionResult;
+  sizeUsd: number;
+  riskConfig: RiskConfig;
+  cashAfter: number;
+}): Promise<{ positionId: string; symbol: string }> {
+  const { db, signal, tokenSymbols, result, riskConfig, cashAfter } = args;
   const { stopLossPrice, takeProfitPrice } = computeStopTakeProfit(
     result.price_usd,
     signal.timeframe,
     riskConfig,
   );
 
-  // Create position
   const positionId = nanoid();
   await insertPosition(db, {
     id: positionId,
@@ -238,7 +186,6 @@ async function handleBuySignal(
     closed_at: null,
   });
 
-  // Record trade
   await insertTrade(db, {
     position_id: positionId,
     signal_id: signal.id,
@@ -251,10 +198,7 @@ async function handleBuySignal(
     slippage_bps: result.slippage_bps,
   });
 
-  // Update cash
-  await updatePortfolioState(db, {
-    cash_usd: state.cash_usd - result.size_usd,
-  });
+  await updatePortfolioState(db, { cash_usd: cashAfter });
 
   await logSignal(db, {
     cortex_signal_id: signal.id,
@@ -266,7 +210,61 @@ async function handleBuySignal(
     skip_reason: null,
   });
 
-  const symbol = tokenSymbols.get(signal.token_id) ?? signal.token_id;
+  return { positionId, symbol: tokenSymbols.get(signal.token_id) ?? signal.token_id };
+}
+
+async function handleBuySignal(
+  ctx: LoopContext,
+  signal: CortexSignal,
+  tokenSymbols: Map<string, string>,
+  sizeConfig: SizeConfig,
+  riskConfig: RiskConfig,
+): Promise<void> {
+  const { db, executor, log } = ctx;
+
+  const state = await getPortfolioState(db);
+  if (!state) return;
+
+  const openPositions = await getOpenPositions(db);
+
+  const canOpen = canOpenPosition(state, openPositions.length, riskConfig);
+  if (!canOpen.allowed) return logSkippedSignal(db, signal, canOpen.reason);
+
+  const sizing = computePositionSize(
+    signal.confidence,
+    state.total_value_usd,
+    state.cash_usd,
+    sizeConfig,
+  );
+  if (!sizing.viable) return logSkippedSignal(db, signal, sizing.reason);
+
+  const existingExposure = openPositions
+    .filter((p) => p.token_id === signal.token_id)
+    .reduce((sum, p) => sum + p.current_price_usd * p.quantity, 0);
+
+  const exposureCheck = checkExposureLimit(
+    sizing.sizeUsd,
+    existingExposure,
+    state.total_value_usd,
+    riskConfig,
+  );
+  if (!exposureCheck.allowed) {
+    await logSkippedSignal(db, signal, exposureCheck.reason);
+    await logRiskEvent(db, { event_type: "exposure_limit", details: exposureCheck.reason });
+    return;
+  }
+
+  const result = await executor.buy(signal.token_id, sizing.sizeUsd);
+  const { symbol } = await recordOpenedPosition({
+    db,
+    signal,
+    tokenSymbols,
+    result,
+    sizeUsd: sizing.sizeUsd,
+    riskConfig,
+    cashAfter: state.cash_usd - result.size_usd,
+  });
+
   log(
     `BUY ${symbol}: $${result.size_usd.toFixed(2)} @ $${result.price_usd.toFixed(2)} (conf: ${signal.confidence})`,
   );
@@ -368,9 +366,9 @@ async function closePosition(
   ctx: LoopContext,
   position: import("../db/schema.js").Position,
   signalId: string,
-  _reason: string,
+  reason: string,
 ): Promise<void> {
-  const { db, executor } = ctx;
+  const { db, executor, log } = ctx;
 
   const result = await executor.sell(position.token_id, position.quantity);
   const realizedPnl = result.size_usd - position.size_usd;
@@ -403,4 +401,6 @@ async function closePosition(
       cash_usd: state.cash_usd + result.size_usd,
     });
   }
+
+  log(`CLOSE ${position.token_symbol}: reason=${reason}, pnl=$${realizedPnl.toFixed(2)}`);
 }

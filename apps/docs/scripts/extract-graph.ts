@@ -113,135 +113,103 @@ function collectDocFiles(): DocFile[] {
   return files;
 }
 
-async function main() {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    console.error("OPENROUTER_API_KEY is required");
-    process.exit(1);
+interface GraphAccumulator {
+  nodes: Map<string, NodeEntry>;
+  edges: Map<string, EdgeEntry>;
+  pageGraphs: Record<string, PageGraph>;
+}
+
+function processDoc(
+  doc: DocFile,
+  entities: Array<{ name: string; type: string; description?: string }>,
+  relationships: Array<{ from: string; to: string; relation: string }>,
+  acc: GraphAccumulator,
+) {
+  const { nodes, edges, pageGraphs } = acc;
+  const pageNodeIds: string[] = [];
+  const pageEdgeIds: string[] = [];
+
+  for (const entity of entities) {
+    const id = makeNodeId(entity.name, entity.type);
+    const existing = nodes.get(id);
+    if (existing) {
+      if (!existing.appearsIn.includes(doc.slug)) existing.appearsIn.push(doc.slug);
+      if (!existing.description && entity.description) existing.description = entity.description;
+    } else {
+      nodes.set(id, {
+        id,
+        name: canonicalName(entity.name),
+        display_name: entity.name,
+        node_type: entity.type,
+        description: entity.description ?? null,
+        appearsIn: [doc.slug],
+      });
+    }
+    if (!pageNodeIds.includes(id)) pageNodeIds.push(id);
   }
 
-  const model =
-    process.env.MEMORY_WORKER_MODEL ??
-    process.env.OPENROUTER_MODEL ??
-    "google/gemini-3.1-flash-lite-preview";
+  for (const rel of relationships) {
+    const sourceEntity = entities.find((e) => canonicalName(e.name) === canonicalName(rel.from));
+    const targetEntity = entities.find((e) => canonicalName(e.name) === canonicalName(rel.to));
+    const sourceType = sourceEntity?.type ?? "entity";
+    const targetType = targetEntity?.type ?? "entity";
+    const sourceId = makeNodeId(rel.from, sourceType);
+    const targetId = makeNodeId(rel.to, targetType);
 
-  const config: WorkerModelConfig = {
-    apiKey,
-    model,
-    extraBody: { reasoning: { max_tokens: 1 } },
-  };
-
-  const docs = collectDocFiles();
-  console.log(`Found ${docs.length} docs to process`);
-
-  const nodes = new Map<string, NodeEntry>();
-  const edges = new Map<string, EdgeEntry>();
-  const pageGraphs: Record<string, PageGraph> = {};
-  let totalTokens = { input: 0, output: 0 };
-
-  for (const doc of docs) {
-    console.log(`  extracting: ${doc.slug}`);
-
-    const result = await extractEntities(config, doc.content, undefined, ENTITY_TYPES);
-
-    if (result.usage) {
-      totalTokens.input += result.usage.input_tokens;
-      totalTokens.output += result.usage.output_tokens;
+    if (!nodes.has(sourceId)) {
+      nodes.set(sourceId, {
+        id: sourceId,
+        name: canonicalName(rel.from),
+        display_name: rel.from,
+        node_type: sourceType,
+        description: null,
+        appearsIn: [doc.slug],
+      });
+    }
+    if (!nodes.has(targetId)) {
+      nodes.set(targetId, {
+        id: targetId,
+        name: canonicalName(rel.to),
+        display_name: rel.to,
+        node_type: targetType,
+        description: null,
+        appearsIn: [doc.slug],
+      });
     }
 
-    const pageNodeIds: string[] = [];
-    const pageEdgeIds: string[] = [];
-
-    // Process entities
-    for (const entity of result.entities) {
-      const id = makeNodeId(entity.name, entity.type);
-      const existing = nodes.get(id);
-      if (existing) {
-        // Merge: keep first description, accumulate appearances
-        if (!existing.appearsIn.includes(doc.slug)) {
-          existing.appearsIn.push(doc.slug);
-        }
-        if (!existing.description && entity.description) {
-          existing.description = entity.description;
-        }
-      } else {
-        nodes.set(id, {
-          id,
-          name: canonicalName(entity.name),
-          display_name: entity.name,
-          node_type: entity.type,
-          description: entity.description ?? null,
-          appearsIn: [doc.slug],
-        });
-      }
-      if (!pageNodeIds.includes(id)) pageNodeIds.push(id);
+    const edgeId = makeEdgeId(sourceId, targetId, rel.relation);
+    const existingEdge = edges.get(edgeId);
+    if (existingEdge) {
+      existingEdge.weight++;
+    } else {
+      edges.set(edgeId, {
+        id: edgeId,
+        source_id: sourceId,
+        target_id: targetId,
+        relation: rel.relation.toLowerCase().trim(),
+        weight: 1,
+      });
     }
-
-    // Process relationships
-    for (const rel of result.relationships) {
-      // Find source and target nodes
-      const sourceEntity = result.entities.find(
-        (e) => canonicalName(e.name) === canonicalName(rel.from),
-      );
-      const targetEntity = result.entities.find(
-        (e) => canonicalName(e.name) === canonicalName(rel.to),
-      );
-
-      const sourceType = sourceEntity?.type ?? "entity";
-      const targetType = targetEntity?.type ?? "entity";
-      const sourceId = makeNodeId(rel.from, sourceType);
-      const targetId = makeNodeId(rel.to, targetType);
-
-      // Ensure both nodes exist
-      if (!nodes.has(sourceId)) {
-        nodes.set(sourceId, {
-          id: sourceId,
-          name: canonicalName(rel.from),
-          display_name: rel.from,
-          node_type: sourceType,
-          description: null,
-          appearsIn: [doc.slug],
-        });
-      }
-      if (!nodes.has(targetId)) {
-        nodes.set(targetId, {
-          id: targetId,
-          name: canonicalName(rel.to),
-          display_name: rel.to,
-          node_type: targetType,
-          description: null,
-          appearsIn: [doc.slug],
-        });
-      }
-
-      const edgeId = makeEdgeId(sourceId, targetId, rel.relation);
-      const existingEdge = edges.get(edgeId);
-      if (existingEdge) {
-        existingEdge.weight++;
-      } else {
-        edges.set(edgeId, {
-          id: edgeId,
-          source_id: sourceId,
-          target_id: targetId,
-          relation: rel.relation.toLowerCase().trim(),
-          weight: 1,
-        });
-      }
-      if (!pageEdgeIds.includes(edgeId)) pageEdgeIds.push(edgeId);
-      if (!pageNodeIds.includes(sourceId)) pageNodeIds.push(sourceId);
-      if (!pageNodeIds.includes(targetId)) pageNodeIds.push(targetId);
-    }
-
-    pageGraphs[doc.slug] = { nodeIds: pageNodeIds, edgeIds: pageEdgeIds };
+    if (!pageEdgeIds.includes(edgeId)) pageEdgeIds.push(edgeId);
+    if (!pageNodeIds.includes(sourceId)) pageNodeIds.push(sourceId);
+    if (!pageNodeIds.includes(targetId)) pageNodeIds.push(targetId);
   }
 
-  // Write output
+  pageGraphs[doc.slug] = { nodeIds: pageNodeIds, edgeIds: pageEdgeIds };
+}
+
+function writeOutput(
+  nodes: Map<string, NodeEntry>,
+  edges: Map<string, EdgeEntry>,
+  pageGraphs: Record<string, PageGraph>,
+  docs: DocFile[],
+  totalTokens: { input: number; output: number },
+) {
   mkdirSync(OUTPUT, { recursive: true });
 
   const nodesArray = Array.from(nodes.values()).map(({ appearsIn: _appearsIn, ...rest }) => rest);
   const edgesArray = Array.from(edges.values());
 
-  // Include appearsIn in a separate structure within page-graphs
   const nodeAppearsIn: Record<string, string[]> = {};
   for (const [id, node] of nodes) {
     nodeAppearsIn[id] = node.appearsIn;
@@ -274,6 +242,45 @@ async function main() {
   console.log(`  Relationships: ${edges.size}`);
   console.log(`  Tokens:        ${totalTokens.input} in / ${totalTokens.output} out`);
   console.log(`  Output:        ${OUTPUT}`);
+}
+
+async function main() {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    console.error("OPENROUTER_API_KEY is required");
+    process.exit(1);
+  }
+
+  const model =
+    process.env.MEMORY_WORKER_MODEL ??
+    process.env.OPENROUTER_MODEL ??
+    "google/gemini-3.1-flash-lite-preview";
+
+  const config: WorkerModelConfig = {
+    apiKey,
+    model,
+    extraBody: { reasoning: { max_tokens: 1 } },
+  };
+
+  const docs = collectDocFiles();
+  console.log(`Found ${docs.length} docs to process`);
+
+  const nodes = new Map<string, NodeEntry>();
+  const edges = new Map<string, EdgeEntry>();
+  const pageGraphs: Record<string, PageGraph> = {};
+  let totalTokens = { input: 0, output: 0 };
+
+  for (const doc of docs) {
+    console.log(`  extracting: ${doc.slug}`);
+    const result = await extractEntities(config, doc.content, undefined, ENTITY_TYPES);
+    if (result.usage) {
+      totalTokens.input += result.usage.input_tokens;
+      totalTokens.output += result.usage.output_tokens;
+    }
+    processDoc(doc, result.entities, result.relationships, { nodes, edges, pageGraphs });
+  }
+
+  writeOutput(nodes, edges, pageGraphs, docs, totalTokens);
 }
 
 main().catch((e) => {

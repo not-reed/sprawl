@@ -97,15 +97,11 @@ export class MemoryManager {
     }
 
     try {
-      const result = await processMemoryForGraph(
-        this.db,
-        this.workerConfig,
-        memoryId,
-        content,
-        { apiKey: this.apiKey, embeddingModel: this.embeddingModel },
-        this.log,
-        this.entityTypes,
-      );
+      const result = await processMemoryForGraph(this.db, this.workerConfig, memoryId, content, {
+        embeddingOpts: { apiKey: this.apiKey, embeddingModel: this.embeddingModel },
+        logger: this.log,
+        entityTypes: this.entityTypes,
+      });
 
       if (result.usage) {
         await trackUsage(this.db, {

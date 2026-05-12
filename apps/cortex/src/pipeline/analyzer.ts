@@ -45,7 +45,7 @@ export async function analyzeAllTokens(
 
     for (const timeframe of ["short", "long"] as const) {
       try {
-        const result = await analyzeToken(db, token, price, timeframe, log, memory);
+        const result = await analyzeToken(db, token, price, { timeframe, log, memory });
         if (result) {
           const label = timeframe === "short" ? "24h" : "4w";
           log(
@@ -59,85 +59,79 @@ export async function analyzeAllTokens(
   }
 }
 
-async function analyzeToken(
+interface AnalyzeTokenOpts {
+  timeframe: "short" | "long";
+  log: (msg: string) => void;
+  memory?: MemoryManager;
+}
+
+type Memory = { id: string; category: string; content: string };
+type Token = { id: string; symbol: string; name: string };
+type Price = {
+  price_usd: number;
+  change_24h: number | null;
+  change_7d: number | null;
+  volume_24h: number | null;
+};
+
+async function expandMemoriesViaGraph(
   db: Kysely<Database>,
-  token: { id: string; symbol: string; name: string },
-  price: {
-    price_usd: number;
-    change_24h: number | null;
-    change_7d: number | null;
-    volume_24h: number | null;
-  },
-  timeframe: "short" | "long",
-  log: (msg: string) => void,
-  memory?: MemoryManager,
-): Promise<SignalResult | null> {
-  // 1. Recall relevant memories via hybrid search
-  const queryText = await generateRecallQuery(token, price, timeframe);
-  let queryEmbedding: number[] | undefined;
+  tokenName: string,
+  queryEmbedding: number[] | undefined,
+  memories: Memory[],
+): Promise<{ graphContext: string }> {
   try {
-    queryEmbedding = await generateEmbedding(
-      env.OPENROUTER_API_KEY,
-      queryText,
-      env.EMBEDDING_MODEL,
+    const seedNodes = await searchNodesWithScores(db, tokenName, 5, queryEmbedding);
+    if (seedNodes.length === 0) return { graphContext: "" };
+
+    const seeds = seedNodes.map((s) => ({ nodeId: s.node.id, score: s.score }));
+    const activated = await spreadActivation(db, seeds, { maxDepth: 2 });
+
+    const graphLines = activated.map(
+      (t) =>
+        `${t.node.display_name} (${t.node.node_type}) [score ${t.score.toFixed(2)}, depth ${t.depth}]`,
     );
-  } catch {
-    // Fall through without embedding
-  }
+    const graphContext = graphLines.join("\n");
 
-  const memories = await recallMemories(db, queryText, {
-    limit: 15,
-    queryEmbedding,
-  });
+    const nodeScoreMap = new Map<string, number>();
+    for (const s of seedNodes) nodeScoreMap.set(s.node.id, s.score);
+    for (const a of activated) nodeScoreMap.set(a.node.id, a.score);
 
-  // 2. Graph context: find nodes related to this token via spreading activation
-  let graphContext = "";
-  try {
-    const seedNodes = await searchNodesWithScores(db, token.name, 5, queryEmbedding);
-    if (seedNodes.length > 0) {
-      const seeds = seedNodes.map((s) => ({ nodeId: s.node.id, score: s.score }));
-      const activated = await spreadActivation(db, seeds, { maxDepth: 2 });
+    const scoredMems = await getRelatedMemoriesWithScores(db, nodeScoreMap);
+    const memIds = scoredMems
+      .filter((s) => !memories.some((m) => m.id === s.memoryId))
+      .slice(0, 5)
+      .map((s) => s.memoryId);
 
-      const graphLines = activated.map(
-        (t) =>
-          `${t.node.display_name} (${t.node.node_type}) [score ${t.score.toFixed(2)}, depth ${t.depth}]`,
+    if (memIds.length > 0) {
+      const graphMemories = await Promise.all(
+        memIds.map((id) =>
+          db.selectFrom("memories").selectAll().where("id", "=", id).executeTakeFirst(),
+        ),
       );
-      graphContext = graphLines.join("\n");
-
-      // Get scored memories linked to graph nodes
-      const nodeScoreMap = new Map<string, number>();
-      for (const s of seedNodes) nodeScoreMap.set(s.node.id, s.score);
-      for (const a of activated) nodeScoreMap.set(a.node.id, a.score);
-
-      const scoredMems = await getRelatedMemoriesWithScores(db, nodeScoreMap);
-      const memIds = scoredMems
-        .filter((s) => !memories.some((m) => m.id === s.memoryId))
-        .slice(0, 5)
-        .map((s) => s.memoryId);
-
-      if (memIds.length > 0) {
-        const graphMemories = await Promise.all(
-          memIds.map((id) =>
-            db.selectFrom("memories").selectAll().where("id", "=", id).executeTakeFirst(),
-          ),
-        );
-        for (const m of graphMemories) {
-          if (m) memories.push(m);
-        }
+      for (const m of graphMemories) {
+        if (m) memories.push(m as unknown as Memory);
       }
     }
+    return { graphContext };
   } catch {
-    // Graph context is optional
+    return { graphContext: "" };
   }
+}
 
-  // 3. Note memory depth for context injection (no longer caps confidence)
+function composePrompt(args: {
+  token: Token;
+  price: Price;
+  timeframe: "short" | "long";
+  memories: Memory[];
+  graphContext: string;
+}): string {
+  const { token, price, timeframe, memories, graphContext } = args;
   const memoryDepth = memories.length < 5 ? "low" : memories.length < 20 ? "moderate" : "high";
-
-  // 4. Compose prompt
   const memoriesText = memories.map((m, i) => `${i + 1}. [${m.category}] ${m.content}`).join("\n");
-
   const basePrompt = timeframe === "short" ? SHORT_SIGNAL_PROMPT : LONG_SIGNAL_PROMPT;
-  const prompt = basePrompt
+
+  return basePrompt
     .replace(
       "{context}",
       `${memories.length} memories (${memoryDepth} depth), graph data available`,
@@ -154,15 +148,15 @@ async function analyzeToken(
     .replace("{memory_count}", String(memories.length))
     .replace("{memories}", memoriesText || "No memories yet.")
     .replace("{graph_context}", graphContext || "No graph connections yet.");
+}
 
-  // 5. Call LLM (slightly higher temp for long-term to encourage divergence)
-  const response = await callLLM(prompt, timeframe === "long" ? 0.5 : 0.3);
-  if (!response) return null;
-
-  // 6. Parse response
+function parseSignalResponse(
+  response: string,
+  token: Token,
+  log: (msg: string) => void,
+): SignalResult | null {
   let parsed: SignalResult;
   try {
-    // Extract JSON from response (handle markdown code blocks)
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new AnalyzerError("No JSON in response");
     parsed = JSON.parse(jsonMatch[0]);
@@ -170,24 +164,31 @@ async function analyzeToken(
     log(`Failed to parse signal response for ${token.symbol}`);
     return null;
   }
-
-  // Validate
   if (!["buy", "sell", "hold"].includes(parsed.signal)) parsed.signal = "hold";
   parsed.confidence = Math.max(0, Math.min(1, parsed.confidence));
+  return parsed;
+}
 
-  // 7. Store signal
-  const memoryIds = memories.map((m) => m.id);
+async function persistSignalAndMemory(args: {
+  db: Kysely<Database>;
+  token: Token;
+  timeframe: "short" | "long";
+  memories: Memory[];
+  parsed: SignalResult;
+  memory?: MemoryManager;
+}): Promise<void> {
+  const { db, token, timeframe, memories, parsed, memory } = args;
+
   await insertSignal(db, {
     token_id: token.id,
     signal_type: parsed.signal,
     confidence: parsed.confidence,
     reasoning: parsed.reasoning,
     key_factors: JSON.stringify(parsed.key_factors ?? []),
-    memory_ids: JSON.stringify(memoryIds),
+    memory_ids: JSON.stringify(memories.map((m) => m.id)),
     timeframe,
   });
 
-  // 8. Store signal reasoning as a cairn memory with embedding + graph extraction
   const signalContent = `[Signal ${token.symbol} ${timeframe}] ${parsed.signal.toUpperCase()} (${parsed.confidence.toFixed(2)}): ${parsed.reasoning}`;
   let signalEmbedding: string | null = null;
   try {
@@ -209,11 +210,46 @@ async function analyzeToken(
     embedding: signalEmbedding,
   });
 
-  // Fire graph extraction async so signal entities (tokens, events) get indexed
   if (memory) {
     memory.processStoredMemory(signalMemory.id, signalMemory.content).catch(() => {});
   }
+}
 
+async function analyzeToken(
+  db: Kysely<Database>,
+  token: Token,
+  price: Price,
+  opts: AnalyzeTokenOpts,
+): Promise<SignalResult | null> {
+  const { timeframe, log, memory } = opts;
+
+  const queryText = await generateRecallQuery(token, price, timeframe);
+  let queryEmbedding: number[] | undefined;
+  try {
+    queryEmbedding = await generateEmbedding(
+      env.OPENROUTER_API_KEY,
+      queryText,
+      env.EMBEDDING_MODEL,
+    );
+  } catch {
+    // Fall through without embedding
+  }
+
+  const memories = (await recallMemories(db, queryText, {
+    limit: 15,
+    queryEmbedding,
+  })) as unknown as Memory[];
+
+  const { graphContext } = await expandMemoriesViaGraph(db, token.name, queryEmbedding, memories);
+
+  const prompt = composePrompt({ token, price, timeframe, memories, graphContext });
+  const response = await callLLM(prompt, timeframe === "long" ? 0.5 : 0.3);
+  if (!response) return null;
+
+  const parsed = parseSignalResponse(response, token, log);
+  if (!parsed) return null;
+
+  await persistSignalAndMemory({ db, token, timeframe, memories, parsed, memory });
   return parsed;
 }
 

@@ -14,6 +14,7 @@ export interface CairnDatabase {
   graph_nodes: GraphNodeTable;
   graph_edges: GraphEdgeTable;
   observations: ObservationTable;
+  pipeline_jobs: PipelineJobTable;
 }
 
 export interface MemoryTable {
@@ -115,3 +116,19 @@ export interface ObservationTable {
 
 export type Observation = Selectable<ObservationTable>;
 export type NewObservation = Insertable<ObservationTable>;
+
+export interface PipelineJobTable {
+  id: string;
+  type: string;
+  conversation_id: string;
+  status: Generated<string>;
+  attempts: Generated<number>;
+  max_attempts: Generated<number>;
+  last_error: string | null;
+  created_at: Generated<string>;
+  next_attempt_at: Generated<string>;
+  completed_at: string | null;
+}
+
+export type PipelineJob = Selectable<PipelineJobTable>;
+export type NewPipelineJob = Insertable<PipelineJobTable>;

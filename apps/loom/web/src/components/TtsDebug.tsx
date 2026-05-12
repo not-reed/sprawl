@@ -13,17 +13,182 @@ interface Timing {
   ms: number;
 }
 
-export function TtsDebug() {
-  const [rawText, setRawText] = useState("");
-  const [segments, setSegments] = useState<Segment[]>([]);
-  const [scriptifyMs, setScriptifyMs] = useState<number | null>(null);
-  const [model, setModel] = useState("");
-  const [skipped, setSkipped] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [synthesizing, setSynthesizing] = useState(false);
-  const [timings, setTimings] = useState<Timing[]>([]);
-  const [error, setError] = useState("");
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+const AUTO_VOICES = [
+  "am_fenrir",
+  "bf_emma",
+  "am_puck",
+  "af_bella",
+  "bm_george",
+  "af_nicole",
+  "am_michael",
+  "bf_isabella",
+  "bm_fable",
+  "af_kore",
+];
+
+function SegmentEditor({
+  segments,
+  onUpdate,
+  onRemove,
+  onAdd,
+}: {
+  segments: Segment[];
+  onUpdate: (idx: number, field: keyof Segment, value: string) => void;
+  onRemove: (idx: number) => void;
+  onAdd: () => void;
+}) {
+  return (
+    <div className="debug-segments">
+      {segments.map((seg, i) => (
+        <div key={i} className="debug-segment">
+          <div className="debug-segment-header">
+            <input
+              className="debug-speaker-input"
+              value={seg.speaker}
+              onChange={(e) => onUpdate(i, "speaker", e.target.value)}
+            />
+            <input
+              className="debug-voice-input"
+              value={seg.voice ?? ""}
+              onChange={(e) => onUpdate(i, "voice", e.target.value || (undefined as any))}
+              placeholder="auto"
+              title="Voice override (leave blank for auto)"
+            />
+            <button className="btn btn-sm btn-danger" onClick={() => onRemove(i)}>
+              ×
+            </button>
+          </div>
+          <textarea
+            className="debug-segment-text"
+            value={seg.text}
+            onChange={(e) => onUpdate(i, "text", e.target.value)}
+            rows={3}
+          />
+        </div>
+      ))}
+      <button className="btn btn-sm" onClick={onAdd}>
+        + Add Segment
+      </button>
+    </div>
+  );
+}
+
+function CharacterVoiceTable({
+  segments,
+  voiceConfig,
+  characters,
+}: {
+  segments: Segment[];
+  voiceConfig: { defaultVoice: string; npcVoices: Record<string, string> };
+  characters: string[];
+}) {
+  const uniqueSpeakers = [...new Set(segments.map((s) => s.speaker))].filter(
+    (s) => s !== "NARRATOR",
+  );
+  const allChars = [...new Set([...characters, ...uniqueSpeakers])];
+  if (allChars.length === 0) return null;
+
+  let autoIdx = 0;
+  const autoMap = new Map<string, string>();
+  for (const name of uniqueSpeakers) {
+    if (!voiceConfig.npcVoices[name] && !autoMap.has(name)) {
+      autoMap.set(name, AUTO_VOICES[autoIdx % AUTO_VOICES.length]);
+      autoIdx++;
+    }
+  }
+
+  return (
+    <div className="debug-section">
+      <h3>Characters & Voices</h3>
+      <div className="debug-meta">NARRATOR = {voiceConfig.defaultVoice || "(default)"}</div>
+      <table className="debug-table">
+        <thead>
+          <tr>
+            <th>Character</th>
+            <th>Assigned Voice</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {allChars.map((name) => {
+            const configured = voiceConfig.npcVoices[name];
+            const auto = autoMap.get(name);
+            const inSegments = uniqueSpeakers.includes(name);
+            return (
+              <tr key={name}>
+                <td>
+                  {name}
+                  {inSegments && (
+                    <span className="debug-badge-active" title="In current segments">
+                      {" "}
+                      *
+                    </span>
+                  )}
+                </td>
+                <td>
+                  <code>{configured ?? auto ?? "-"}</code>
+                </td>
+                <td>
+                  {configured ? (
+                    <span style={{ color: "var(--green)" }}>configured</span>
+                  ) : auto ? (
+                    <span style={{ color: "var(--orange)" }}>auto-assigned</span>
+                  ) : (
+                    <span style={{ color: "var(--text-muted)" }}>no voice</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div className="debug-meta" style={{ marginTop: "0.5rem" }}>
+        Configure voices on the{" "}
+        <a href="/voices" style={{ color: "var(--accent)" }}>
+          Voices page
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function SynthesisTimings({ timings }: { timings: Timing[] }) {
+  return (
+    <div className="debug-section">
+      <h3>3. Synthesis Timings</h3>
+      <table className="debug-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Speaker</th>
+            <th>Voice</th>
+            <th>Chars</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {timings.map((t, i) => (
+            <tr key={i}>
+              <td>{i}</td>
+              <td>{t.speaker}</td>
+              <td>
+                <code>{t.voice}</code>
+              </td>
+              <td>{t.chars}</td>
+              <td>{(t.ms / 1000).toFixed(1)}s</td>
+            </tr>
+          ))}
+          <tr className="debug-table-total">
+            <td colSpan={4}>Total</td>
+            <td>{(timings.reduce((s, t) => s + t.ms, 0) / 1000).toFixed(1)}s</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function useTtsConfig() {
   const [voiceConfig, setVoiceConfig] = useState<{
     defaultVoice: string;
     npcVoices: Record<string, string>;
@@ -42,6 +207,22 @@ export function TtsDebug() {
       setCharacters(ch.characters ?? []);
     });
   }, []);
+
+  return { voiceConfig, characters };
+}
+
+function useTtsDebug() {
+  const [rawText, setRawText] = useState("");
+  const [segments, setSegments] = useState<Segment[]>([]);
+  const [scriptifyMs, setScriptifyMs] = useState<number | null>(null);
+  const [model, setModel] = useState("");
+  const [skipped, setSkipped] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [synthesizing, setSynthesizing] = useState(false);
+  const [timings, setTimings] = useState<Timing[]>([]);
+  const [error, setError] = useState("");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const { voiceConfig, characters } = useTtsConfig();
 
   async function handleScriptify() {
     if (!rawText.trim()) return;
@@ -79,12 +260,8 @@ export function TtsDebug() {
         body: JSON.stringify({ segments }),
       });
       if (!res.ok) throw new Error(`${res.status}`);
-
       const timingHeader = res.headers.get("X-TTS-Timings");
-      if (timingHeader) {
-        setTimings(JSON.parse(timingHeader));
-      }
-
+      if (timingHeader) setTimings(JSON.parse(timingHeader));
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       if (audioRef.current) {
@@ -98,22 +275,59 @@ export function TtsDebug() {
     }
   }
 
-  function updateSegment(idx: number, field: keyof Segment, value: string) {
+  const updateSegment = (idx: number, field: keyof Segment, value: string) =>
     setSegments((prev) => prev.map((s, i) => (i === idx ? { ...s, [field]: value } : s)));
-  }
 
-  function removeSegment(idx: number) {
-    setSegments((prev) => prev.filter((_, i) => i !== idx));
-  }
+  const removeSegment = (idx: number) => setSegments((prev) => prev.filter((_, i) => i !== idx));
+  const addSegment = () => setSegments((prev) => [...prev, { speaker: "NARRATOR", text: "" }]);
 
-  function addSegment() {
-    setSegments((prev) => [...prev, { speaker: "NARRATOR", text: "" }]);
-  }
+  return {
+    rawText,
+    setRawText,
+    segments,
+    updateSegment,
+    removeSegment,
+    addSegment,
+    scriptifyMs,
+    model,
+    skipped,
+    loading,
+    handleScriptify,
+    synthesizing,
+    handleSynthesize,
+    timings,
+    error,
+    voiceConfig,
+    characters,
+    audioRef,
+  };
+}
+
+export function TtsDebug() {
+  const {
+    rawText,
+    setRawText,
+    segments,
+    updateSegment,
+    removeSegment,
+    addSegment,
+    scriptifyMs,
+    model,
+    skipped,
+    loading,
+    handleScriptify,
+    synthesizing,
+    handleSynthesize,
+    timings,
+    error,
+    voiceConfig,
+    characters,
+    audioRef,
+  } = useTtsDebug();
 
   return (
     <div className="debug-page">
       <h2>TTS Debug</h2>
-
       <div className="debug-section">
         <h3>1. Raw Story Text</h3>
         <textarea
@@ -131,9 +345,7 @@ export function TtsDebug() {
           {loading ? "Running scriptify..." : "Scriptify"}
         </button>
       </div>
-
       {error && <div className="debug-error">{error}</div>}
-
       {segments.length > 0 && (
         <div className="debug-section">
           <h3>2. Segments</h3>
@@ -143,42 +355,12 @@ export function TtsDebug() {
               {skipped && " | (skipped — text too short or no patterns)"}
             </div>
           )}
-
-          <div className="debug-segments">
-            {segments.map((seg, i) => (
-              <div key={i} className="debug-segment">
-                <div className="debug-segment-header">
-                  <input
-                    className="debug-speaker-input"
-                    value={seg.speaker}
-                    onChange={(e) => updateSegment(i, "speaker", e.target.value)}
-                  />
-                  <input
-                    className="debug-voice-input"
-                    value={seg.voice ?? ""}
-                    onChange={(e) =>
-                      updateSegment(i, "voice", e.target.value || (undefined as any))
-                    }
-                    placeholder="auto"
-                    title="Voice override (leave blank for auto)"
-                  />
-                  <button className="btn btn-sm btn-danger" onClick={() => removeSegment(i)}>
-                    ×
-                  </button>
-                </div>
-                <textarea
-                  className="debug-segment-text"
-                  value={seg.text}
-                  onChange={(e) => updateSegment(i, "text", e.target.value)}
-                  rows={3}
-                />
-              </div>
-            ))}
-            <button className="btn btn-sm" onClick={addSegment}>
-              + Add Segment
-            </button>
-          </div>
-
+          <SegmentEditor
+            segments={segments}
+            onUpdate={updateSegment}
+            onRemove={removeSegment}
+            onAdd={addSegment}
+          />
           <button
             className="btn btn-accent"
             onClick={handleSynthesize}
@@ -188,125 +370,14 @@ export function TtsDebug() {
           </button>
         </div>
       )}
-
-      {segments.length > 0 &&
-        (() => {
-          const uniqueSpeakers = [...new Set(segments.map((s) => s.speaker))].filter(
-            (s) => s !== "NARRATOR",
-          );
-          const allChars = [...new Set([...characters, ...uniqueSpeakers])];
-          if (allChars.length === 0) return null;
-
-          const AUTO_VOICES = [
-            "am_fenrir",
-            "bf_emma",
-            "am_puck",
-            "af_bella",
-            "bm_george",
-            "af_nicole",
-            "am_michael",
-            "bf_isabella",
-            "bm_fable",
-            "af_kore",
-          ];
-          let autoIdx = 0;
-          const autoMap = new Map<string, string>();
-          for (const name of uniqueSpeakers) {
-            if (!voiceConfig.npcVoices[name] && !autoMap.has(name)) {
-              autoMap.set(name, AUTO_VOICES[autoIdx % AUTO_VOICES.length]);
-              autoIdx++;
-            }
-          }
-
-          return (
-            <div className="debug-section">
-              <h3>Characters & Voices</h3>
-              <div className="debug-meta">NARRATOR = {voiceConfig.defaultVoice || "(default)"}</div>
-              <table className="debug-table">
-                <thead>
-                  <tr>
-                    <th>Character</th>
-                    <th>Assigned Voice</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allChars.map((name) => {
-                    const configured = voiceConfig.npcVoices[name];
-                    const auto = autoMap.get(name);
-                    const inSegments = uniqueSpeakers.includes(name);
-                    return (
-                      <tr key={name}>
-                        <td>
-                          {name}
-                          {inSegments && (
-                            <span className="debug-badge-active" title="In current segments">
-                              {" "}
-                              *
-                            </span>
-                          )}
-                        </td>
-                        <td>
-                          <code>{configured ?? auto ?? "-"}</code>
-                        </td>
-                        <td>
-                          {configured ? (
-                            <span style={{ color: "var(--green)" }}>configured</span>
-                          ) : auto ? (
-                            <span style={{ color: "var(--orange)" }}>auto-assigned</span>
-                          ) : (
-                            <span style={{ color: "var(--text-muted)" }}>no voice</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              <div className="debug-meta" style={{ marginTop: "0.5rem" }}>
-                Configure voices on the{" "}
-                <a href="/voices" style={{ color: "var(--accent)" }}>
-                  Voices page
-                </a>
-              </div>
-            </div>
-          );
-        })()}
-
-      {timings.length > 0 && (
-        <div className="debug-section">
-          <h3>3. Synthesis Timings</h3>
-          <table className="debug-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Speaker</th>
-                <th>Voice</th>
-                <th>Chars</th>
-                <th>Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {timings.map((t, i) => (
-                <tr key={i}>
-                  <td>{i}</td>
-                  <td>{t.speaker}</td>
-                  <td>
-                    <code>{t.voice}</code>
-                  </td>
-                  <td>{t.chars}</td>
-                  <td>{(t.ms / 1000).toFixed(1)}s</td>
-                </tr>
-              ))}
-              <tr className="debug-table-total">
-                <td colSpan={4}>Total</td>
-                <td>{(timings.reduce((s, t) => s + t.ms, 0) / 1000).toFixed(1)}s</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+      {segments.length > 0 && (
+        <CharacterVoiceTable
+          segments={segments}
+          voiceConfig={voiceConfig}
+          characters={characters}
+        />
       )}
-
+      {timings.length > 0 && <SynthesisTimings timings={timings} />}
       <audio ref={audioRef} controls className="debug-audio" />
     </div>
   );

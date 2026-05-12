@@ -18,10 +18,8 @@ import type { Env } from "../env.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Minimal cortex schema migration for test fixture
 async function migrateCortexFixture(db: Kysely<CortexDatabase>) {
   const { sql } = await import("kysely");
-
   await db.schema
     .createTable("tracked_tokens")
     .addColumn("id", "text", (col) => col.primaryKey())
@@ -30,7 +28,6 @@ async function migrateCortexFixture(db: Kysely<CortexDatabase>) {
     .addColumn("active", "integer", (col) => col.notNull().defaultTo(1))
     .addColumn("added_at", "text", (col) => col.notNull().defaultTo(sql`(datetime('now'))`))
     .execute();
-
   await db.schema
     .createTable("price_snapshots")
     .addColumn("id", "text", (col) => col.primaryKey())
@@ -42,7 +39,6 @@ async function migrateCortexFixture(db: Kysely<CortexDatabase>) {
     .addColumn("change_7d", "real")
     .addColumn("captured_at", "text", (col) => col.notNull().defaultTo(sql`(datetime('now'))`))
     .execute();
-
   await db.schema
     .createTable("signals")
     .addColumn("id", "text", (col) => col.primaryKey())
@@ -79,132 +75,114 @@ function makeEnv(overrides: Partial<Env> = {}): Env {
   };
 }
 
-/** Mock executor that uses a fixed price map. */
 class MockExecutor implements Executor {
   prices: Map<string, number>;
-
   constructor(prices: Map<string, number>) {
     this.prices = prices;
   }
-
   async buy(tokenId: string, amountUsd: number): Promise<ExecutionResult> {
     const price = this.prices.get(tokenId) ?? 1000;
     const quantity = (amountUsd - 0.5) / price;
-    return {
-      price_usd: price,
-      quantity,
-      size_usd: amountUsd,
-      gas_usd: 0.5,
-      slippage_bps: 30,
-    };
+    return { price_usd: price, quantity, size_usd: amountUsd, gas_usd: 0.5, slippage_bps: 30 };
   }
-
   async sell(tokenId: string, quantity: number): Promise<ExecutionResult> {
     const price = this.prices.get(tokenId) ?? 1000;
     const sizeUsd = quantity * price - 0.5;
-    return {
-      price_usd: price,
-      quantity,
-      size_usd: sizeUsd,
-      gas_usd: 0.5,
-      slippage_bps: 30,
-    };
+    return { price_usd: price, quantity, size_usd: sizeUsd, gas_usd: 0.5, slippage_bps: 30 };
   }
 }
 
-describe("engine integration", () => {
-  let synapseDb: Kysely<Database>;
-  let cortexDb: Kysely<CortexDatabase>;
-  let executor: MockExecutor;
-  let env: Env;
+interface TestFixtures {
+  synapseDb: Kysely<Database>;
+  cortexDb: Kysely<CortexDatabase>;
+  executor: MockExecutor;
+  logs: string[];
+  makeCtx: () => {
+    db: Kysely<Database>;
+    cortex: any;
+    executor: MockExecutor;
+    env: Env;
+    log: (msg: string) => void;
+  };
+}
+
+async function setupEngineTest(): Promise<TestFixtures> {
   const logs: string[] = [];
+  const synapse = createDb<Database>(":memory:");
+  const synapseDb = synapse.db;
+  await runMigrations(synapseDb as any, join(__dirname, "..", "db", "migrations"));
+  await initPortfolioState(synapseDb, 10000);
 
-  beforeEach(async () => {
-    logs.length = 0;
+  const cortex = createDb<CortexDatabase>(":memory:");
+  const cortexDb = cortex.db;
+  await migrateCortexFixture(cortexDb);
 
-    // Create in-memory synapse DB
-    const synapse = createDb<Database>(":memory:");
-    synapseDb = synapse.db;
-    await runMigrations(synapseDb as any, join(__dirname, "..", "db", "migrations"));
-    await initPortfolioState(synapseDb, 10000);
+  await cortexDb
+    .insertInto("tracked_tokens")
+    .values({ id: "bitcoin", symbol: "BTC", name: "Bitcoin" })
+    .execute();
+  await cortexDb
+    .insertInto("price_snapshots")
+    .values({
+      id: "ps-1",
+      token_id: "bitcoin",
+      price_usd: 50000,
+      market_cap: null,
+      volume_24h: null,
+      change_24h: null,
+      change_7d: null,
+    })
+    .execute();
 
-    // Create in-memory cortex DB
-    const cortex = createDb<CortexDatabase>(":memory:");
-    cortexDb = cortex.db;
-    await migrateCortexFixture(cortexDb);
+  const executor = new MockExecutor(new Map([["bitcoin", 50000]]));
+  const env = makeEnv();
 
-    // Seed cortex data
-    await cortexDb
-      .insertInto("tracked_tokens")
-      .values({ id: "bitcoin", symbol: "BTC", name: "Bitcoin" })
-      .execute();
-
-    await cortexDb
-      .insertInto("price_snapshots")
-      .values({
-        id: "ps-1",
-        token_id: "bitcoin",
-        price_usd: 50000,
-        market_cap: null,
-        volume_24h: null,
-        change_24h: null,
-        change_7d: null,
-      })
-      .execute();
-
-    executor = new MockExecutor(new Map([["bitcoin", 50000]]));
-    env = makeEnv();
-  });
+  const cortexReader = {
+    db: cortexDb,
+    async getLatestSignals() {
+      return cortexDb
+        .selectFrom("signals as s")
+        .selectAll()
+        .where(
+          "s.created_at",
+          "=",
+          cortexDb
+            .selectFrom("signals as s2")
+            .select(({ fn }) => fn.max("s2.created_at").as("max_at"))
+            .whereRef("s2.token_id", "=", "s.token_id"),
+        )
+        .execute();
+    },
+    async getLatestPrices() {
+      return cortexDb
+        .selectFrom("price_snapshots as ps")
+        .selectAll()
+        .where(
+          "ps.captured_at",
+          "=",
+          cortexDb
+            .selectFrom("price_snapshots as ps2")
+            .select(({ fn }) => fn.max("ps2.captured_at").as("max_at"))
+            .whereRef("ps2.token_id", "=", "ps.token_id"),
+        )
+        .execute();
+    },
+    async getTokenPrice(tokenId: string) {
+      return cortexDb
+        .selectFrom("price_snapshots")
+        .selectAll()
+        .where("token_id", "=", tokenId)
+        .orderBy("captured_at", "desc")
+        .limit(1)
+        .executeTakeFirst();
+    },
+    async getActiveTokens() {
+      return cortexDb.selectFrom("tracked_tokens").selectAll().where("active", "=", 1).execute();
+    },
+    async destroy() {},
+  };
 
   function makeCtx() {
-    // Create a mock CortexReader that delegates to our in-memory cortexDb
-    const cortexReader = {
-      db: cortexDb,
-      async getLatestSignals() {
-        const rows = await cortexDb
-          .selectFrom("signals as s")
-          .selectAll()
-          .where(
-            "s.created_at",
-            "=",
-            cortexDb
-              .selectFrom("signals as s2")
-              .select(({ fn }) => fn.max("s2.created_at").as("max_at"))
-              .whereRef("s2.token_id", "=", "s.token_id"),
-          )
-          .execute();
-        return rows;
-      },
-      async getLatestPrices() {
-        const rows = await cortexDb
-          .selectFrom("price_snapshots as ps")
-          .selectAll()
-          .where(
-            "ps.captured_at",
-            "=",
-            cortexDb
-              .selectFrom("price_snapshots as ps2")
-              .select(({ fn }) => fn.max("ps2.captured_at").as("max_at"))
-              .whereRef("ps2.token_id", "=", "ps.token_id"),
-          )
-          .execute();
-        return rows;
-      },
-      async getTokenPrice(tokenId: string) {
-        return cortexDb
-          .selectFrom("price_snapshots")
-          .selectAll()
-          .where("token_id", "=", tokenId)
-          .orderBy("captured_at", "desc")
-          .limit(1)
-          .executeTakeFirst();
-      },
-      async getActiveTokens() {
-        return cortexDb.selectFrom("tracked_tokens").selectAll().where("active", "=", 1).execute();
-      },
-      async destroy() {},
-    };
-
     return {
       db: synapseDb,
       cortex: cortexReader as any,
@@ -214,9 +192,17 @@ describe("engine integration", () => {
     };
   }
 
+  return { synapseDb, cortexDb, executor, logs, makeCtx };
+}
+
+describe("signal polling", () => {
+  let t: TestFixtures;
+  beforeEach(async () => {
+    t = await setupEngineTest();
+  });
+
   it("opens a position on a buy signal", async () => {
-    // Insert a buy signal into cortex
-    await cortexDb
+    await t.cortexDb
       .insertInto("signals")
       .values({
         id: "sig-buy-1",
@@ -227,25 +213,18 @@ describe("engine integration", () => {
         timeframe: "short",
       })
       .execute();
-
-    await pollSignals(makeCtx());
-
-    // Should have opened a position
-    const positions = await getOpenPositions(synapseDb);
+    await pollSignals(t.makeCtx());
+    const positions = await getOpenPositions(t.synapseDb);
     expect(positions).toHaveLength(1);
     expect(positions[0].token_id).toBe("bitcoin");
     expect(positions[0].direction).toBe("long");
-
-    // Signal should be logged
-    expect(await isSignalProcessed(synapseDb, "sig-buy-1")).toBe(true);
-
-    // Cash should have decreased
-    const state = await getPortfolioState(synapseDb);
+    expect(await isSignalProcessed(t.synapseDb, "sig-buy-1")).toBe(true);
+    const state = await getPortfolioState(t.synapseDb);
     expect(state!.cash_usd).toBeLessThan(10000);
   });
 
   it("skips already-processed signals", async () => {
-    await cortexDb
+    await t.cortexDb
       .insertInto("signals")
       .values({
         id: "sig-dup",
@@ -256,18 +235,15 @@ describe("engine integration", () => {
         timeframe: "short",
       })
       .execute();
-
-    const ctx = makeCtx();
+    const ctx = t.makeCtx();
     await pollSignals(ctx);
     await pollSignals(ctx);
-
-    // Only one position
-    const positions = await getOpenPositions(synapseDb);
+    const positions = await getOpenPositions(t.synapseDb);
     expect(positions).toHaveLength(1);
   });
 
   it("skips hold signals", async () => {
-    await cortexDb
+    await t.cortexDb
       .insertInto("signals")
       .values({
         id: "sig-hold",
@@ -278,17 +254,21 @@ describe("engine integration", () => {
         timeframe: "short",
       })
       .execute();
-
-    await pollSignals(makeCtx());
-
-    const positions = await getOpenPositions(synapseDb);
+    await pollSignals(t.makeCtx());
+    const positions = await getOpenPositions(t.synapseDb);
     expect(positions).toHaveLength(0);
-    expect(await isSignalProcessed(synapseDb, "sig-hold")).toBe(true);
+    expect(await isSignalProcessed(t.synapseDb, "sig-hold")).toBe(true);
+  });
+});
+
+describe("position management", () => {
+  let t: TestFixtures;
+  beforeEach(async () => {
+    t = await setupEngineTest();
   });
 
   it("closes position on sell signal", async () => {
-    // First open a position
-    await cortexDb
+    await t.cortexDb
       .insertInto("signals")
       .values({
         id: "sig-b",
@@ -299,13 +279,11 @@ describe("engine integration", () => {
         timeframe: "short",
       })
       .execute();
-
-    const ctx = makeCtx();
+    const ctx = t.makeCtx();
     await pollSignals(ctx);
-    expect(await getOpenPositions(synapseDb)).toHaveLength(1);
+    expect(await getOpenPositions(t.synapseDb)).toHaveLength(1);
 
-    // Now replace with a sell signal (latest per token)
-    await cortexDb
+    await t.cortexDb
       .insertInto("signals")
       .values({
         id: "sig-s",
@@ -316,14 +294,19 @@ describe("engine integration", () => {
         timeframe: "short",
       })
       .execute();
-
     await pollSignals(ctx);
-    expect(await getOpenPositions(synapseDb)).toHaveLength(0);
+    expect(await getOpenPositions(t.synapseDb)).toHaveLength(0);
+  });
+});
+
+describe("risk checks", () => {
+  let t: TestFixtures;
+  beforeEach(async () => {
+    t = await setupEngineTest();
   });
 
   it("triggers stop-loss during risk check", async () => {
-    // Open position
-    await cortexDb
+    await t.cortexDb
       .insertInto("signals")
       .values({
         id: "sig-sl",
@@ -334,27 +317,23 @@ describe("engine integration", () => {
         timeframe: "short",
       })
       .execute();
-
-    const ctx = makeCtx();
+    const ctx = t.makeCtx();
     await pollSignals(ctx);
 
-    // Price crashes below stop-loss (5% for short timeframe: 50000 * 0.95 = 47500)
-    executor.prices.set("bitcoin", 45000);
-    await cortexDb
+    t.executor.prices.set("bitcoin", 45000);
+    await t.cortexDb
       .updateTable("price_snapshots")
       .set({ price_usd: 45000 })
       .where("token_id", "=", "bitcoin")
       .execute();
 
     await runRiskCheck(ctx);
-
-    expect(await getOpenPositions(synapseDb)).toHaveLength(0);
-    expect(logs.some((l) => l.includes("STOP_LOSS"))).toBe(true);
+    expect(await getOpenPositions(t.synapseDb)).toHaveLength(0);
+    expect(t.logs.some((l) => l.includes("STOP_LOSS"))).toBe(true);
   });
 
   it("halts trading on max drawdown", async () => {
-    // Open a large position
-    await cortexDb
+    await t.cortexDb
       .insertInto("signals")
       .values({
         id: "sig-dd",
@@ -365,22 +344,19 @@ describe("engine integration", () => {
         timeframe: "long",
       })
       .execute();
-
-    const ctx = makeCtx();
+    const ctx = t.makeCtx();
     await pollSignals(ctx);
 
-    // Crash price hard enough to cause >15% portfolio drawdown after stop-loss close
-    executor.prices.set("bitcoin", 10000);
-    await cortexDb
+    t.executor.prices.set("bitcoin", 10000);
+    await t.cortexDb
       .updateTable("price_snapshots")
       .set({ price_usd: 10000 })
       .where("token_id", "=", "bitcoin")
       .execute();
 
     await runRiskCheck(ctx);
-
-    const state = await getPortfolioState(synapseDb);
+    const state = await getPortfolioState(t.synapseDb);
     expect(state!.halted).toBe(1);
-    expect(await getOpenPositions(synapseDb)).toHaveLength(0);
+    expect(await getOpenPositions(t.synapseDb)).toHaveLength(0);
   });
 });

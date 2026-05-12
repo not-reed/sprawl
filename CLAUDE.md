@@ -104,6 +104,8 @@ just deck-dev <instance> # Deck dev mode
 
 # DB
 just db-migrate [inst]   # Run DB migrations
+just eval-reflector           # [AI returned empty description]
+just eval-main-model          # [AI returned empty description]
 ```
 
 ## Pre-commit Hooks (lefthook)

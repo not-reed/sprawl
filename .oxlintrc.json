@@ -18,7 +18,23 @@
     "unicorn/no-array-sort": "warn",
     "unicorn/prefer-add-event-listener": "warn",
     "import/no-unassigned-import": "off",
-    "no-control-regex": "off"
+    "no-control-regex": "off",
+    "max-lines": ["error", { "max": 400, "skipBlankLines": true, "skipComments": true }],
+    "max-lines-per-function": [
+      "error",
+      { "max": 100, "skipBlankLines": true, "skipComments": true }
+    ],
+    "max-params": ["error", { "max": 5 }],
+    "complexity": ["error", { "max": 20 }]
   },
-  "ignorePatterns": ["dist/", "build/", "node_modules/", "apps/optic/", "*.d.ts", "data/", ".blog/"]
+  "ignorePatterns": [
+    "dist/",
+    "build/",
+    "node_modules/",
+    "apps/optic/",
+    "**/migrations/",
+    "*.d.ts",
+    "data/",
+    ".blog/"
+  ]
 }

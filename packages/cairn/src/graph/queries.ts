@@ -288,167 +288,18 @@ export async function getNodeEdges(db: AnyDB, nodeId: string): Promise<GraphEdge
     .execute() as Promise<GraphEdge[]>;
 }
 
-/**
- * Traverse the graph from a starting node using a recursive CTE.
- * Follows edges bidirectionally, avoiding cycles via visited-path tracking.
- * @param startNodeId - Node to begin traversal from (excluded from results).
- * @param maxDepth - Maximum hops from start (default 2).
- * @returns Reachable nodes with their hop distance and the edge relation that reached them.
- */
-export async function traverseGraph(
-  db: AnyDB,
-  startNodeId: string,
-  maxDepth = 2,
-): Promise<Array<{ node: GraphNode; depth: number; via_relation: string | null }>> {
-  const results = await sql<{
-    id: string;
-    name: string;
-    display_name: string;
-    node_type: string;
-    description: string | null;
-    embedding: string | null;
-    created_at: string;
-    updated_at: string;
-    depth: number;
-    via_relation: string | null;
-  }>`
-    WITH RECURSIVE traverse(node_id, depth, via_relation, visited) AS (
-      SELECT ${startNodeId}, 0, NULL, ${startNodeId}
-      UNION ALL
-      SELECT
-        CASE
-          WHEN e.source_id = t.node_id THEN e.target_id
-          ELSE e.source_id
-        END,
-        t.depth + 1,
-        e.relation,
-        t.visited || ',' ||
-          CASE
-            WHEN e.source_id = t.node_id THEN e.target_id
-            ELSE e.source_id
-          END
-      FROM traverse t
-      JOIN graph_edges e ON (e.source_id = t.node_id OR e.target_id = t.node_id)
-      WHERE t.depth < ${maxDepth}
-        AND t.visited NOT LIKE '%' ||
-          CASE
-            WHEN e.source_id = t.node_id THEN e.target_id
-            ELSE e.source_id
-          END || '%'
-    )
-    SELECT DISTINCT
-      n.*,
-      t.depth,
-      t.via_relation
-    FROM traverse t
-    JOIN graph_nodes n ON n.id = t.node_id
-    WHERE t.depth > 0
-    ORDER BY t.depth ASC
-  `.execute(db);
-
-  return results.rows.map((row) => ({
-    node: {
-      id: row.id,
-      name: row.name,
-      display_name: row.display_name,
-      node_type: row.node_type,
-      description: row.description,
-      embedding: row.embedding,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    } as GraphNode,
-    depth: row.depth,
-    via_relation: row.via_relation,
-  }));
-}
+export { traverseGraph, spreadActivation } from "./traversal.js";
 
 /**
- * Spreading activation: BFS from seed nodes with exponential score decay.
- * Each hop reduces activation by `decay * edgeWeight`. Nodes reached via
- * multiple paths accumulate the max activation (not sum — avoids inflation).
- * @param seeds - Starting nodes with initial activation scores.
- * @param opts.decay - Score multiplier per hop (default 0.5).
- * @param opts.maxDepth - Maximum traversal hops (default 2).
- * @param opts.minActivation - Floor below which nodes are pruned (default 0.01).
- * @returns Nodes sorted by activation score descending.
+ * Get all edges connected to any of the given nodes (batched).
  */
-export async function spreadActivation(
-  db: AnyDB,
-  seeds: Array<{ nodeId: string; score: number }>,
-  opts?: { decay?: number; maxDepth?: number; minActivation?: number },
-): Promise<Array<{ node: GraphNode; score: number; depth: number }>> {
-  const decay = opts?.decay ?? 0.5;
-  const maxDepth = opts?.maxDepth ?? 2;
-  const minActivation = opts?.minActivation ?? 0.01;
-
-  // Track best activation per node
-  const activation = new Map<string, { score: number; depth: number }>();
-
-  // Initialize seeds
-  for (const seed of seeds) {
-    const existing = activation.get(seed.nodeId);
-    if (!existing || seed.score > existing.score) {
-      activation.set(seed.nodeId, { score: seed.score, depth: 0 });
-    }
-  }
-
-  // BFS frontier
-  let frontier = seeds.map((s) => ({ nodeId: s.nodeId, score: s.score, depth: 0 }));
-
-  for (let hop = 0; hop < maxDepth; hop++) {
-    const nextFrontier: typeof frontier = [];
-
-    for (const current of frontier) {
-      const edges = await getNodeEdges(db, current.nodeId);
-
-      for (const edge of edges) {
-        const neighborId = edge.source_id === current.nodeId ? edge.target_id : edge.source_id;
-        // Weight=1 is baseline. Higher weights decay less (up to 1.0 = no decay).
-        // Formula: decay is reduced proportionally to weight, capped so score never exceeds parent.
-        const weightBoost = Math.min(edge.weight, 10) / 10; // 0.1–1.0
-        const effectiveDecay = decay + (1 - decay) * weightBoost; // decay..1.0
-        const neighborScore = current.score * effectiveDecay;
-
-        if (neighborScore < minActivation) continue;
-
-        const existing = activation.get(neighborId);
-        if (!existing || neighborScore > existing.score) {
-          activation.set(neighborId, { score: neighborScore, depth: hop + 1 });
-          nextFrontier.push({ nodeId: neighborId, score: neighborScore, depth: hop + 1 });
-        }
-      }
-    }
-
-    frontier = nextFrontier;
-    if (frontier.length === 0) break;
-  }
-
-  // Remove seed nodes from results (callers already have them)
-  const seedIds = new Set(seeds.map((s) => s.nodeId));
-  const resultIds = [...activation.entries()]
-    .filter(([id]) => !seedIds.has(id))
-    .filter(([, a]) => a.score >= minActivation)
-    .toSorted(([, a], [, b]) => b.score - a.score);
-
-  if (resultIds.length === 0) return [];
-
-  // Batch-fetch all result nodes
-  const nodeIds = resultIds.map(([id]) => id);
-  const nodes = await typed(db)
-    .selectFrom("graph_nodes")
+export async function getEdgesForNodes(db: AnyDB, nodeIds: string[]): Promise<GraphEdge[]> {
+  if (nodeIds.length === 0) return [];
+  return typed(db)
+    .selectFrom("graph_edges")
     .selectAll()
-    .where("id", "in", nodeIds)
-    .execute();
-
-  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-
-  return resultIds
-    .map(([id, a]) => {
-      const node = nodeMap.get(id);
-      if (!node) return null;
-      return { node: node as GraphNode, score: a.score, depth: a.depth };
-    })
-    .filter((r): r is NonNullable<typeof r> => r !== null);
+    .where((eb) => eb.or([eb("source_id", "in", nodeIds), eb("target_id", "in", nodeIds)]))
+    .execute() as Promise<GraphEdge[]>;
 }
 
 /**

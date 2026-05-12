@@ -83,31 +83,23 @@ function formatTime(s: number): string {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
-export function ChatMessage({
-  message,
-  audioUrl: initialAudioUrl,
-  onGenerateAudio,
-}: ChatMessageProps) {
-  const isUser = message.role === "user";
+function useAudio(initialUrl?: string) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [audioUrl, setAudioUrl] = useState(initialAudioUrl);
-  const [generating, setGenerating] = useState(false);
+  const [audioUrl, setAudioUrl] = useState(initialUrl);
 
-  // Sync prop changes
   useEffect(() => {
-    if (initialAudioUrl) setAudioUrl(initialAudioUrl);
-  }, [initialAudioUrl]);
-
-  // Cleanup audio on unmount
-  useEffect(() => {
-    return () => {
+    if (initialUrl) setAudioUrl(initialUrl);
+  }, [initialUrl]);
+  useEffect(
+    () => () => {
       audioRef.current?.pause();
       audioRef.current = null;
-    };
-  }, []);
+    },
+    [],
+  );
 
   const ensureAudio = () => {
     if (audioRef.current) return audioRef.current;
@@ -142,37 +134,98 @@ export function ChatMessage({
     audio.currentTime = Math.max(0, Math.min(audio.duration || 0, audio.currentTime + delta));
   };
 
-  const seek = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const seek = (value: number) => {
     const audio = ensureAudio();
     if (!audio) return;
-    audio.currentTime = Number(e.target.value);
+    audio.currentTime = value;
     setCurrentTime(audio.currentTime);
   };
 
+  const setAndPlay = (url: string) => {
+    setAudioUrl(url);
+    const audio = new Audio(url);
+    audioRef.current = audio;
+    audio.addEventListener("loadedmetadata", () => setDuration(audio.duration));
+    audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime));
+    audio.addEventListener("ended", () => {
+      setPlaying(false);
+      setCurrentTime(0);
+    });
+    audio.addEventListener("error", () => setPlaying(false));
+    audio.play();
+    setPlaying(true);
+  };
+
+  return { playing, currentTime, duration, audioUrl, togglePlay, skip, seek, setAndPlay };
+}
+
+function AudioPlayer({
+  initialUrl,
+  onGenerate,
+}: {
+  initialUrl?: string;
+  onGenerate?: () => Promise<string | null>;
+}) {
+  const { playing, currentTime, duration, audioUrl, togglePlay, skip, seek, setAndPlay } =
+    useAudio(initialUrl);
+  const [generating, setGenerating] = useState(false);
+
   const handleGenerate = async () => {
-    if (!onGenerateAudio || generating) return;
+    if (!onGenerate || generating) return;
     setGenerating(true);
     try {
-      const url = await onGenerateAudio();
-      if (url) {
-        setAudioUrl(url);
-        // Auto-play after generation
-        const audio = new Audio(url);
-        audioRef.current = audio;
-        audio.addEventListener("loadedmetadata", () => setDuration(audio.duration));
-        audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime));
-        audio.addEventListener("ended", () => {
-          setPlaying(false);
-          setCurrentTime(0);
-        });
-        audio.addEventListener("error", () => setPlaying(false));
-        audio.play();
-        setPlaying(true);
-      }
+      const url = await onGenerate();
+      if (url) setAndPlay(url);
     } finally {
       setGenerating(false);
     }
   };
+
+  if (audioUrl) {
+    return (
+      <div className="audio-controls">
+        <button className="audio-btn" onClick={() => skip(-5)} title="Back 5s">
+          {"\u23EA"}
+        </button>
+        <button
+          className="audio-btn audio-btn-play"
+          onClick={togglePlay}
+          title={playing ? "Pause" : "Play"}
+        >
+          {playing ? "\u23F8" : "\u25B6"}
+        </button>
+        <button className="audio-btn" onClick={() => skip(5)} title="Forward 5s">
+          {"\u23E9"}
+        </button>
+        <input
+          type="range"
+          className="audio-scrubber"
+          min={0}
+          max={duration || 0}
+          step={0.1}
+          value={currentTime}
+          onChange={(e) => seek(Number(e.target.value))}
+        />
+        <span className="audio-time">
+          {formatTime(currentTime)}/{formatTime(duration)}
+        </span>
+      </div>
+    );
+  }
+
+  if (onGenerate) {
+    return (
+      <button className="btn-generate-audio" onClick={handleGenerate} disabled={generating}>
+        {generating ? "Generating..." : "\uD83D\uDD0A Generate Audio"}
+      </button>
+    );
+  }
+
+  return null;
+}
+
+export function ChatMessage({ message, audioUrl, onGenerateAudio }: ChatMessageProps) {
+  const isUser = message.role === "user";
 
   return (
     <div className={`chat-message ${isUser ? "chat-message-user" : "chat-message-gm"}`}>
@@ -187,40 +240,7 @@ export function ChatMessage({
           dangerouslySetInnerHTML={{ __html: renderMarkdown(message.content) }}
         />
       )}
-      {!isUser && audioUrl && (
-        <div className="audio-controls">
-          <button className="audio-btn" onClick={() => skip(-5)} title="Back 5s">
-            {"\u23EA"}
-          </button>
-          <button
-            className="audio-btn audio-btn-play"
-            onClick={togglePlay}
-            title={playing ? "Pause" : "Play"}
-          >
-            {playing ? "\u23F8" : "\u25B6"}
-          </button>
-          <button className="audio-btn" onClick={() => skip(5)} title="Forward 5s">
-            {"\u23E9"}
-          </button>
-          <input
-            type="range"
-            className="audio-scrubber"
-            min={0}
-            max={duration || 0}
-            step={0.1}
-            value={currentTime}
-            onChange={seek}
-          />
-          <span className="audio-time">
-            {formatTime(currentTime)}/{formatTime(duration)}
-          </span>
-        </div>
-      )}
-      {!isUser && !audioUrl && onGenerateAudio && (
-        <button className="btn-generate-audio" onClick={handleGenerate} disabled={generating}>
-          {generating ? "Generating..." : "\uD83D\uDD0A Generate Audio"}
-        </button>
-      )}
+      {!isUser && <AudioPlayer initialUrl={audioUrl} onGenerate={onGenerateAudio} />}
     </div>
   );
 }

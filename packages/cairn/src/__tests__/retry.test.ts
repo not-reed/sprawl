@@ -86,23 +86,23 @@ describe("fetchErrorFromResponse", () => {
   });
 });
 
-describe("withRetry", () => {
-  let unhandled: Array<{ reason: unknown; promise: Promise<unknown> }> = [];
-  const onUnhandled = (reason: unknown, promise: Promise<unknown>) => {
-    unhandled.push({ reason, promise });
-  };
+let unhandled: Array<{ reason: unknown; promise: Promise<unknown> }> = [];
+const onUnhandled = (reason: unknown, promise: Promise<unknown>) => {
+  unhandled.push({ reason, promise });
+};
 
-  beforeEach(() => {
-    unhandled = [];
-    process.on("unhandledRejection", onUnhandled);
-    vi.useFakeTimers();
-  });
+beforeEach(() => {
+  unhandled = [];
+  process.on("unhandledRejection", onUnhandled);
+  vi.useFakeTimers();
+});
 
-  afterEach(() => {
-    process.off("unhandledRejection", onUnhandled);
-    vi.useRealTimers();
-  });
+afterEach(() => {
+  process.off("unhandledRejection", onUnhandled);
+  vi.useRealTimers();
+});
 
+describe("withRetry basic", () => {
   it("succeeds on first attempt", async () => {
     const fn = vi.fn().mockResolvedValue("ok");
     const result = await withRetry(fn, { logger: nullLogger });
@@ -161,10 +161,11 @@ describe("withRetry", () => {
     await vi.advanceTimersByTimeAsync(10000);
     await expect(promise).rejects.toBeDefined();
 
-    // Delay should be >= retry-after (5000ms), with jitter around it
     expect(capturedDelay).toBeGreaterThanOrEqual(3750);
   });
+});
 
+describe("withRetry limits and backoff", () => {
   it("does not retry on 4xx", async () => {
     const fn = vi.fn().mockImplementation(() => {
       throw makeFetchError(401);
@@ -189,8 +190,6 @@ describe("withRetry", () => {
     const promise = withRetry(fn, { logger: nullLogger, baseDelayMs: 100, maxRetries: 2 });
     await vi.advanceTimersByTimeAsync(1000);
     await expect(promise).rejects.toBeDefined();
-
-    // 1 initial + 2 retries = 3 total
     expect(fn).toHaveBeenCalledTimes(3);
   });
 
@@ -212,10 +211,7 @@ describe("withRetry", () => {
     await vi.advanceTimersByTimeAsync(10000);
     await expect(promise).rejects.toBeDefined();
 
-    // Delays should generally increase (not strict due to jitter, but trend upward)
     expect(delays.length).toBe(3);
-    // Check relationship: delay[1] should be reasonably close to delay[0]*2 (allowing jitter)
-    // We just check later delays exist rather than exact values
     expect(delays[1]).toBeGreaterThan(0);
     expect(delays[2]).toBeGreaterThan(0);
   });

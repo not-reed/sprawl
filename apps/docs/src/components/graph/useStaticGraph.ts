@@ -32,26 +32,15 @@ export interface StaticGraphState {
   empty: boolean;
 }
 
-export function useStaticGraph(width: number, height: number) {
-  const [state, setState] = useState<StaticGraphState>({
-    nodes: [],
-    links: [],
-    selectedNodeId: null,
-    selectedNode: null,
-    selectedNodeEdges: [],
-    selectedNodePages: [],
-    hoveredNode: null,
-    hoverPos: null,
-    typeFilters: new Set(NODE_TYPES),
-    loading: true,
-    empty: allNodes.length === 0,
-  });
-
+function useSimulationSetup(
+  width: number,
+  height: number,
+  setState: React.Dispatch<React.SetStateAction<StaticGraphState>>,
+) {
   const simulationRef = useRef<Simulation<LayoutNode, LayoutLink> | null>(null);
   const nodesMapRef = useRef(new Map<string, LayoutNode>());
   const onTickRef = useRef<(() => void) | null>(null);
 
-  // Build simulation on mount
   useEffect(() => {
     if (allNodes.length === 0) {
       setState((s) => ({ ...s, loading: false, empty: true }));
@@ -74,7 +63,27 @@ export function useStaticGraph(width: number, height: number) {
     return () => {
       sim.stop();
     };
-  }, [width, height]);
+  }, [width, height, setState]);
+
+  return { simulationRef, nodesMapRef, onTickRef };
+}
+
+export function useStaticGraph(width: number, height: number) {
+  const [state, setState] = useState<StaticGraphState>({
+    nodes: [],
+    links: [],
+    selectedNodeId: null,
+    selectedNode: null,
+    selectedNodeEdges: [],
+    selectedNodePages: [],
+    hoveredNode: null,
+    hoverPos: null,
+    typeFilters: new Set(NODE_TYPES),
+    loading: true,
+    empty: allNodes.length === 0,
+  });
+
+  const { simulationRef, nodesMapRef, onTickRef } = useSimulationSetup(width, height, setState);
 
   const selectNode = useCallback((nodeId: string | null) => {
     if (!nodeId) {

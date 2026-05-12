@@ -2,35 +2,20 @@ import { useState, useCallback, useRef } from "react";
 import { api } from "../lib/api";
 import type { Message } from "../lib/types";
 
-export function useChat(sessionId: string) {
-  const [messages, setMessages] = useState<Message[]>([]);
+function useChatStream(
+  sessionId: string,
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>,
+  ttsEnabledRef: React.MutableRefObject<boolean>,
+  setPendingAudioUrl: (url: string | null) => void,
+) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
-  const [loaded, setLoaded] = useState(false);
-  const [pendingAudioUrl, setPendingAudioUrl] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const ttsEnabledRef = useRef(false);
-
-  const setTtsEnabled = useCallback((enabled: boolean) => {
-    ttsEnabledRef.current = enabled;
-  }, []);
-
-  const loadHistory = useCallback(async () => {
-    try {
-      const { messages: history } = await api.getChatHistory(sessionId);
-      setMessages(history);
-      setLoaded(true);
-    } catch (err) {
-      console.error("Failed to load history:", err);
-      setLoaded(true);
-    }
-  }, [sessionId]);
 
   const sendMessage = useCallback(
     async (text: string) => {
       if (isStreaming || !text.trim()) return;
 
-      // Optimistic user message
       const userMsg: Message = {
         id: `temp-${Date.now()}`,
         conversation_id: "",
@@ -85,7 +70,6 @@ export function useChat(sessionId: string) {
               } else if (event.type === "done") {
                 fullText = event.text;
               } else if (event.type === "audio") {
-                // Auto-play if TTS enabled, otherwise store URL for manual play
                 if (ttsEnabledRef.current) {
                   try {
                     const audio = new Audio(event.url);
@@ -104,7 +88,6 @@ export function useChat(sessionId: string) {
           }
         }
 
-        // Add assistant message with audio URL if present
         const assistantMsg: Message = {
           id: `temp-${Date.now()}-assistant`,
           conversation_id: "",
@@ -112,7 +95,6 @@ export function useChat(sessionId: string) {
           content: fullText,
           tool_calls: null,
           created_at: new Date().toISOString(),
-          audioUrl: undefined, // set below after state settles
         };
         setMessages((prev) => [...prev, assistantMsg]);
       } catch (err) {
@@ -126,6 +108,37 @@ export function useChat(sessionId: string) {
       }
     },
     [sessionId, isStreaming],
+  );
+
+  return { isStreaming, streamingText, sendMessage };
+}
+
+export function useChat(sessionId: string) {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [pendingAudioUrl, setPendingAudioUrl] = useState<string | null>(null);
+  const ttsEnabledRef = useRef(false);
+
+  const setTtsEnabled = useCallback((enabled: boolean) => {
+    ttsEnabledRef.current = enabled;
+  }, []);
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const { messages: history } = await api.getChatHistory(sessionId);
+      setMessages(history);
+      setLoaded(true);
+    } catch (err) {
+      console.error("Failed to load history:", err);
+      setLoaded(true);
+    }
+  }, [sessionId]);
+
+  const { isStreaming, streamingText, sendMessage } = useChatStream(
+    sessionId,
+    setMessages,
+    ttsEnabledRef,
+    setPendingAudioUrl,
   );
 
   return {

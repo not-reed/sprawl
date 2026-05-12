@@ -1,13 +1,10 @@
-import { useState, useCallback, useRef, useEffect } from "react";
-import type { Simulation } from "d3-force";
-import type { GraphNode, GraphEdge } from "../lib/types";
-import {
-  buildLayoutData,
-  createSimulation,
-  type LayoutNode,
-  type LayoutLink,
-} from "../lib/graph-layout";
+import { useState, useCallback } from "react";
 import { api } from "../lib/api";
+import type { GraphNode, GraphEdge } from "../lib/types";
+import type { LayoutNode } from "../lib/graph-layout";
+import { useGraphSimulation } from "./useGraphSimulation";
+
+import type { LayoutLink } from "../lib/graph-layout";
 
 export interface GraphState {
   nodes: LayoutNode[];
@@ -24,157 +21,82 @@ export interface GraphState {
 
 const ALL_TYPES = new Set(["person", "place", "concept", "event", "entity"]);
 
-export function useGraph(width: number, height: number) {
-  const [state, setState] = useState<GraphState>({
-    nodes: [],
-    links: [],
-    selectedNodeId: null,
-    selectedNode: null,
-    selectedNodeEdges: [],
-    selectedNodeMemories: [],
-    hoveredNode: null,
-    hoverPos: null,
-    typeFilters: new Set(ALL_TYPES),
-    loading: true,
-  });
-
-  const simulationRef = useRef<Simulation<LayoutNode, LayoutLink> | null>(null);
-  const nodesMapRef = useRef(new Map<string, LayoutNode>());
-  const rawNodesRef = useRef<GraphNode[]>([]);
-  const rawEdgesRef = useRef<GraphEdge[]>([]);
-  const onTickRef = useRef<(() => void) | null>(null);
-
-  const rebuildSimulation = useCallback(
-    (graphNodes: GraphNode[], graphEdges: GraphEdge[]) => {
-      rawNodesRef.current = graphNodes;
-      rawEdgesRef.current = graphEdges;
-
-      const { nodes, links } = buildLayoutData(graphNodes, graphEdges, nodesMapRef.current);
-
-      // Update node map
-      nodesMapRef.current = new Map(nodes.map((n) => [n.id, n]));
-
-      if (simulationRef.current) {
-        simulationRef.current.stop();
+function useGraphSimulationControl(sim: ReturnType<typeof useGraphSimulation>) {
+  const pinNode = useCallback(
+    (nodeId: string, x: number, y: number) => {
+      const node = sim.nodesMapRef.current.get(nodeId);
+      if (node) {
+        node.fx = x;
+        node.fy = y;
+        node.pinned = true;
+        sim.simulationRef.current?.alpha(0.1).restart();
       }
-
-      simulationRef.current = createSimulation(nodes, links, width, height);
-      simulationRef.current.on("tick", () => {
-        setState((s) => ({ ...s, nodes: [...nodes], links: [...links] }));
-        onTickRef.current?.();
-      });
-
-      setState((s) => ({ ...s, nodes, links, loading: false }));
     },
-    [width, height],
+    [sim],
   );
 
-  // Initial load
-  useEffect(() => {
-    api.getFullGraph(200).then((data) => {
-      rebuildSimulation(data.nodes, data.edges);
-    });
-  }, [rebuildSimulation]);
+  const unpinNode = useCallback(
+    (nodeId: string) => {
+      const node = sim.nodesMapRef.current.get(nodeId);
+      if (node) {
+        node.fx = undefined;
+        node.fy = undefined;
+        node.pinned = false;
+        sim.simulationRef.current?.alpha(0.1).restart();
+      }
+    },
+    [sim],
+  );
+
+  const reheat = useCallback(() => {
+    sim.simulationRef.current?.alpha(0.5).restart();
+  }, [sim]);
+
+  return { pinNode, unpinNode, reheat };
+}
+
+export function useGraph(width: number, height: number) {
+  const sim = useGraphSimulation(width, height);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [selectedNodeEdges, setSelectedNodeEdges] = useState<GraphEdge[]>([]);
+  const [selectedNodeMemories, setSelectedNodeMemories] = useState<any[]>([]);
+  const [hoveredNode, setHoveredNode] = useState<LayoutNode | null>(null);
+  const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
+  const [typeFilters, setTypeFilters] = useState(new Set(ALL_TYPES));
+  const { pinNode, unpinNode, reheat } = useGraphSimulationControl(sim);
 
   const selectNode = useCallback(async (nodeId: string | null) => {
     if (!nodeId) {
-      setState((s) => ({
-        ...s,
-        selectedNodeId: null,
-        selectedNode: null,
-        selectedNodeEdges: [],
-        selectedNodeMemories: [],
-      }));
+      setSelectedNodeId(null);
+      setSelectedNode(null);
+      setSelectedNodeEdges([]);
+      setSelectedNodeMemories([]);
       return;
     }
-
-    setState((s) => ({ ...s, selectedNodeId: nodeId }));
-
+    setSelectedNodeId(nodeId);
     const [nodeData, edgesData, memoriesData] = await Promise.all([
       api.getNode(nodeId),
       api.getNodeEdges(nodeId),
       api.getNodeMemories(nodeId),
     ]);
-
-    setState((s) => ({
-      ...s,
-      selectedNode: nodeData,
-      selectedNodeEdges: edgesData.edges,
-      selectedNodeMemories: memoriesData.memories,
-    }));
+    setSelectedNode(nodeData);
+    setSelectedNodeEdges(edgesData.edges);
+    setSelectedNodeMemories(memoriesData.memories);
   }, []);
 
-  const expandNode = useCallback(
-    async (nodeId: string, depth = 2) => {
-      const traversal = await api.traverseNode(nodeId, depth);
-
-      // Merge with existing
-      const existingIds = new Set(rawNodesRef.current.map((n) => n.id));
-      const mergedNodes = [
-        ...rawNodesRef.current,
-        ...traversal.nodes.filter((n) => !existingIds.has(n.id)),
-      ];
-
-      // Fetch edges for new nodes
-      const allNodeIds = mergedNodes.map((n) => n.id);
-      const fullGraph = await api.getFullGraph(allNodeIds.length + 50);
-
-      // Filter edges to only include our merged nodes
-      const nodeIdSet = new Set(allNodeIds);
-      const relevantEdges = fullGraph.edges.filter(
-        (e) => nodeIdSet.has(e.source_id) && nodeIdSet.has(e.target_id),
-      );
-
-      const mergedEdgeIds = new Set(rawEdgesRef.current.map((e) => e.id));
-      const mergedEdges = [
-        ...rawEdgesRef.current,
-        ...relevantEdges.filter((e) => !mergedEdgeIds.has(e.id)),
-      ];
-
-      rebuildSimulation(mergedNodes, mergedEdges);
-    },
-    [rebuildSimulation],
-  );
-
   const setHover = useCallback((node: LayoutNode | null, pos: { x: number; y: number } | null) => {
-    setState((s) => ({ ...s, hoveredNode: node, hoverPos: pos }));
+    setHoveredNode(node);
+    setHoverPos(pos);
   }, []);
 
   const toggleTypeFilter = useCallback((type: string) => {
-    setState((s) => {
-      const next = new Set(s.typeFilters);
+    setTypeFilters((prev) => {
+      const next = new Set(prev);
       if (next.has(type)) next.delete(type);
       else next.add(type);
-      return { ...s, typeFilters: next };
+      return next;
     });
-  }, []);
-
-  const pinNode = useCallback((nodeId: string, x: number, y: number) => {
-    const node = nodesMapRef.current.get(nodeId);
-    if (node) {
-      node.fx = x;
-      node.fy = y;
-      node.pinned = true;
-      simulationRef.current?.alpha(0.1).restart();
-    }
-  }, []);
-
-  const unpinNode = useCallback((nodeId: string) => {
-    const node = nodesMapRef.current.get(nodeId);
-    if (node) {
-      node.fx = undefined;
-      node.fy = undefined;
-      node.pinned = false;
-      simulationRef.current?.alpha(0.1).restart();
-    }
-  }, []);
-
-  const reheat = useCallback(() => {
-    simulationRef.current?.alpha(0.5).restart();
-  }, []);
-
-  const setOnTick = useCallback((cb: (() => void) | null) => {
-    onTickRef.current = cb;
   }, []);
 
   const searchAndFocus = useCallback(
@@ -183,31 +105,38 @@ export function useGraph(width: number, height: number) {
       const res = await api.searchNodes(query, 5);
       if (res.nodes.length > 0) {
         const targetId = res.nodes[0].id;
-        // Check if node is in current graph
-        if (nodesMapRef.current.has(targetId)) {
+        if (sim.nodesMapRef.current.has(targetId)) {
           selectNode(targetId);
         } else {
-          // Expand from this node
-          await expandNode(targetId);
+          await sim.expandNode(targetId);
           selectNode(targetId);
         }
       }
     },
-    [selectNode, expandNode],
+    [selectNode, sim],
   );
 
   return {
-    ...state,
+    nodes: sim.nodes,
+    links: sim.links,
+    selectedNodeId,
+    selectedNode,
+    selectedNodeEdges,
+    selectedNodeMemories,
+    hoveredNode,
+    hoverPos,
+    typeFilters,
+    loading: sim.loading,
     selectNode,
-    expandNode,
+    expandNode: sim.expandNode,
     setHover,
     toggleTypeFilter,
     pinNode,
     unpinNode,
     reheat,
-    setOnTick,
+    setOnTick: sim.setOnTick,
     searchAndFocus,
-    simulationRef,
-    nodesMapRef,
+    simulationRef: sim.simulationRef,
+    nodesMapRef: sim.nodesMapRef,
   };
 }

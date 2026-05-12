@@ -38,13 +38,16 @@ export interface PipelineQueueOptions {
   backoffBaseMs?: number;
   maxBackoffMs?: number;
   logger?: CairnLogger;
+  /** Optional callback invoked after a post_turn job completes successfully. */
+  postTurnExtras?: (conversationId: string) => Promise<void>;
 }
 
 export class PipelineQueue {
   private running = false;
   private draining = false;
   private wakeupTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly options: Required<Omit<PipelineQueueOptions, "logger">>;
+  private readonly options: Required<Omit<PipelineQueueOptions, "logger" | "postTurnExtras">> &
+    Pick<PipelineQueueOptions, "postTurnExtras">;
   private readonly log: CairnLogger;
 
   constructor(
@@ -174,11 +177,10 @@ export class PipelineQueue {
     if (!next || !this.running) return;
 
     const delay = Math.max(0, new Date(next.next_attempt_at).getTime() - Date.now());
-    const capped = Math.min(delay, this.options.maxBackoffMs);
     this.wakeupTimer = setTimeout(() => {
       this.wakeupTimer = null;
       this._kickDrain();
-    }, capped);
+    }, delay);
     this.wakeupTimer.unref();
   }
 
@@ -234,6 +236,7 @@ export class PipelineQueue {
             await this.memoryManager.promoteObservations(job.conversation_id);
           }
           await this.memoryManager.runReflector(job.conversation_id);
+          await this.options.postTurnExtras?.(job.conversation_id);
           break;
         }
         default:

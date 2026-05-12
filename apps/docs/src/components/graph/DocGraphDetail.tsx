@@ -14,6 +14,83 @@ function pageToUrl(slug: string): string {
   return `/${slug}/`;
 }
 
+function NodeConnections({
+  edges,
+  nodeId,
+  allNodeNames,
+  onSelectNode,
+}: {
+  edges: DocEdge[];
+  nodeId: string;
+  allNodeNames: Map<string, { display_name: string; node_type: string }>;
+  onSelectNode: (id: string) => void;
+}) {
+  return (
+    <div style={{ marginTop: 16 }}>
+      <h4 style={{ fontSize: 12, color: "#9898a8", margin: "0 0 8px" }}>
+        Connections ({edges.length})
+      </h4>
+      {edges.map((edge) => {
+        const otherId = edge.source_id === nodeId ? edge.target_id : edge.source_id;
+        const other = allNodeNames.get(otherId);
+        return (
+          <div
+            key={edge.id}
+            onClick={() => onSelectNode(otherId)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "4px 0",
+              cursor: "pointer",
+              borderBottom: "1px solid rgba(60, 60, 80, 0.3)",
+            }}
+          >
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: other ? getNodeColor(other.node_type) : "#686878",
+                flexShrink: 0,
+              }}
+            />
+            <span style={{ flex: 1 }}>{other?.display_name ?? otherId}</span>
+            <span style={{ fontSize: 10, color: "#686878" }}>{edge.relation}</span>
+            <span style={{ fontSize: 10, color: "#686878" }}>w:{edge.weight}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function NodePages({ pages }: { pages: string[] }) {
+  return (
+    <div style={{ marginTop: 16 }}>
+      <h4 style={{ fontSize: 12, color: "#9898a8", margin: "0 0 8px" }}>
+        Appears in ({pages.length} pages)
+      </h4>
+      {pages.map((slug) => (
+        <a
+          key={slug}
+          href={pageToUrl(slug)}
+          style={{
+            display: "block",
+            padding: "4px 0",
+            color: "#7c6cf0",
+            textDecoration: "none",
+            fontSize: 12,
+            borderBottom: "1px solid rgba(60, 60, 80, 0.2)",
+          }}
+        >
+          {slug}
+        </a>
+      ))}
+    </div>
+  );
+}
+
 export function DocGraphDetail({
   node,
   edges,
@@ -62,67 +139,15 @@ export function DocGraphDetail({
       )}
 
       {edges.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <h4 style={{ fontSize: 12, color: "#9898a8", margin: "0 0 8px" }}>
-            Connections ({edges.length})
-          </h4>
-          {edges.map((edge) => {
-            const otherId = edge.source_id === node.id ? edge.target_id : edge.source_id;
-            const other = allNodeNames.get(otherId);
-            return (
-              <div
-                key={edge.id}
-                onClick={() => onSelectNode(otherId)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "4px 0",
-                  cursor: "pointer",
-                  borderBottom: "1px solid rgba(60, 60, 80, 0.3)",
-                }}
-              >
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: "50%",
-                    background: other ? getNodeColor(other.node_type) : "#686878",
-                    flexShrink: 0,
-                  }}
-                />
-                <span style={{ flex: 1 }}>{other?.display_name ?? otherId}</span>
-                <span style={{ fontSize: 10, color: "#686878" }}>{edge.relation}</span>
-                <span style={{ fontSize: 10, color: "#686878" }}>w:{edge.weight}</span>
-              </div>
-            );
-          })}
-        </div>
+        <NodeConnections
+          edges={edges}
+          nodeId={node.id}
+          allNodeNames={allNodeNames}
+          onSelectNode={onSelectNode}
+        />
       )}
 
-      {pages.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <h4 style={{ fontSize: 12, color: "#9898a8", margin: "0 0 8px" }}>
-            Appears in ({pages.length} pages)
-          </h4>
-          {pages.map((slug) => (
-            <a
-              key={slug}
-              href={pageToUrl(slug)}
-              style={{
-                display: "block",
-                padding: "4px 0",
-                color: "#7c6cf0",
-                textDecoration: "none",
-                fontSize: 12,
-                borderBottom: "1px solid rgba(60, 60, 80, 0.2)",
-              }}
-            >
-              {slug}
-            </a>
-          ))}
-        </div>
-      )}
+      {pages.length > 0 && <NodePages pages={pages} />}
     </div>
   );
 }

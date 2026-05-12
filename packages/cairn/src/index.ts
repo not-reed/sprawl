@@ -59,6 +59,7 @@ export {
   traverseGraph,
   spreadActivation,
   getNodeEdges,
+  getEdgesForNodes,
   getRelatedMemoryIds,
   getRelatedMemoriesWithScores,
   getMemoryNodes,

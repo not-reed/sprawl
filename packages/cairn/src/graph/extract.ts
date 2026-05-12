@@ -14,6 +14,10 @@ Rules:
 - Extract only clearly stated facts, not speculation
 - Use the most specific entity type possible (prefer "person" over "entity")
 - Keep relation phrases short and lowercase (e.g. "lives in", "works at", "likes")
+- For temporal/chronological relationships, use these exact relation labels when applicable:
+  - "happened_before" — the from entity/event occurred before the to entity/event
+  - "happened_during" — the from entity/event occurred during the to entity/event
+  - "caused_by" — the from entity/event was caused by the to entity/event
 - If no entities or relationships are found, return empty arrays
 - Entity names should preserve original casing
 

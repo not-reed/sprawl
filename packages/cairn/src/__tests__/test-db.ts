@@ -15,10 +15,7 @@ import { Kysely, sql } from "kysely";
 import { createDb } from "@repo/db";
 import type { CairnDatabase } from "../db/types.js";
 
-export async function setupCairnTestDb(): Promise<Kysely<CairnDatabase>> {
-  const { db } = createDb<CairnDatabase>(":memory:");
-
-  // memories
+async function createMemoriesTable(db: Kysely<CairnDatabase>) {
   await db.schema
     .createTable("memories")
     .addColumn("id", "text", (col) => col.primaryKey())
@@ -32,12 +29,10 @@ export async function setupCairnTestDb(): Promise<Kysely<CairnDatabase>> {
     .addColumn("archived_at", "text")
     .execute();
 
-  // FTS5 virtual table for full-text search
   await sql`CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(content, tags, content=memories, content_rowid=rowid)`.execute(
     db,
   );
 
-  // FTS5 triggers
   await sql`
     CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
       INSERT INTO memories_fts(rowid, content, tags) VALUES (new.rowid, new.content, new.tags);
@@ -56,8 +51,9 @@ export async function setupCairnTestDb(): Promise<Kysely<CairnDatabase>> {
       INSERT INTO memories_fts(rowid, content, tags) VALUES (new.rowid, new.content, new.tags);
     END
   `.execute(db);
+}
 
-  // conversations
+async function createConversationsTable(db: Kysely<CairnDatabase>) {
   await db.schema
     .createTable("conversations")
     .addColumn("id", "text", (col) => col.primaryKey())
@@ -68,8 +64,9 @@ export async function setupCairnTestDb(): Promise<Kysely<CairnDatabase>> {
     .addColumn("created_at", "text", (col) => col.notNull().defaultTo(sql`(datetime('now'))`))
     .addColumn("updated_at", "text", (col) => col.notNull().defaultTo(sql`(datetime('now'))`))
     .execute();
+}
 
-  // messages
+async function createMessagesTable(db: Kysely<CairnDatabase>) {
   await db.schema
     .createTable("messages")
     .addColumn("id", "text", (col) => col.primaryKey())
@@ -79,8 +76,9 @@ export async function setupCairnTestDb(): Promise<Kysely<CairnDatabase>> {
     .addColumn("tool_calls", "text")
     .addColumn("created_at", "text", (col) => col.notNull().defaultTo(sql`(datetime('now'))`))
     .execute();
+}
 
-  // ai_usage
+async function createAiUsageTable(db: Kysely<CairnDatabase>) {
   await db.schema
     .createTable("ai_usage")
     .addColumn("id", "text", (col) => col.primaryKey())
@@ -91,8 +89,9 @@ export async function setupCairnTestDb(): Promise<Kysely<CairnDatabase>> {
     .addColumn("source", "text", (col) => col.notNull())
     .addColumn("created_at", "text", (col) => col.notNull().defaultTo(sql`(datetime('now'))`))
     .execute();
+}
 
-  // graph_nodes
+async function createGraphTables(db: Kysely<CairnDatabase>) {
   await db.schema
     .createTable("graph_nodes")
     .addColumn("id", "text", (col) => col.primaryKey())
@@ -112,7 +111,6 @@ export async function setupCairnTestDb(): Promise<Kysely<CairnDatabase>> {
     .unique()
     .execute();
 
-  // graph_edges
   await db.schema
     .createTable("graph_edges")
     .addColumn("id", "text", (col) => col.primaryKey())
@@ -131,14 +129,14 @@ export async function setupCairnTestDb(): Promise<Kysely<CairnDatabase>> {
     .on("graph_edges")
     .column("source_id")
     .execute();
-
   await db.schema
     .createIndex("idx_graph_edges_target")
     .on("graph_edges")
     .column("target_id")
     .execute();
+}
 
-  // observations
+async function createObservationsTable(db: Kysely<CairnDatabase>) {
   await db.schema
     .createTable("observations")
     .addColumn("id", "text", (col) => col.primaryKey())
@@ -153,21 +151,47 @@ export async function setupCairnTestDb(): Promise<Kysely<CairnDatabase>> {
     .addColumn("promoted_at", "text")
     .addColumn("created_at", "text", (col) => col.notNull().defaultTo(sql`(datetime('now'))`))
     .execute();
+}
 
-  // Indexes
+async function createPipelineJobsTable(db: Kysely<CairnDatabase>) {
+  await db.schema
+    .createTable("pipeline_jobs")
+    .addColumn("id", "text", (col) => col.primaryKey())
+    .addColumn("type", "text", (col) => col.notNull())
+    .addColumn("conversation_id", "text", (col) => col.notNull())
+    .addColumn("status", "text", (col) => col.notNull().defaultTo("pending"))
+    .addColumn("attempts", "integer", (col) => col.notNull().defaultTo(0))
+    .addColumn("max_attempts", "integer", (col) => col.notNull().defaultTo(3))
+    .addColumn("last_error", "text")
+    .addColumn("created_at", "text", (col) => col.notNull().defaultTo(sql`(datetime('now'))`))
+    .addColumn("next_attempt_at", "text", (col) => col.notNull().defaultTo(sql`(datetime('now'))`))
+    .addColumn("completed_at", "text")
+    .execute();
+}
+
+async function createTestIndexes(db: Kysely<CairnDatabase>) {
   await db.schema.createIndex("idx_memories_category").on("memories").column("category").execute();
-
   await db.schema
     .createIndex("idx_memories_archived")
     .on("memories")
     .column("archived_at")
     .execute();
-
   await db.schema
     .createIndex("idx_messages_conversation")
     .on("messages")
     .column("conversation_id")
     .execute();
+}
 
+export async function setupCairnTestDb(): Promise<Kysely<CairnDatabase>> {
+  const { db } = createDb<CairnDatabase>(":memory:");
+  await createMemoriesTable(db);
+  await createConversationsTable(db);
+  await createMessagesTable(db);
+  await createAiUsageTable(db);
+  await createGraphTables(db);
+  await createObservationsTable(db);
+  await createPipelineJobsTable(db);
+  await createTestIndexes(db);
   return db;
 }

@@ -166,47 +166,57 @@ export async function fetchCryptoCompareNews(apiKey?: string): Promise<NewsData[
 /**
  * Fetch news from RSS feeds.
  */
+function parseRSSItem(item: any, source: string): NewsData | null {
+  const title = item.title?.toString() ?? "";
+  if (!title) return null;
+  const link = item.link?.["@_href"] ?? item.link?.toString() ?? null;
+  const pubDate = item.pubDate ?? item.published ?? item.updated ?? new Date().toISOString();
+  return {
+    externalId: `${source}:${hashString(title)}`,
+    title,
+    url: link,
+    source,
+    publishedAt: new Date(pubDate).toISOString(),
+    tokensMentioned: extractTokenMentions(title),
+  };
+}
+
+async function fetchRSSFeed(
+  parser: XMLParser,
+  feed: { url: string; source: string },
+): Promise<NewsData[]> {
+  try {
+    const res = await fetch(feed.url);
+    if (!res.ok) return [];
+
+    const xml = await res.text();
+    if (looksLikeHtml(xml)) {
+      console.error(`[cortex] RSS feed ${feed.source} returned HTML (Cloudflare?), skipping`);
+      return [];
+    }
+
+    const parsed = parser.parse(xml);
+    const items = parsed?.rss?.channel?.item ?? parsed?.feed?.entry ?? [];
+    const itemArray = Array.isArray(items) ? items : [items];
+
+    const out: NewsData[] = [];
+    for (const item of itemArray.slice(0, 50)) {
+      const news = parseRSSItem(item, feed.source);
+      if (news) out.push(news);
+    }
+    return out;
+  } catch (err) {
+    console.error(`[cortex] RSS feed ${feed.source} failed: ${err}`);
+    return [];
+  }
+}
+
 export async function fetchRSSNews(): Promise<NewsData[]> {
   const parser = new XMLParser({ ignoreAttributes: false });
   const allNews: NewsData[] = [];
-
   for (const feed of RSS_FEEDS) {
-    try {
-      const res = await fetch(feed.url);
-      if (!res.ok) continue;
-
-      const xml = await res.text();
-      if (looksLikeHtml(xml)) {
-        console.error(`[cortex] RSS feed ${feed.source} returned HTML (Cloudflare?), skipping`);
-        continue;
-      }
-      const parsed = parser.parse(xml);
-
-      const items = parsed?.rss?.channel?.item ?? parsed?.feed?.entry ?? [];
-
-      const itemArray = Array.isArray(items) ? items : [items];
-
-      for (const item of itemArray.slice(0, 50)) {
-        const title = item.title?.toString() ?? "";
-        const link = item.link?.["@_href"] ?? item.link?.toString() ?? null;
-        const pubDate = item.pubDate ?? item.published ?? item.updated ?? new Date().toISOString();
-
-        if (!title) continue;
-
-        allNews.push({
-          externalId: `${feed.source}:${hashString(title)}`,
-          title,
-          url: link,
-          source: feed.source,
-          publishedAt: new Date(pubDate).toISOString(),
-          tokensMentioned: extractTokenMentions(title),
-        });
-      }
-    } catch (err) {
-      console.error(`[cortex] RSS feed ${feed.source} failed: ${err}`);
-    }
+    allNews.push(...(await fetchRSSFeed(parser, feed)));
   }
-
   return allNews;
 }
 
