@@ -177,7 +177,7 @@ export function buildContextPreamble(context: {
   let preamble = `[Current time: ${time} | ${date} | ${context.timezone} | ${context.source}${envLabel}]\n`;
 
   if (context.dev) {
-    preamble += "[Running in development — hot reload is active, self_deploy is disabled]\n";
+    preamble += "[Running in development — hot reload is active]\n";
   }
 
   if (context.observations) {

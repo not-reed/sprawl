@@ -178,7 +178,7 @@ describe("buildContextPreamble — dev mode", () => {
     });
 
     expect(preamble).toContain("DEV MODE");
-    expect(preamble).toContain("self_deploy is disabled");
+    expect(preamble).toContain("hot reload is active");
   });
 });
 

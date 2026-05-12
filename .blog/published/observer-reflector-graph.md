@@ -155,7 +155,7 @@ Over a long conversation, the observer/reflector pipeline produces a layered con
 
 Each layer is progressively more compressed and longer-lived. Raw messages are kept in the database permanently but rotate out of the context window as observations take over. Observations get refined repeatedly.
 
-The knowledge graph (covered in the next post) extracts entities and relationships from curated memories stored via `memory_store`. High-priority observations are also promoted into the memory store after deduplication, so they feed into the graph passively too.
+The knowledge graph (covered in the next post) extracts entities and relationships from curated memories stored via `memory` tool (`action: "store"`). High-priority observations are also promoted into the memory store after deduplication, so they feed into the graph passively too.
 
 ## Tradeoffs
 

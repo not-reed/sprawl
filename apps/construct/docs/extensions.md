@@ -7,7 +7,7 @@ description: User-authored skills and dynamic tools
 
 ## Overview
 
-The extension system allows Construct to be customized with user-authored skills (Markdown instruction sets) and tools (TypeScript modules) without modifying core source code. Extensions live in a configurable directory (`EXTENSIONS_DIR`) and are loaded at startup, with the ability to hot-reload via the `extension_reload` tool.
+The extension system allows Construct to be customized with user-authored skills (Markdown instruction sets) and tools (TypeScript modules) without modifying core source code. Extensions live in a configurable directory (`EXTENSIONS_DIR`) and are loaded at startup, with the ability to hot-reload via the `skill` tool or by editing identity files with the `edit` tool.
 
 The extension system also manages three **identity files** (SOUL.md, IDENTITY.md, USER.md) that shape the agent's personality and context.
 
@@ -55,9 +55,9 @@ Three Markdown files injected into the system prompt:
 | `IDENTITY.md` | Name, creature type, visual description, pronouns        | `## Identity`         |
 | `USER.md`     | Human's name, location, preferences, interests, schedule | `## User`             |
 
-These are loaded by `loadIdentityFiles()` in `src/extensions/loader.ts` and stored in the `ExtensionRegistry.identity` field. They are read/written by the `identity_read` and `identity_update` tools.
+These are loaded by `loadIdentityFiles()` in `src/extensions/loader.ts` and stored in the `ExtensionRegistry.identity` field. They are read via the `read` tool with `action: "identity"` and written via the `edit` tool with `action: "identity"`.
 
-When an identity file is updated via `identity_update`, the tool:
+When an identity file is updated via `edit` tool (`action: "identity"`), the tool:
 
 1. Writes the new content to disk
 2. Calls `invalidateSystemPromptCache()` to clear the cached system prompt
@@ -221,19 +221,19 @@ Secrets are stored in the `secrets` table with columns: `key`, `value`, `source`
 ### Sources
 
 1. **Environment variables**: Any `EXT_*` env var is synced to the secrets table on startup. The `EXT_` prefix is stripped (e.g., `EXT_OPENWEATHERMAP_API_KEY` becomes `OPENWEATHERMAP_API_KEY`). Source is set to `'env'`.
-2. **Agent-created**: The agent can store secrets via the `secret_store` tool. Source is set to `'agent'`.
+2. **Agent-created**: The agent can store secrets via the `secret` tool (`action: "store"`). Source is set to `'agent'`.
 
 Environment-sourced secrets always overwrite on restart.
 
 ### Access
 
-- **Built-in tools**: Use `secret_store`, `secret_list`, `secret_delete` tools (in core pack)
+- **Built-in tools**: Use the `secret` tool with actions `store`, `list`, `delete` (in core pack)
 - **Dynamic tools**: Receive a `Map<string, string>` of all secrets via `DynamicToolContext.secrets`
-- **Never exposed**: `secret_list` returns only key names and sources, never values
+- **Never exposed**: `secret list` returns only key names and sources, never values
 
 ## Reload Flow
 
-When `extension_reload` is called (or `identity_update` triggers a reload):
+When extensions are reloaded (via `skill` tool actions or `edit` tool on identity files):
 
 1. `invalidateSystemPromptCache()` -- clears the cached system prompt
 2. `clearExtensionEmbeddings()` -- clears skill and dynamic pack embedding caches

@@ -35,10 +35,10 @@
 
 6. **The AI That Patches Itself: Building a Safe Self-Modification Loop** (`.blog/self-aware-tooling.md`)
    - Topic: The self-aware tooling system — read, edit, test, deploy pipeline
-   - Key systems: `src/tools/self/self-read.ts`, `src/tools/self/self-edit.ts`, `src/tools/self/self-test.ts`, `src/tools/self/self-deploy.ts`, `src/tools/packs.ts`
+   - Key systems: `src/tools/core/read.ts`, `src/tools/core/edit.ts`, `src/tools/core/shell.ts`, `src/tools/packs.ts`
    - Angle: Allowlist-based security model, uniqueness-required edits, sequential deploy gate with auto-rollback
    - Notable: Deploy disabled in dev via `ctx.isDev ? null : createSelfDeployTool()` factory pattern; double test run (agent-invoked + deploy-internal); auto-rollback with named git tag recovery point; in-process rate limiter resets on restart
-   - Updated 2026-02-26: Added "The Extension Authoring Loop" section — agent writes extensions/tools/ or extensions/skills/ via self_edit_source, calls extension_reload, provisions secrets via secret_store, uses the new tool in the same conversation
+   - Updated 2026-02-26: Added "The Extension Authoring Loop" section — agent writes extensions/tools/ or extensions/skills/ via edit tool, reloads extensions via skill tool, provisions secrets via secret tool, uses the new tool in the same conversation
 
 ## Code Patterns Noted (potential future topics)
 

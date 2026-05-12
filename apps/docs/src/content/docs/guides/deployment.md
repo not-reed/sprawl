@@ -7,17 +7,16 @@ description: Docker and systemd deployment
 
 ## Overview
 
-Construct can be deployed via Docker (recommended) or as a bare-metal systemd service. Both methods support the self-deploy pipeline, where the agent commits its own code changes and triggers a restart.
+Construct can be deployed via Docker (recommended) or as a bare-metal systemd service. Code changes made by the agent via the `edit` and `shell` tools must be deployed manually.
 
 ## Key Files
 
-| File                            | Role                                             |
-| ------------------------------- | ------------------------------------------------ |
-| `deploy/Dockerfile`             | Multi-stage Docker build                         |
-| `deploy/docker-compose.yml`     | Compose configuration with volume mounts and env |
-| `.dockerignore`                 | Excludes build artifacts, secrets, and dev files |
-| `src/tools/self/self-deploy.ts` | Self-deploy tool (Docker-aware)                  |
-| `src/main.ts`                   | Application entry point                          |
+| File                        | Role                                             |
+| --------------------------- | ------------------------------------------------ |
+| `deploy/Dockerfile`         | Multi-stage Docker build                         |
+| `deploy/docker-compose.yml` | Compose configuration with volume mounts and env |
+| `.dockerignore`             | Excludes build artifacts, secrets, and dev files |
+| `src/main.ts`               | Application entry point                          |
 
 ## Docker Deployment (Primary)
 
@@ -56,7 +55,7 @@ This will:
 
 1. Build a multi-stage image using `node:22-alpine`
 2. Install dependencies in a builder stage, then copy only `node_modules` to the runtime stage
-3. Install `git` in the runtime stage (required for self-deploy commits)
+3. Install `git` in the runtime stage (optional, for version control)
 4. Mount `~/.construct` on the host to `/data` in the container
 5. Load environment variables from `~/.construct/.env`
 6. Start the application with `restart: unless-stopped`
@@ -141,51 +140,34 @@ services:
 Key points:
 
 - Build context is `..` (project root), since the compose file lives in `deploy/`
-- `restart: unless-stopped` is critical for the self-deploy mechanism (see below)
+- `restart: unless-stopped` ensures the container restarts if the process exits
 
-## Self-Deploy in Docker
+## Updating the Agent
 
-The `self_deploy` tool in `src/tools/self/self-deploy.ts` detects Docker by checking for `/.dockerenv`. The deploy pipeline differs between Docker and systemd:
+After the agent edits its own source code via the `edit` and `shell` tools, changes must be deployed manually. There is no automatic self-deploy mechanism.
 
-### Common Steps (Both Environments)
+### Docker Update
 
-1. **Typecheck** -- `tsc --noEmit` must pass
-2. **Tests** -- `vitest run` must pass
-3. **Backup tag** -- Creates a git tag `pre-deploy-TIMESTAMP` at the current HEAD
-4. **Commit** -- Stages `src/`, `cli/`, and `extensions/`, then commits
-
-### Docker-Specific Restart
-
-After committing, the tool calls `process.exit(0)` via `setImmediate`. The Docker `restart: unless-stopped` policy then restarts the container. Since the source code lives inside the container's `/app` directory (not on a volume), the restarted container uses the **same committed code** because git tracks the working tree in-place.
-
-```
-Agent edits code --> self_deploy commits --> process.exit(0) --> Docker restarts container
-                                                                 --> tsx loads updated source
-```
-
-There is no health check or auto-rollback in Docker mode. The container simply restarts. If the new code crashes on startup, Docker's restart policy will keep retrying.
-
-### Systemd-Specific Restart
-
-In non-Docker environments, the tool runs `sudo systemctl restart <service>`, waits 5 seconds, checks `systemctl is-active`, and auto-rolls back with `git revert HEAD` if the service failed to start.
-
-## Updating the Deployment
-
-To update Construct after pulling new changes:
+After code changes are committed inside the container:
 
 ```bash
-cd /path/to/construct
-git pull
 docker compose -f deploy/docker-compose.yml up -d --build
 ```
 
-The `--build` flag rebuilds the image with the latest source and dependencies. The container restarts automatically.
+The `--build` flag rebuilds the image with the latest source. The container restarts with the new code.
 
-To update without rebuilding (if only extension files changed, which live on the volume):
+### Systemd Update
+
+On bare-metal deployments:
 
 ```bash
-docker compose -f deploy/docker-compose.yml restart
+cd /opt/construct
+git pull
+pnpm install --frozen-lockfile
+sudo systemctl restart construct
 ```
+
+Wait 5 seconds and verify: `sudo systemctl is-active construct`
 
 ## Non-Docker Deployment (systemd)
 
@@ -231,8 +213,4 @@ sudo systemctl enable construct
 sudo systemctl start construct
 ```
 
-The self-deploy tool expects the systemd unit to be named `construct` by default (configurable via the `serviceUnit` parameter in `createSelfDeployTool()`). The agent process needs passwordless `sudo` for `systemctl restart construct` and `systemctl is-active construct`.
-
-## Rate Limiting
-
-Self-deploy is rate-limited to 3 deploys per hour in both Docker and systemd modes. The rate limit is tracked in-memory (`deployHistory` array in `self-deploy.ts`), so it resets on process restart.
+The systemd unit is named `construct` by default. The agent process needs passwordless `sudo` for `systemctl restart construct` and `systemctl is-active construct` if you want the agent to restart itself via the `shell` tool.

@@ -90,12 +90,12 @@ Terminal trading dashboard. Displays prices, news feeds, signals from Cortex, an
 
 ## Construct Toolbox
 
-| Pack                     | Tools                                                                                                                                                                                       |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **core** (always loaded) | `memory_store`, `memory_recall`, `memory_forget`, `memory_graph`, `schedule_create`, `schedule_list`, `schedule_cancel`, `secret_manage`, `identity_read`, `identity_update`, `usage_stats` |
-| **self**                 | `self_read_source`, `self_edit_source`, `self_run_tests`, `self_view_logs`, `self_deploy`, `self_status`, `extension_reload`                                                                |
-| **web**                  | `web_search`, `web_read`                                                                                                                                                                    |
-| **telegram**             | `telegram_react`, `telegram_reply_to`, `telegram_pin`, `telegram_unpin`, `telegram_get_pinned`                                                                                              |
+| Pack                     | Tools                                                   |
+| ------------------------ | ------------------------------------------------------- |
+| **core** (always loaded) | `memory`, `schedule`, `secret`, `edit`, `read`, `shell` |
+| **self**                 | `skill`                                                 |
+| **web**                  | `web`                                                   |
+| **telegram**             | `telegram`                                              |
 
 Tool packs are semantically selected per message via embedding similarity. Core always loads; others activate when relevant.
 

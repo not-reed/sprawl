@@ -11,12 +11,12 @@ The scheduler enables Construct to fire actions at specific times or on recurrin
 
 ## Key Files
 
-| File                         | Role                                                                      |
-| ---------------------------- | ------------------------------------------------------------------------- |
-| `src/scheduler/index.ts`     | Scheduler lifecycle: start, register, fire, sync, stop                    |
-| `src/tools/core/schedule.ts` | `schedule_create`, `schedule_list`, `schedule_cancel` tools + dedup logic |
-| `src/db/schema.ts`           | `ScheduleTable` type                                                      |
-| `src/db/queries.ts`          | Schedule CRUD queries                                                     |
+| File                         | Role                                                               |
+| ---------------------------- | ------------------------------------------------------------------ |
+| `src/scheduler/index.ts`     | Scheduler lifecycle: start, register, fire, sync, stop             |
+| `src/tools/core/schedule.ts` | Unified `schedule` tool (create/list/cancel actions) + dedup logic |
+| `src/db/schema.ts`           | `ScheduleTable` type                                               |
+| `src/db/queries.ts`          | Schedule CRUD queries                                              |
 
 ## How It Works
 
@@ -72,7 +72,7 @@ Every 30 seconds, `syncSchedules(db, bot, timezone)`:
 2. Registers jobs for any new schedules not yet in the `activeJobs` map
 3. Stops and removes jobs for any schedules that have been cancelled
 
-This polling approach means new schedules created by `schedule_create` are picked up within 30 seconds.
+This polling approach means new schedules created by `schedule create` are picked up within 30 seconds.
 
 ### Shutdown
 
@@ -80,9 +80,17 @@ This polling approach means new schedules created by `schedule_create` are picke
 
 ## Schedule Tools
 
-The agent creates and manages schedules through three tools in the core pack (`src/tools/core/schedule.ts`):
+The agent creates and manages schedules through the unified `schedule` tool (`src/tools/core/schedule.ts`):
 
-### schedule_create
+### Actions
+
+| Action   | Description                                                                        |
+| -------- | ---------------------------------------------------------------------------------- |
+| `create` | Create a new schedule with description, instruction, and timing (cron or one-shot) |
+| `list`   | List all schedules (active by default), showing ID, status, description, timing    |
+| `cancel` | Deactivate a schedule by ID. The sync loop cleans up the Croner job within 30s     |
+
+#### schedule create
 
 Parameters:
 
@@ -99,9 +107,9 @@ Validation:
 
 The `message` column (NOT NULL) is filled with the `description` as a placeholder. The `prompt` column stores the `instruction`.
 
-#### Deduplication
+##### Deduplication
 
-`schedule_create` performs two-pass dedup to prevent duplicate schedules:
+`schedule create` performs two-pass dedup to prevent duplicate schedules:
 
 1. **Fast pass (Levenshtein)**: For schedules matching the same chat and timing, checks content similarity using Levenshtein distance (threshold 0.75). Compares instruction content and description.
 
@@ -109,11 +117,11 @@ The `message` column (NOT NULL) is filled with the `description` as a placeholde
 
 If a duplicate is found, the existing schedule is returned with `deduplicated: true`.
 
-### schedule_list
+#### schedule list
 
 Lists all schedules (active only by default), showing ID, status, description, and timing. Agent schedules are marked with an `[agent]` badge.
 
-### schedule_cancel
+#### schedule cancel
 
 Deactivates a schedule by ID. The sync loop cleans up the Croner job within 30 seconds.
 
@@ -125,7 +133,7 @@ See [Database Layer](/construct/database/) for the full `schedules` table schema
 
 ```mermaid
 graph TD
-    AgentTool["schedule_create tool"] -->|inserts row| DB[(schedules table)]
+    AgentTool["schedule create"] -->|inserts row| DB[(schedules table)]
     DB -->|30s poll| SyncLoop["syncSchedules()"]
     SyncLoop -->|new schedule| Register["registerJob()"]
     Register -->|creates| CronJob["Croner job"]

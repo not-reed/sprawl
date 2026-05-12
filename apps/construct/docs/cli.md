@@ -48,7 +48,7 @@ Sends a single message, prints the response, and exits. Uses the positional `mes
 ### Direct Tool Invocation
 
 ```bash
-just cli myinstance --tool memory_recall --args '{"query": "work schedule"}'
+just cli myinstance --tool memory --args '{"action": "recall", "query": "work schedule"}'
 ```
 
 Bypasses the agent entirely and invokes a specific tool with JSON arguments. Useful for testing and debugging tools.

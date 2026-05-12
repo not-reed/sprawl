@@ -85,11 +85,11 @@ src/
 
 **Tools** (in `src/tools/`) = capability primitives that enable actions otherwise impossible:
 
-- `memory_store`, `memory_recall` — persistence without tools, no memory
-- `shell_tool` — OS access
-- `web_search`, `web_read` — network queries
+- `memory` — persistence without tools, no memory
+- `shell` — OS access
+- `web` — network queries
 
-Tools are always available (8 built-in primitives loaded unconditionally). They don't execute themselves — they're called by the agent.
+9 built-in tools loaded unconditionally. They don't execute themselves — they're called by the agent.
 
 **Skills** (in `extensions/skills/`) = instructional knowledge about _how_ to orchestrate tools:
 
@@ -104,14 +104,15 @@ Skills are extracted into atomic instructions, indexed by embedding, and injecte
 Each tool is a factory function in its own file. Returns `InternalTool`:
 
 ```typescript
-// src/tools/core/memory-store.ts
+// src/tools/core/memory.ts
 const Params = Type.Object({
+  action: Type.Literal("store"),
   content: Type.String({ description: "..." }),
 });
 
-export function createMemoryStoreTool(db: Kysely<Database>, apiKey?: string) {
+export function createMemoryTool(db: Kysely<Database>, apiKey?: string) {
   return {
-    name: "memory_store",
+    name: "memory",
     description: "...",
     parameters: Params,
     execute: async (_toolCallId: string, args: Static<typeof Params>) => {
@@ -166,7 +167,7 @@ Logtape loggers by category:
 
 - **Console sink**: always active, custom formatter
 - **File sink**: active when `LOG_FILE` is set, swappable `WriteStream` for runtime rotation
-- **Rotation**: on startup if log > 5 MB; manual via `self_system_status` tool with `rotate_logs: true`; keeps up to 3 archived files (`.log.1`, `.log.2`, `.log.3`)
+- **Rotation**: on startup if log > 5 MB; manual via `shell` tool (`truncate -c -s 0 logfile`); keeps up to 3 archived files (`.log.1`, `.log.2`, `.log.3`)
 
 ## Environment Variables
 

@@ -11,11 +11,11 @@ Construct is an AI agent that can read, edit, test, and deploy its own source co
 
 ## Self-Modification Safety
 
-The agent has three self-modification tools: `self_read_source`, `self_edit_source`, and `self_deploy`. Each has explicit safety gates.
+The agent has three self-modification capabilities via the unified `edit` and `read` tools: `read` (file/identity), `edit` (source/identity), and deployment via `shell`. Each has explicit safety gates.
 
 ### File Access Scoping
 
-Both `self_read_source` (`src/tools/self/self-read.ts`) and `self_edit_source` (`src/tools/self/self-edit.ts`) enforce path restrictions:
+Both `read` (`src/tools/core/read.ts`) and `edit` (`src/tools/core/edit.ts`) enforce path restrictions:
 
 **Read access** is limited to:
 
@@ -40,27 +40,21 @@ if (!resolved.startsWith(resolve(extensionsDir) + "/") && resolved !== resolve(e
 }
 ```
 
-### Self-Deploy Safety Gates
+### Code Change Safety
 
-The `self_deploy` tool (`src/tools/self/self-deploy.ts`) has multiple safety layers:
+The agent can modify its own source code via the `edit` and `shell` tools. There are no automatic safety gates -- deployment is manual. Recommended practices:
 
-1. **Explicit confirmation** -- The `confirm` parameter must be `true`. The tool description instructs the agent to only set this after verifying the change is correct.
+1. **Run checks before deploying** -- `just check` (typecheck + lint + fmt-check + test) should pass before any restart.
 
-2. **Typecheck gate** -- `tsc --noEmit` must pass before any commit. If types fail, deploy is aborted with the error output.
+2. **Backup tags** -- Before deploying, create a git tag at the current HEAD for easy rollback:
 
-3. **Test gate** -- `vitest run` must pass. If tests fail, deploy is aborted with test output.
+   ```bash
+   git tag pre-deploy-$(date -u +%Y%m%d-%H%M%S)
+   ```
 
-4. **Backup tags** -- Before committing, a git tag `pre-deploy-YYYY-MM-DDTHH-MM-SS-SSSZ` is created at the current HEAD. This enables manual recovery even if auto-rollback fails.
+3. **Scoped commits** -- Only `src/`, `cli/`, and `extensions/` should be committed. System files, configuration, and the data directory should never be committed by the agent.
 
-5. **Rate limiting** -- Maximum 3 deploys per hour. Tracked in-memory via a `deployHistory` array that prunes entries older than one hour.
-
-6. **Auto-rollback (systemd only)** -- After restarting the service, the tool waits 5 seconds and checks `systemctl is-active`. If the service is not healthy, it runs `git revert --no-edit HEAD` and restarts again. If rollback itself fails, the tool reports the backup tag for manual recovery.
-
-7. **Scoped staging** -- Only `src/`, `cli/`, and `extensions/` are staged for commit (`git add src/ cli/ extensions/`). System files, configuration, and the data directory are never committed by the agent.
-
-### Docker Caveat
-
-In Docker mode, the auto-rollback mechanism is **not available**. The tool calls `process.exit(0)` and relies on Docker's `restart: unless-stopped` policy. If the new code crashes on startup, Docker will keep restarting the container. Manual intervention is needed to recover -- use the backup git tag to revert.
+4. **Test in dev first** -- Use `just dev` for development with hot reload before deploying to production.
 
 ## Secrets Management
 
@@ -80,8 +74,8 @@ Environment-sourced secrets **always overwrite** existing values on restart. Thi
 
 ### Secret Exposure Controls
 
-- The `secret_list` tool returns only key names and sources -- **never values**.
-- The `secret_store` tool allows the agent to create secrets with `source='agent'`.
+- The `secret` tool with `action: "list"` returns only key names and sources -- **never values**.
+- The `secret` tool with `action: "store"` allows the agent to create secrets with `source='agent'`.
 - Secrets are passed to dynamic extension tools via `DynamicToolContext.secrets`, a `Map<string, string>` built by `buildSecretsMap()`.
 - Secrets are **never logged** -- the logging calls in `secrets.ts` only log the count of synced secrets, not their values.
 
@@ -99,7 +93,7 @@ The `.env` file contains the most sensitive credentials (`OPENROUTER_API_KEY`, `
 
 The Dockerfile (`deploy/Dockerfile`) and compose file (`deploy/docker-compose.yml`) have these security-relevant properties:
 
-**Runtime dependencies** -- The container installs `git` (for self-deploy commits) but no other system tools. Notably, `sudo` is **not** installed -- there is no systemd inside the container, so privilege escalation for service restart is unnecessary.
+**Runtime dependencies** -- The container installs `git` (optional, for version control) but no other system tools. Notably, `sudo` is **not** installed -- there is no systemd inside the container, so privilege escalation for service restart is unnecessary.
 
 **Base image** -- `node:22-alpine` is a minimal image. Alpine's small surface area reduces exposure.
 
@@ -137,7 +131,7 @@ The `.dockerignore` file prevents sensitive and unnecessary files from entering 
 
 ```
 node_modules    # Rebuilt in builder stage
-.git            # Not needed at build time (git is used at runtime for self-deploy)
+.git            # Not needed at build time
 data/           # Local dev data directory
 .env            # Secrets -- must not be baked into image
 .claude/        # Editor/agent state
@@ -170,7 +164,7 @@ const mod = await jiti.import(filePath);
 **Mitigations**:
 
 - Extensions are loaded only from `EXTENSIONS_DIR`, which is a controlled directory
-- The agent can only create files within the `extensions/` scope via `self_edit_source`
+- The agent can only create files within the `extensions/` scope via the `edit` tool with `action: "source"`
 - `moduleCache: false` ensures tools are freshly loaded on each `reloadExtensions()` call, so stale or modified tools are not cached
 - Requirement checking (`checkRequirements()` in `loader.ts`) validates that needed secrets and env vars exist before loading, but this is a functionality check, not a security gate
 

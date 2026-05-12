@@ -83,7 +83,7 @@ The observations in the preamble come from the observer/reflector pipeline (deta
 
 ### Active Retrieval
 
-Active retrieval happens when the agent decides it needs to dig deeper. The `memory_recall` tool lets the agent search explicitly by keyword or topic. This is where the full retrieval stack comes into play.
+Active retrieval happens when the agent decides it needs to dig deeper. The `memory` tool with `action: "recall"` lets the agent search explicitly by keyword or topic. This is where the full retrieval stack comes into play.
 
 #### The FTS5 → Embedding Waterfall
 
@@ -199,7 +199,7 @@ Embeddings are generated via OpenRouter using `qwen/qwen3-embedding-8b` (configu
 
 #### The Graph Expansion Layer
 
-Active memory recall goes one step further. After the FTS5/embedding waterfall, `memory_recall` performs a graph expansion pass using the knowledge graph:
+Active memory recall goes one step further. After the FTS5/embedding waterfall, `memory recall` performs a graph expansion pass using the knowledge graph:
 
 ```typescript
 // src/tools/core/memory-recall.ts
@@ -305,7 +305,7 @@ Then the agent receives the current conversation turn, also timestamped:
 
 This way the agent can reason temporally: the memory says "2026-02-10 User enjoys fado music" and the current message is from 2026-02-26, so the user is consistent in their interests.
 
-If the agent then invokes `memory_recall` for more depth, the results come back annotated:
+If the agent then invokes `memory recall` for more depth, the results come back annotated:
 
 ```
 Found 5 memories:

@@ -37,7 +37,7 @@ See the root `CLAUDE.md` for a full per-app env variable reference. This page co
 | `LOG_LEVEL`            | `'info'`                          | Logging level: `debug`, `info`, `warning`, `error`, `fatal`             |
 | `LOG_FILE`             | `'./data/construct.log'`          | Path to the log file                                                    |
 | `PROJECT_ROOT`         | `'.'`                             | Resolved to absolute path. Root for self-read/edit tools                |
-| `TAVILY_API_KEY`       | (none)                            | API key for Tavily web search. If absent, `web_search` tool is disabled |
+| `TAVILY_API_KEY`       | (none)                            | API key for Tavily web search. If absent, `web` tool search is disabled |
 | `EXTENSIONS_DIR`       | Smart default (see below)         | Path to extensions directory                                            |
 
 ## EXTENSIONS_DIR Defaults

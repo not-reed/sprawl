@@ -39,7 +39,7 @@ The system manages several layers of memory, each serving a different purpose:
 
 **Raw messages** are the foundation. Every message sent or received is stored permanently in SQLite. Nothing is discarded. These are searchable via FTS5 full-text search, vector embeddings, and the knowledge graph, so even a casual remark from months ago can surface if it's relevant to the current conversation.
 
-**Curated memories** are things the agent stores via the `memory_store` tool, tagged with a category and embedded for semantic search. These are higher-signal than raw messages: the agent (or user) decided this fact was worth keeping as a standalone record. They get their own embeddings and feed into the knowledge graph.
+**Curated memories** are things the agent stores via the `memory` tool (`action: "store"`), tagged with a category and embedded for semantic search. These are higher-signal than raw messages: the agent (or user) decided this fact was worth keeping as a standalone record. They get their own embeddings and feed into the knowledge graph.
 
 **Observations** are automatically derived from conversation history. A background process watches each conversation and compresses accumulating messages into structured, prioritized notes. When observations pile up, a second process (the reflector) condenses them further. Observations don't replace the stored messages; they replace them in the context window, so the agent gets a compressed view of older conversation without losing access to the raw data. Even this compressed view is capped at 8,000 tokens: when observations exceed the budget, lower-priority and older entries are evicted from the working set, with the retrieval pipeline (FTS5, embeddings, graph) serving as the escape hatch for anything that drops out.
 
@@ -51,7 +51,7 @@ All of this lives in SQLite, managed through Kysely:
 
 ```
 messages           - raw conversation turns (permanent, searchable)
-memories           - curated facts stored via memory_store
+memories           - curated facts stored via memory tool
 observations       - auto-compressed conversation summaries
 graph_nodes        - entities extracted from memories (people, places, concepts)
 graph_edges        - relationships between those entities
@@ -77,7 +77,7 @@ conversations      - per-channel state, including observation watermark
  │  Reflector  │  ──► Condensed observations (supersedes old ones)
  └─────────────┘
 
- Curated Memories (via memory_store)
+  Curated Memories (via memory tool)
       │
       │  (on store, async, non-blocking)
       ▼
@@ -107,7 +107,7 @@ Every message flows through `processMessage()` in `src/agent.ts`. The memory sys
 
 **Before** the agent sees the message, the pipeline builds context. It loads active observations for the conversation (the compressed history), fetches the unobserved messages since the last observation watermark (the recent raw history), and runs passive memory retrieval against the incoming message. The result is a context preamble injected at the top of the prompt: observations, recent memories, and semantically relevant memories, all assembled before the LLM is invoked.
 
-**During** the agent's turn, it has access to memory tools: `memory_store` to write curated memories, `memory_recall` to search across all stored memories (using the full FTS5 + embedding + graph pipeline), and `memory_graph` to traverse the knowledge graph directly. These are active retrieval; the agent decides when to use them.
+**During** the agent's turn, it has access to the `memory` tool with actions: `store` to write curated memories, `recall` to search across all stored memories (using the full FTS5 + embedding + graph pipeline), and `graph` to traverse the knowledge graph directly. These are active retrieval; the agent decides when to use them.
 
 **After** the response is sent, the system runs the observer and reflector asynchronously and non-blocking. The conversation already got its answer; the memory compression happens in the background, ready for the next turn.
 
@@ -127,6 +127,6 @@ The two follow-up articles cover the implementation in detail:
 
 The _Observer, Reflector, Graph_ article digs into the writing side: how raw messages are compressed into observations, how observations are condensed across generations by the reflector, and how stored memories spawn a knowledge graph of entities and relationships.
 
-The _Three Ways to Find a Memory_ article covers the reading side: the waterfall of FTS5 full-text search, cosine similarity over embeddings, and graph traversal that backs the `memory_recall` tool, and the passive auto-injection that runs before the agent even starts thinking.
+The _Three Ways to Find a Memory_ article covers the reading side: the waterfall of FTS5 full-text search, cosine similarity over embeddings, and graph traversal that backs the `memory` tool's `recall` action, and the passive auto-injection that runs before the agent even starts thinking.
 
 Together, the two pipelines are what give Construct something closer to the memory structure of a person than a chatbot: compressed, semantically indexed, queryable by meaning, and always available without needing to be asked.

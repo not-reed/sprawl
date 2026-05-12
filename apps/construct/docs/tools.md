@@ -52,7 +52,7 @@ interface ToolContext {
 }
 ```
 
-A factory returns `InternalTool | null`. Returning `null` means the tool should not be loaded (e.g., `self_deploy` is null in dev mode, `web_search` is null without a Tavily key, telegram tools are null outside Telegram context).
+A factory returns `InternalTool | null`. Returning `null` means the tool should not be loaded (e.g., `web` tool is null without a Tavily key, telegram tools are null outside Telegram context).
 
 ## Tool Packs
 
@@ -69,12 +69,12 @@ interface ToolPack {
 
 ### Built-in Packs
 
-| Pack         | `alwaysLoad` | Tools                                                                                                                                                                                                                      | Description                                                   |
-| ------------ | :----------: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| **core**     |     Yes      | `memory_store`, `memory_recall`, `memory_forget`, `memory_graph`, `schedule_create`, `schedule_list`, `schedule_cancel`, `secret_store`, `secret_list`, `secret_delete`, `usage_stats`, `identity_read`, `identity_update` | Long-term memory, scheduling, secrets, identity management    |
-| **web**      |      No      | `web_read`, `web_search`                                                                                                                                                                                                   | Read web pages (via Jina Reader), search the web (via Tavily) |
-| **self**     |      No      | `self_read_source`, `self_edit_source`, `self_run_tests`, `self_view_logs`, `self_deploy`, `self_system_status`, `extension_reload`                                                                                        | Self-modification, diagnostics, deployment                    |
-| **telegram** |     Yes      | `telegram_react`, `telegram_reply_to`, `telegram_pin`, `telegram_unpin`, `telegram_get_pinned`, `telegram_ask`                                                                                                             | Telegram-specific message interactions                        |
+| Pack         | `alwaysLoad` | Tools                                                   | Description                                                             |
+| ------------ | :----------: | ------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **core**     |     Yes      | `memory`, `schedule`, `secret`, `edit`, `read`, `shell` | Long-term memory, scheduling, secrets, file editing, reading, OS access |
+| **web**      |      No      | `web`                                                   | Read web pages (via Jina Reader), search the web (via Tavily)           |
+| **self**     |      No      | `skill`                                                 | Skill management, diagnostics                                           |
+| **telegram** |     Yes      | `telegram`                                              | Telegram-specific message interactions                                  |
 
 ### Pack Selection Algorithm
 
@@ -101,74 +101,69 @@ At message time, `selectPacks()` compares the user message embedding against pac
 
 ### Core Pack (always loaded)
 
-**memory_store** -- Stores a memory with optional category and tags. Generates an embedding in the background (non-blocking) for future semantic search.
+**memory** -- Unified memory tool. Actions:
 
-**memory_recall** -- Searches memories using a three-tier hybrid approach:
+- `store` -- Stores a memory with optional category and tags. Generates an embedding in the background (non-blocking) for future semantic search.
+- `recall` -- Searches memories using a three-tier hybrid approach: FTS5 full-text search, embedding cosine similarity (threshold 0.3), LIKE keyword fallback. Results are merged and deduplicated.
+- `forget` -- Soft-deletes (archives) a memory by ID, or searches for candidates if given a query.
+- `graph` -- Explores the knowledge graph with three actions: `search` (find nodes by name), `explore` (show connections from a node), `connect` (check if two concepts are linked).
+- `stats` -- Returns AI usage statistics (cost, tokens, message count).
+- `health` -- Shows pipeline queue and memory health.
 
-1. FTS5 full-text search on the `memories_fts` virtual table
-2. Embedding cosine similarity (threshold 0.3) against all memories with embeddings
-3. LIKE keyword fallback
-   Results are merged and deduplicated.
+**schedule** -- Unified schedule tool. Actions:
 
-**memory_forget** -- Soft-deletes (archives) a memory by ID, or searches for candidates if given a query.
+- `create` -- Creates a one-shot (`run_at`) or recurring (`cron_expression`) schedule. Takes a single `instruction` parameter describing what the agent should do when the schedule fires. Includes two-pass dedup (Levenshtein + embedding similarity). The `chat_id` is injected automatically. See [Scheduler](/construct/scheduler/).
+- `list` -- Lists all active (or all) schedules.
+- `cancel` -- Deactivates a schedule by ID.
 
-**memory_graph** -- Explores the knowledge graph with three actions: `search` (find nodes by name), `explore` (show connections from a node), `connect` (check if two concepts are linked).
+**secret** -- Manage secrets in the `secrets` table. Actions:
 
-**schedule_create** -- Creates a one-shot (`run_at`) or recurring (`cron_expression`) schedule. Takes a single `instruction` parameter describing what the agent should do when the schedule fires. All schedules run through the full agent pipeline with tool access. Includes two-pass dedup (Levenshtein + embedding similarity). The `chat_id` is injected automatically. See [Scheduler](/construct/scheduler/).
+- `store` -- Save a secret key-value pair.
+- `list` -- Returns only key names and sources -- **never values**.
+- `delete` -- Removes a secret.
 
-**schedule_list** -- Lists all active (or all) schedules.
+**edit** -- Edit source files or identity documents. Actions:
 
-**schedule_cancel** -- Deactivates a schedule by ID.
+- `source` -- Search-and-replace editing within `src/`, `cli/`, or `extensions/`. Includes rejection detection.
+- `identity` -- Update personality files (SOUL.md, IDENTITY.md, USER.md). Updates invalidate the system prompt cache.
 
-**secret_store / secret_list / secret_delete** -- Manage secrets in the `secrets` table. Values are never exposed through `secret_list`. Secrets are available to dynamic extension tools.
+**read** -- Read files, list directories, or view identity documents. Actions:
 
-**usage_stats** -- Returns AI usage statistics (cost, tokens, message count) with optional day range and source filter.
+- `file` -- Read a source file.
+- `directory` -- List directory contents.
+- `identity` -- Read SOUL.md, IDENTITY.md, or USER.md.
 
-**identity_read / identity_update** -- Read and write identity files (SOUL.md, IDENTITY.md, USER.md). Updates invalidate the system prompt cache and trigger extension reload.
+**shell** -- Execute shell commands. Passed to `/bin/sh -c`, so pipes, redirects, and chaining work.
 
 ### Web Pack (similarity-selected)
 
-**web_read** -- Fetches a URL through `r.jina.ai` (Jina Reader) which returns clean markdown. Truncates at 12,000 characters.
+**web** -- Unified web tool. Actions:
 
-**web_search** -- Searches the web via the Tavily API. Requires `TAVILY_API_KEY`. Returns up to 5 results with titles, URLs, and content snippets. Includes an AI-generated summary when available.
+- `read` -- Fetches a URL through `r.jina.ai` (Jina Reader) which returns clean markdown. Truncates at 12,000 characters.
+- `search` -- Searches the web via the Tavily API. Requires `TAVILY_API_KEY`. Returns up to 5 results with titles, URLs, and content snippets. Includes an AI-generated summary when available.
 
 ### Self Pack (similarity-selected)
 
-**self_read_source** -- Reads files within `src/`, `cli/`, `extensions/`, or config files (`package.json`, `tsconfig.json`, `CLAUDE.md`). The project root is scoped to the monorepo root. The `extensions/` prefix is resolved against `EXTENSIONS_DIR`.
+**skill** -- Unified skill management tool. Actions:
 
-**self_edit_source** -- Search-and-replace editing within `src/`, `cli/`, or `extensions/`. Includes rejection detection: if the user recently rejected a `telegram_ask` question, edits are blocked to prevent unwanted changes.
-
-**self_run_tests** -- Runs `npx vitest run --reporter=verbose` with optional test name filter. 60-second timeout.
-
-**self_view_logs** -- Reads from the log file (with optional `since` and `grep` filtering) or falls back to `journalctl` for the systemd service.
-
-**self_deploy** -- Full deployment pipeline:
-
-1. Typecheck (`tsc --noEmit`)
-2. Test (`vitest run`)
-3. Git tag backup (`pre-deploy-TIMESTAMP`)
-4. Git add `src/` + `cli/`, commit
-5. Restart systemd service
-6. Health check (5-second delay then `systemctl is-active`)
-7. Auto-rollback on failure (`git revert HEAD`, restart)
-
-Rate-limited to 3 deploys per hour. Disabled in development mode.
-
-**self_system_status** -- Reports CPU, RAM, disk, temperature, database size, log file size, and uptimes. Can also rotate (archive) the log file.
-
-**extension_reload** -- Reloads all extensions from disk, invalidates the system prompt cache.
+- `create` -- Create a new skill from a description and body.
+- `update` -- Update a skill's body or description.
+- `list` -- List all skills.
+- `delete` -- Deprecate a skill.
+- `inspect` -- Show skill details.
+- `feedback` -- Record execution feedback on a skill.
+- `conflicts` -- Detect contradictions between skills.
 
 ### Telegram Pack (always loaded)
 
 All Telegram tools require a `TelegramContext` (so they return null from CLI).
 
-**telegram_react** -- Adds an emoji reaction to the user's message. Can optionally suppress the text reply (the reaction IS the response). Uses a side-effects pattern -- the tool sets flags on `TelegramContext.sideEffects`.
+**telegram** -- Unified Telegram tool. Actions:
 
-**telegram_reply_to** -- Marks the response to be sent as a reply to a specific Telegram message ID.
-
-**telegram_pin / telegram_unpin / telegram_get_pinned** -- Pin management. These call the Telegram Bot API directly.
-
-**telegram_ask** -- Sends an interactive question to the user via Telegram (e.g., for confirmation before a destructive action). Creates a `pending_asks` row and sends the question as a Telegram message. The response is tracked when the user replies. Used by self-edit for rejection detection.
+- `react` -- Adds an emoji reaction to the user's message. Can optionally suppress the text reply.
+- `reply` -- Marks the response to be sent as a reply to a specific Telegram message ID.
+- `pin` / `unpin` / `get_pinned` -- Pin management. These call the Telegram Bot API directly.
+- `ask` -- Sends an interactive question to the user via Telegram (e.g., for confirmation before a destructive action). Creates a `pending_asks` row and sends the question as a Telegram message.
 
 ## TypeBox Schemas
 
@@ -189,7 +184,7 @@ TypeBox schemas are passed directly to pi-agent-core, which uses them for LLM fu
 
 ## Side-Effects Pattern (Telegram Tools)
 
-Telegram tools like `telegram_react` and `telegram_reply_to` don't perform their actions immediately. Instead, they set flags on a mutable `TelegramSideEffects` object:
+Telegram tool actions like `react` and `reply` don't perform their actions immediately. Instead, they set flags on a mutable `TelegramSideEffects` object:
 
 ```typescript
 interface TelegramSideEffects {

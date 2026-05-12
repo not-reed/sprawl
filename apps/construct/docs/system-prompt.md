@@ -39,8 +39,8 @@ The hardcoded base prompt that defines:
   - Never edit files outside `src/`, `cli/`, or `extensions/`
 - **Telegram interactions**: How to use telegram tools, message ID format
 - **Proactive communication**: When to add context beyond the bare minimum
-- **Identity files**: How to use identity_read/identity_update tools
-- **Extensions**: How tools and skills work, when to call extension_reload
+- **Identity files**: How to use `read`/`edit` tools with `action: "identity"`
+- **Extensions**: How tools and skills work, when to use `skill` tool actions
 
 ### Identity Sections
 
@@ -61,7 +61,7 @@ Note the order: Identity, User, Soul. The Soul section (personality) comes last 
 
 ### Caching
 
-The system prompt is cached in module-level variables. The cache key is a pipe-delimited concatenation of all three identity file contents. `invalidateSystemPromptCache()` clears the cache (called by `identity_update` and `extension_reload`).
+The system prompt is cached in module-level variables. The cache key is a pipe-delimited concatenation of all three identity file contents. `invalidateSystemPromptCache()` clears the cache (called when identity files are edited via the `edit` tool or extensions are reloaded).
 
 ## Dynamic Context Preamble
 
@@ -78,7 +78,7 @@ Includes the current date/time formatted using `Intl.DateTimeFormat` in the conf
 ### 2. Dev Mode Warning
 
 ```
-[Running in development -- hot reload is active, self_deploy is disabled]
+[Running in development -- hot reload is active]
 ```
 
 Only present when `NODE_ENV=development`.

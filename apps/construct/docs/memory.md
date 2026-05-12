@@ -36,12 +36,14 @@ The overridden `getUnobservedMessages()` selects `telegram_message_id` alongside
 
 The agent stores and recalls facts via tools:
 
-| Tool            | Description                                                                               |
-| --------------- | ----------------------------------------------------------------------------------------- |
-| `memory_store`  | Store a memory with content, category, tags. Triggers async embedding + graph extraction. |
-| `memory_recall` | Hybrid search: FTS5 + embedding cosine similarity + LIKE fallback, with graph expansion.  |
-| `memory_forget` | Soft-delete by ID or search for candidates.                                               |
-| `memory_graph`  | Explore the knowledge graph: search nodes, explore connections, check connectivity.       |
+| Action   | Description                                                                               |
+| -------- | ----------------------------------------------------------------------------------------- |
+| `store`  | Store a memory with content, category, tags. Triggers async embedding + graph extraction. |
+| `recall` | Hybrid search: FTS5 + embedding cosine similarity + LIKE fallback, with graph expansion.  |
+| `forget` | Soft-delete by ID or search for candidates.                                               |
+| `graph`  | Explore the knowledge graph: search nodes, explore connections, check connectivity.       |
+
+All via the unified `memory` tool.
 
 Categories: `general` (default), `preference`, `fact`, `reminder`, `note`.
 
@@ -64,7 +66,7 @@ See [Cairn docs](/cairn/) for the full observer/reflector/promoter pipeline.
 1. **ConstructMemoryManager instantiation** -- Created with the database, worker model config, and custom prompts.
 2. **Context building** -- `buildContext()` returns observations (compressed prefix) + un-observed messages (active suffix). Falls back to last 20 raw messages if no observations exist.
 3. **Declarative memory loading** -- 10 most recent memories + up to 5 semantically relevant (embedding similarity >= 0.4). Injected into context preamble.
-4. **Tool context** -- The `memoryManager` instance is passed to `memory_store` for triggering graph extraction.
+4. **Tool context** -- The `memoryManager` instance is passed to the `memory` tool for triggering graph extraction on store actions.
 
 ### After Response
 

@@ -98,7 +98,7 @@ Stores API keys and tokens for extensions.
 
 ### pending_asks
 
-Tracks interactive questions sent to users via Telegram (used by `telegram_ask` tool).
+Tracks interactive questions sent to users via Telegram (used by `telegram` tool `ask` action).
 
 | Column                | Type               | Notes                          |
 | --------------------- | ------------------ | ------------------------------ |

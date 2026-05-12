@@ -175,11 +175,14 @@ Numbering: `NNN-description.ts` (e.g. `010-observation-expires-at.ts`).
 Factory function pattern -- each tool file exports `createXTool(db, ...)`:
 
 ```typescript
-const Params = Type.Object({ content: Type.String({ description: "..." }) });
+const Params = Type.Object({
+  action: Type.Literal("store"),
+  content: Type.String({ description: "..." }),
+});
 
-export function createMemoryStoreTool(db: Kysely<Database>, apiKey?: string) {
+export function createMemoryTool(db: Kysely<Database>, apiKey?: string) {
   return {
-    name: "memory_store",
+    name: "memory",
     description: "...",
     parameters: Params,
     execute: async (_toolCallId: string, args: Static<typeof Params>) => {

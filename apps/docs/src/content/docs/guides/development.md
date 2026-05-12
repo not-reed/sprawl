@@ -160,44 +160,39 @@ The logging system uses `@logtape/logtape` with these loggers:
 ### Log Rotation
 
 - Automatic: On startup, if the log file exceeds 5 MB, it is rotated
-- Manual: The `self_system_status` tool can trigger rotation via `rotate_logs: true`
+- Manual: The `shell` tool can trigger rotation (e.g., `truncate -c -s 0 logfile`)
 - Rotation keeps up to 3 archived files: `construct.log.1`, `construct.log.2`, `construct.log.3`
 
-## Deployment (Self-Deploy)
+## Deployment
 
-The `self_deploy` tool handles automated deployment. It detects the runtime environment by checking for `/.dockerenv`:
+Deployment is manual. After the agent edits code via `edit` and `shell` tools:
 
-**Common steps (both environments):**
+**Docker:**
 
-1. Typecheck (`tsc --noEmit`)
-2. Test (`vitest run`)
-3. Git tag backup (`pre-deploy-TIMESTAMP`)
-4. Git commit (`src/`, `cli/`, and `extensions/` directories)
+```bash
+docker compose -f deploy/docker-compose.yml up -d --build
+```
 
-**Docker mode** (detected via `/.dockerenv`):
+**Systemd:**
 
-5. `process.exit(0)` -- container restarts via `restart: unless-stopped` policy
+```bash
+sudo systemctl restart construct
+```
 
-**Systemd mode** (non-Docker):
+Recommended: run `just check` before deploying. Create a git tag for rollback:
 
-5. `sudo systemctl restart construct`
-6. Health check (5-second wait, then `systemctl is-active`)
-7. Auto-rollback on failure (`git revert HEAD`, restart)
+```bash
+git tag pre-deploy-$(date -u +%Y%m%d-%H%M%S)
+```
 
-Self-deploy is:
-
-- **Disabled** in development mode (`NODE_ENV=development`)
-- **Rate-limited** to 3 deploys per hour
-- **Safety-gated** by a `confirm: true` parameter
-
-See [Deployment Guide](/guides/deployment/) for full details on Docker and systemd deployment, and [Security Considerations](/guides/security/) for the complete safety model.
+See [Deployment Guide](/guides/deployment/) for full details.
 
 ## Dev Mode Differences
 
 When `NODE_ENV=development`:
 
 - File watching is active (`--watch-path`)
-- `self_deploy` tool is not loaded (returns null from factory)
+- Deployment is manual (no self-deploy tool)
 - Context preamble includes `[DEV MODE]` and a development warning
 - `EXTENSIONS_DIR` defaults to `./data` instead of XDG path
 

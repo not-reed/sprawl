@@ -129,7 +129,7 @@ Telegram has a 4096-character message limit. The `sendReply()` function chunks l
 
 After sending a reply, the bot stores the Telegram message ID of the sent message in the database via `updateTelegramMessageId()`. This enables:
 
-- Future `telegram_reply_to` calls referencing the bot's own messages
+- Future `telegram` tool `reply` action referencing the bot's own messages
 - Reaction handling on the bot's messages (to determine `whose` in the synthetic reaction message)
 
 Message IDs appear as `[tg:12345]` prefixes in conversation history replay.
