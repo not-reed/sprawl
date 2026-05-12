@@ -4,7 +4,12 @@ AI braindump companion. Telegram bot + CLI + scheduler backed by memory pipeline
 
 ## Key Files
 
-- `src/agent.ts` -- `processMessage()` pipeline: context assembly, tool selection, LLM call, persistence, async memory
+- `src/agent.ts` -- `processMessage()` orchestration: continuation loop, usage accumulation, persistence
+- `src/agent-context.ts` -- Context assembly: conversation, observations, memory recall, skill selection
+- `src/agent-turn.ts` -- Single LLM turn: tool bundling, history rehydration, streaming, usage tracking
+- `src/agent-post-turn.ts` -- Async memory pipeline: skill graph edges, pipeline enqueue, skill extraction
+- `src/agent-types.ts` -- Shared types: `AgentResponse`, `ProcessMessageOpts`, `AssembledContext`, `TurnResult`
+- `src/completion-check.ts` -- Continuation heuristics: detects incomplete tool chains or empty responses
 - `src/main.ts` -- Boot sequence: migrations, DB, extensions, pack embeddings, scheduler, Telegram
 - `src/system-prompt.ts` -- System prompt construction + identity file injection
 - `src/tools/packs.ts` -- `InternalTool` interface, `ToolContext`, semantic tool pack selection
@@ -17,48 +22,63 @@ AI braindump companion. Telegram bot + CLI + scheduler backed by memory pipeline
 ```
 Telegram/CLI message
   → processMessage() (agent.ts)
-    → getOrCreateConversation
-    → ConstructMemoryManager.buildContext (observations + active messages)
-    → recallMemories (FTS + embeddings + graph)
-    → selectAndCreateTools (semantic pack selection via query embedding)
-    → selectSkills (extension skills)
-    → Agent.processMessage (pi-agent-core)
-    → saveMessage (user + assistant)
-    → trackUsage
-    → async: observer → reflector → promoter → graph (cairn pipeline)
+    → assembleContext() (agent-context.ts)
+      → getOrCreateConversation
+      → ConstructMemoryManager.buildContext (observations + active messages)
+      → recallMemories (FTS + embeddings + graph)
+      → selectAndRetrieveSkillInstructions
+    → executeTurn() (agent-turn.ts) [may loop via continuation check]
+      → selectAndCreateTools (semantic pack selection via query embedding)
+      → Agent.prompt() (pi-agent-core)
+    → persistTurn (save assistant message + usage)
+    → runPostTurn() (agent-post-turn.ts) — fire-and-forget
+      → skill graph edges
+      → pipeline enqueue (observer → promoter → reflector → graph)
+      → skill extraction + nudge
 ```
 
 ## Directory Structure
 
 ```
 src/
-├── agent.ts             # processMessage() pipeline
-├── system-prompt.ts     # System prompt + identity file injection
-├── memory.ts            # ConstructMemoryManager subclass
-├── main.ts              # Boot sequence
-├── env.ts               # Zod env validation
-├── errors.ts            # ToolError, ExtensionError, AgentError, ConfigError
-├── logger.ts            # Logtape logging
-├── cli/index.ts         # Citty CLI (REPL, one-shot, tool invocation)
+├── agent.ts              # processMessage() orchestration + continuation loop
+├── agent-context.ts      # Context assembly: conversation, memories, skills
+├── agent-turn.ts         # Single LLM turn: tools, history, streaming
+├── agent-post-turn.ts    # Async memory pipeline + skill graph edges
+├── agent-types.ts        # Shared types
+├── completion-check.ts   # Continuation heuristics
+├── system-prompt.ts      # System prompt + identity file injection
+├── memory.ts             # ConstructMemoryManager subclass
+├── main.ts               # Boot sequence
+├── env.ts                # Zod env validation
+├── errors.ts             # ToolError, ExtensionError, AgentError, ConfigError
+├── logger.ts             # Logtape logging
+├── cli/index.ts          # Citty CLI (REPL, one-shot, tool invocation)
 ├── db/
-│   ├── schema.ts        # Construct + Cairn table types (intersection)
-│   ├── queries.ts       # Query helpers
-│   ├── migrate.ts       # Migration runner
-│   └── migrations/      # 001-010
+│   ├── schema.ts         # Construct + Cairn table types (intersection)
+│   ├── queries.ts        # Query helpers
+│   ├── migrate.ts        # Migration runner
+│   └── migrations/       # 001-010
 ├── tools/
-│   ├── packs.ts         # Tool pack selection + InternalTool type
-│   ├── core/            # Always-loaded: memory, schedule, secrets, identity, usage
-│   ├── self/            # Self-modification: read, edit, test, logs, deploy, status
-│   ├── web/             # Web search (Tavily) + web read
-│   └── telegram/        # React, reply-to, pin/unpin, get-pinned, ask
+│   ├── packs.ts          # Tool pack selection + InternalTool type
+│   ├── core/             # Always-loaded: memory, schedule, secrets, identity, usage
+│   │   └── *-handlers.ts # Tool execution handlers (separated from definitions)
+│   ├── self/             # Self-modification: read, edit, test, logs, deploy, status
+│   │   └── *-handlers.ts
+│   ├── web/              # Web search (Tavily) + web read
+│   └── telegram/         # React, reply-to, pin/unpin, get-pinned, ask
+│       └── *-handlers.ts
 ├── telegram/
-│   ├── bot.ts           # Grammy handlers, queue/threading
-│   └── format.ts        # Markdown → Telegram HTML
-├── scheduler/index.ts   # Croner reminder daemon
+│   ├── bot.ts            # Bot factory (Grammy instance creation)
+│   ├── bot-handlers.ts   # Message/callback/reaction handlers
+│   ├── bot-queue.ts      # Per-chat queue manager + typing indicator
+│   ├── bot-send.ts       # Reply/ask message sending helpers
+│   └── format.ts         # Markdown → Telegram HTML
+├── scheduler/index.ts    # Croner reminder daemon
 └── extensions/
-    ├── loader.ts        # Dynamic tool/skill loader (jiti)
-    ├── embeddings.ts    # Extension pack embeddings
-    └── secrets.ts       # Secrets table + EXT_* sync
+    ├── loader.ts         # Dynamic tool/skill loader (jiti)
+    ├── embeddings.ts     # Extension pack embeddings
+    └── secrets.ts        # Secrets table + EXT_* sync
 ```
 
 ## Tools vs Skills
