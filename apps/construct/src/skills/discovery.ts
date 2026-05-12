@@ -152,115 +152,84 @@ export async function detectConflicts(
   }
 }
 
-/**
- * Check if two instructions contradict each other.
- * Uses heuristics: negation patterns, opposites, semantic opposition.
- */
-function detectPairConflict(
-  a: { id: string; skill_id: string; instruction: string },
-  b: { id: string; skill_id: string; instruction: string },
-): SkillConflict | null {
-  const textA = a.instruction.toLowerCase();
-  const textB = b.instruction.toLowerCase();
+type Instruction = { id: string; skill_id: string; instruction: string };
 
-  // Heuristic 1: Explicit negation patterns
-  // "always X" vs "never X"
+function makeConflict(
+  a: Instruction,
+  b: Instruction,
+  conflictType: SkillConflict["conflictType"],
+  similarity: number,
+): SkillConflict {
+  return {
+    instructionA: { id: a.id, text: a.instruction, skillId: a.skill_id },
+    instructionB: { id: b.id, text: b.instruction, skillId: b.skill_id },
+    conflictType,
+    similarity,
+  };
+}
+
+function checkNegationConflict(textA: string, textB: string): boolean {
   const alwaysMatch = textA.match(/always\s+(\w+(?:\s+\w+)*)/);
   const neverMatch = textB.match(/never\s+(\w+(?:\s+\w+)*)/);
+  if (!alwaysMatch || !neverMatch) return false;
+  const alwaysTerm = alwaysMatch[1]!.trim();
+  const neverTerm = neverMatch[1]!.trim();
+  return (
+    alwaysTerm === neverTerm || alwaysTerm.includes(neverTerm) || neverTerm.includes(alwaysTerm)
+  );
+}
 
-  if (alwaysMatch && neverMatch) {
-    const alwaysTerm = alwaysMatch[1]!.trim();
-    const neverTerm = neverMatch[1]!.trim();
+const OPPOSITE_SETTINGS = ["recursive", "cache", "compress", "validate", "verify"];
 
-    if (
-      alwaysTerm === neverTerm ||
-      alwaysTerm.includes(neverTerm) ||
-      neverTerm.includes(alwaysTerm)
-    ) {
-      return {
-        instructionA: { id: a.id, text: a.instruction, skillId: a.skill_id },
-        instructionB: { id: b.id, text: b.instruction, skillId: b.skill_id },
-        conflictType: "negation",
-        similarity: 0.95,
-      };
-    }
-  }
-
-  // Heuristic 2: Opposite settings
-  // "set X=true" vs "set X=false"
-  const patterns = [
-    /(\w+)=true/gi,
-    /(\w+)=false/gi,
-    /recursive\s*=?\s*true/gi,
-    /recursive\s*=?\s*false/gi,
-    /\bno\s+(\w+)/gi,
-    /\bdisable\s+(\w+)/gi,
-  ];
-
-  const settingsA = new Set<string>();
-  const settingsB = new Set<string>();
-
-  for (const pat of patterns) {
-    let match;
-    while ((match = pat.exec(textA)) !== null) {
-      settingsA.add(match[1]!.toLowerCase());
-    }
-    pat.lastIndex = 0;
-    while ((match = pat.exec(textB)) !== null) {
-      settingsB.add(match[1]!.toLowerCase());
-    }
-    pat.lastIndex = 0;
-  }
-
-  // Check for opposite settings
-  const oppositeSettings = ["recursive", "cache", "compress", "validate", "verify"];
-  for (const setting of oppositeSettings) {
+function checkOppositeSettings(textA: string, textB: string): boolean {
+  for (const setting of OPPOSITE_SETTINGS) {
     if (
       (textA.includes(`${setting}=true`) && textB.includes(`${setting}=false`)) ||
       (textA.includes(`${setting}=false`) && textB.includes(`${setting}=true`)) ||
       (textA.includes(`always ${setting}`) && textB.includes(`never ${setting}`))
     ) {
-      return {
-        instructionA: { id: a.id, text: a.instruction, skillId: a.skill_id },
-        instructionB: { id: b.id, text: b.instruction, skillId: b.skill_id },
-        conflictType: "opposite",
-        similarity: 0.9,
-      };
+      return true;
     }
   }
+  return false;
+}
 
-  // Heuristic 3: Semantic opposition (rough: if both mention same topic but opposite actions)
-  // Extract main objects/verbs: "authenticate using X" vs "skip authentication"
+const OPPOSITE_VERB_PAIRS = [
+  ["enable", "disable"],
+  ["require", "allow"],
+  ["use", "skip"],
+  ["always", "never"],
+];
+
+function checkSemanticOpposition(textA: string, textB: string): boolean {
   const verbsA = textA.match(/\b(use|skip|set|enable|disable|require|allow)\b/g) || [];
   const verbsB = textB.match(/\b(use|skip|set|enable|disable|require|allow)\b/g) || [];
 
-  const oppositeVerbs = [
-    ["enable", "disable"],
-    ["require", "allow"],
-    ["use", "skip"],
-    ["always", "never"],
-  ];
-
-  for (const [v1, v2] of oppositeVerbs) {
-    if (
+  for (const [v1, v2] of OPPOSITE_VERB_PAIRS) {
+    const opposed =
       (verbsA.some((v) => v === v1) && verbsB.some((v) => v === v2)) ||
-      (verbsA.some((v) => v === v2) && verbsB.some((v) => v === v1))
-    ) {
-      // Check if they share a common noun (very rough)
-      const nounWordsA = textA.split(/\s+/).filter((w) => w.length > 4);
-      const nounWordsB = new Set(textB.split(/\s+/).filter((w) => w.length > 4));
+      (verbsA.some((v) => v === v2) && verbsB.some((v) => v === v1));
+    if (!opposed) continue;
 
-      const overlap = nounWordsA.filter((w) => nounWordsB.has(w));
-      if (overlap.length >= 2) {
-        return {
-          instructionA: { id: a.id, text: a.instruction, skillId: a.skill_id },
-          instructionB: { id: b.id, text: b.instruction, skillId: b.skill_id },
-          conflictType: "semantic",
-          similarity: 0.75,
-        };
-      }
-    }
+    const nounWordsA = textA.split(/\s+/).filter((w) => w.length > 4);
+    const nounWordsB = new Set(textB.split(/\s+/).filter((w) => w.length > 4));
+    const overlap = nounWordsA.filter((w) => nounWordsB.has(w));
+    if (overlap.length >= 2) return true;
   }
+  return false;
+}
+
+/**
+ * Check if two instructions contradict each other.
+ * Uses heuristics: negation patterns, opposites, semantic opposition.
+ */
+function detectPairConflict(a: Instruction, b: Instruction): SkillConflict | null {
+  const textA = a.instruction.toLowerCase();
+  const textB = b.instruction.toLowerCase();
+
+  if (checkNegationConflict(textA, textB)) return makeConflict(a, b, "negation", 0.95);
+  if (checkOppositeSettings(textA, textB)) return makeConflict(a, b, "opposite", 0.9);
+  if (checkSemanticOpposition(textA, textB)) return makeConflict(a, b, "semantic", 0.75);
 
   return null;
 }

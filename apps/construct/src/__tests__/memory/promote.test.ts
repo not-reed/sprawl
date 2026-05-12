@@ -101,13 +101,22 @@ async function insertObservation(
   return id;
 }
 
-describe("promoteObservations", () => {
+async function setupPromoteTest() {
+  const mm = new MemoryManager(db, {
+    workerConfig: { apiKey: "test", model: "test-model", baseUrl: "" },
+    apiKey: "test",
+  });
+  const convId = await getOrCreateConversation(db, "cli", null);
+  return { mm, convId };
+}
+
+async function getObserverMemories() {
+  return db.selectFrom("memories").selectAll().where("source", "=", "observer").execute();
+}
+
+describe("promoteObservations - basic behavior", () => {
   it("promotes novel medium/high observations to memories", async () => {
-    const mm = new MemoryManager(db, {
-      workerConfig: { apiKey: "test", model: "test-model", baseUrl: "" },
-      apiKey: "test",
-    });
-    const convId = await getOrCreateConversation(db, "cli", null);
+    const { mm, convId } = await setupPromoteTest();
 
     await insertObservation(convId, "User has a dentist appointment on March 5th", "high");
     await insertObservation(convId, "User prefers dark mode in all editors", "medium");
@@ -115,23 +124,14 @@ describe("promoteObservations", () => {
     const promoted = await mm.promoteObservations(convId);
     expect(promoted).toBe(2);
 
-    // Verify memories were created
-    const memories = await db
-      .selectFrom("memories")
-      .selectAll()
-      .where("source", "=", "observer")
-      .execute();
+    const memories = await getObserverMemories();
     expect(memories).toHaveLength(2);
     expect(memories[0].category).toBe("observation");
     expect(memories[0].embedding).not.toBeNull();
   });
 
   it("skips low-priority observations", async () => {
-    const mm = new MemoryManager(db, {
-      workerConfig: { apiKey: "test", model: "test-model", baseUrl: "" },
-      apiKey: "test",
-    });
-    const convId = await getOrCreateConversation(db, "cli", null);
+    const { mm, convId } = await setupPromoteTest();
 
     await insertObservation(convId, "User said hello", "low");
     await insertObservation(convId, "Important fact about user", "high");
@@ -139,77 +139,9 @@ describe("promoteObservations", () => {
     const promoted = await mm.promoteObservations(convId);
     expect(promoted).toBe(1);
 
-    const memories = await db
-      .selectFrom("memories")
-      .selectAll()
-      .where("source", "=", "observer")
-      .execute();
+    const memories = await getObserverMemories();
     expect(memories).toHaveLength(1);
     expect(memories[0].content).toBe("Important fact about user");
-  });
-
-  it("skips near-duplicate observations (sim >= 0.85)", async () => {
-    const mm = new MemoryManager(db, {
-      workerConfig: { apiKey: "test", model: "test-model", baseUrl: "" },
-      apiKey: "test",
-    });
-    const convId = await getOrCreateConversation(db, "cli", null);
-
-    // Pre-store a memory with the same content → embedding will match exactly
-    const content = "User is allergic to shellfish";
-    const embedding = await generateEmbedding("test", content);
-    await storeMemory(db, {
-      content,
-      category: "health",
-      source: "user",
-      embedding: JSON.stringify(embedding),
-      tags: null,
-    });
-
-    // Insert observation with identical text → should be skipped
-    await insertObservation(convId, content, "high");
-
-    const promoted = await mm.promoteObservations(convId);
-    expect(promoted).toBe(0);
-  });
-
-  it("marks all candidates promoted_at regardless of outcome", async () => {
-    const mm = new MemoryManager(db, {
-      workerConfig: { apiKey: "test", model: "test-model", baseUrl: "" },
-      apiKey: "test",
-    });
-    const convId = await getOrCreateConversation(db, "cli", null);
-
-    // One novel, one that will be a near-duplicate
-    const dupContent = "Existing memory content";
-    const embedding = await generateEmbedding("test", dupContent);
-    await storeMemory(db, {
-      content: dupContent,
-      category: "general",
-      source: "user",
-      embedding: JSON.stringify(embedding),
-      tags: null,
-    });
-
-    const id1 = await insertObservation(convId, dupContent, "medium"); // dup
-    const id2 = await insertObservation(
-      convId,
-      "Completely novel observation content here xyz",
-      "high",
-    ); // novel
-
-    await mm.promoteObservations(convId);
-
-    // Both should have promoted_at set
-    const obs = await db
-      .selectFrom("observations")
-      .select(["id", "promoted_at"])
-      .where("id", "in", [id1, id2])
-      .execute();
-
-    for (const o of obs) {
-      expect(o.promoted_at).not.toBeNull();
-    }
   });
 
   it("does nothing without worker config", async () => {
@@ -223,43 +155,82 @@ describe("promoteObservations", () => {
   });
 
   it("does not re-promote already-promoted observations", async () => {
-    const mm = new MemoryManager(db, {
-      workerConfig: { apiKey: "test", model: "test-model", baseUrl: "" },
-      apiKey: "test",
-    });
-    const convId = await getOrCreateConversation(db, "cli", null);
+    const { mm, convId } = await setupPromoteTest();
 
     await insertObservation(convId, "First run observation", "high");
 
     const first = await mm.promoteObservations(convId);
     expect(first).toBe(1);
 
-    // Second run: no new candidates
     const second = await mm.promoteObservations(convId);
     expect(second).toBe(0);
   });
+});
+
+describe("promoteObservations - deduplication", () => {
+  it("skips near-duplicate observations (sim >= 0.85)", async () => {
+    const { mm, convId } = await setupPromoteTest();
+
+    const content = "User is allergic to shellfish";
+    const embedding = await generateEmbedding("test", content);
+    await storeMemory(db, {
+      content,
+      category: "health",
+      source: "user",
+      embedding: JSON.stringify(embedding),
+      tags: null,
+    });
+
+    await insertObservation(convId, content, "high");
+
+    const promoted = await mm.promoteObservations(convId);
+    expect(promoted).toBe(0);
+  });
+
+  it("marks all candidates promoted_at regardless of outcome", async () => {
+    const { mm, convId } = await setupPromoteTest();
+
+    const dupContent = "Existing memory content";
+    const embedding = await generateEmbedding("test", dupContent);
+    await storeMemory(db, {
+      content: dupContent,
+      category: "general",
+      source: "user",
+      embedding: JSON.stringify(embedding),
+      tags: null,
+    });
+
+    const id1 = await insertObservation(convId, dupContent, "medium");
+    const id2 = await insertObservation(
+      convId,
+      "Completely novel observation content here xyz",
+      "high",
+    );
+
+    await mm.promoteObservations(convId);
+
+    const obs = await db
+      .selectFrom("observations")
+      .select(["id", "promoted_at"])
+      .where("id", "in", [id1, id2])
+      .execute();
+
+    for (const o of obs) {
+      expect(o.promoted_at).not.toBeNull();
+    }
+  });
 
   it("deduplicates within the same batch", async () => {
-    const mm = new MemoryManager(db, {
-      workerConfig: { apiKey: "test", model: "test-model", baseUrl: "" },
-      apiKey: "test",
-    });
-    const convId = await getOrCreateConversation(db, "cli", null);
+    const { mm, convId } = await setupPromoteTest();
 
-    // Two observations with identical content → second should be deduped
     const content = "User bought a new laptop today";
     await insertObservation(convId, content, "medium");
     await insertObservation(convId, content, "high");
 
     const promoted = await mm.promoteObservations(convId);
-    // First promotes, second is a duplicate of the first
     expect(promoted).toBe(1);
 
-    const memories = await db
-      .selectFrom("memories")
-      .selectAll()
-      .where("source", "=", "observer")
-      .execute();
+    const memories = await getObserverMemories();
     expect(memories).toHaveLength(1);
   });
 });

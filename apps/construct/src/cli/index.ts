@@ -252,26 +252,16 @@ async function pooled<T>(
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => next()));
 }
 
-async function backfillAll(db: Kysely<Database>) {
-  if (!env.MEMORY_WORKER_MODEL) {
-    console.error("Error: MEMORY_WORKER_MODEL must be set for backfill");
-    process.exit(1);
-  }
-
-  const workerConfig = {
-    apiKey: env.OPENROUTER_API_KEY,
-    model: env.MEMORY_WORKER_MODEL,
-    baseUrl: env.OPENROUTER_BASE_URL,
-    extraBody: { reasoning: { max_tokens: 1 } },
-  };
-  const embeddingOpts = { apiKey: env.OPENROUTER_API_KEY, embeddingModel: env.EMBEDDING_MODEL };
-  const mm = new MemoryManager(db, {
-    workerConfig,
-    embeddingModel: env.EMBEDDING_MODEL,
-    apiKey: env.OPENROUTER_API_KEY,
-  });
-
-  // Phase 1 — Graph extraction for memories with no edges
+async function backfillGraphExtraction(
+  db: Kysely<Database>,
+  workerConfig: {
+    apiKey: string;
+    model: string;
+    baseUrl: string;
+    extraBody?: Record<string, unknown>;
+  },
+  embeddingOpts: { apiKey: string; embeddingModel: string },
+) {
   console.log("\n=== Phase 1: Graph extraction ===");
 
   const memoriesWithoutEdges = await db
@@ -291,28 +281,29 @@ async function backfillAll(db: Kysely<Database>) {
 
   console.log(`Found ${memoriesWithoutEdges.length} memories without graph edges`);
 
-  let p1Success = 0;
-  let p1Failed = 0;
+  let success = 0;
+  let failed = 0;
 
   await pooled(memoriesWithoutEdges, 5, async (mem) => {
     try {
       await withRetry(() =>
-        processMemoryForGraph(db, workerConfig, mem.id, mem.content, embeddingOpts),
+        processMemoryForGraph(db, workerConfig, mem.id, mem.content, { embeddingOpts }),
       );
-      p1Success++;
+      success++;
     } catch (err) {
-      p1Failed++;
+      failed++;
       console.error(`\n  Failed memory ${mem.id}: ${err instanceof Error ? err.message : err}`);
     }
     process.stdout.write(
-      `\r  ${p1Success + p1Failed}/${memoriesWithoutEdges.length} (${p1Failed} failed)`,
+      `\r  ${success + failed}/${memoriesWithoutEdges.length} (${failed} failed)`,
     );
   });
 
   if (memoriesWithoutEdges.length > 0) console.log();
-  console.log(`Done: ${p1Success} extracted, ${p1Failed} failed`);
+  console.log(`Done: ${success} extracted, ${failed} failed`);
+}
 
-  // Phase 2 — Graph node embeddings
+async function backfillNodeEmbeddings(db: Kysely<Database>) {
   console.log("\n=== Phase 2: Graph node embeddings ===");
 
   const nodesWithoutEmbeddings = await db
@@ -323,8 +314,8 @@ async function backfillAll(db: Kysely<Database>) {
 
   console.log(`Found ${nodesWithoutEmbeddings.length} nodes without embeddings`);
 
-  let p2Success = 0;
-  let p2Failed = 0;
+  let success = 0;
+  let failed = 0;
 
   await pooled(nodesWithoutEmbeddings, 10, async (node) => {
     try {
@@ -337,42 +328,44 @@ async function backfillAll(db: Kysely<Database>) {
         .set({ embedding: JSON.stringify(embedding) })
         .where("id", "=", node.id)
         .execute();
-      p2Success++;
+      success++;
     } catch (err) {
-      p2Failed++;
+      failed++;
       console.error(`\n  Failed node ${node.id}: ${err instanceof Error ? err.message : err}`);
     }
     process.stdout.write(
-      `\r  ${p2Success + p2Failed}/${nodesWithoutEmbeddings.length} (${p2Failed} failed)`,
+      `\r  ${success + failed}/${nodesWithoutEmbeddings.length} (${failed} failed)`,
     );
   });
 
   if (nodesWithoutEmbeddings.length > 0) console.log();
-  console.log(`Done: ${p2Success} embedded, ${p2Failed} failed`);
+  console.log(`Done: ${success} embedded, ${failed} failed`);
+}
 
-  // Phase 3 — Observer
+async function backfillObservers(
+  _db: Kysely<Database>,
+  mm: MemoryManager,
+  conversations: { id: string }[],
+) {
   console.log("\n=== Phase 3: Observer ===");
-
-  const conversations = await db.selectFrom("conversations").select("id").execute();
-
   console.log(`Found ${conversations.length} conversations`);
 
-  let p3Triggered = 0;
-  let p3Skipped = 0;
-  let p3Failed = 0;
+  let triggered = 0;
+  let skipped = 0;
+  let failed = 0;
 
   for (let i = 0; i < conversations.length; i++) {
     try {
       const ran = await mm.runObserver(conversations[i].id);
-      if (ran) p3Triggered++;
-      else p3Skipped++;
+      if (ran) triggered++;
+      else skipped++;
       process.stdout.write(
-        `\r  ${i + 1}/${conversations.length} (${p3Triggered} triggered, ${p3Skipped} skipped, ${p3Failed} failed)`,
+        `\r  ${i + 1}/${conversations.length} (${triggered} triggered, ${skipped} skipped, ${failed} failed)`,
       );
     } catch (err) {
-      p3Failed++;
+      failed++;
       process.stdout.write(
-        `\r  ${i + 1}/${conversations.length} (${p3Triggered} triggered, ${p3Skipped} skipped, ${p3Failed} failed)`,
+        `\r  ${i + 1}/${conversations.length} (${triggered} triggered, ${skipped} skipped, ${failed} failed)`,
       );
       console.error(
         `\n  Failed conversation ${conversations[i].id}: ${err instanceof Error ? err.message : err}`,
@@ -381,28 +374,33 @@ async function backfillAll(db: Kysely<Database>) {
   }
 
   if (conversations.length > 0) console.log();
-  console.log(`Done: ${p3Triggered} triggered, ${p3Skipped} below threshold, ${p3Failed} failed`);
+  console.log(`Done: ${triggered} triggered, ${skipped} below threshold, ${failed} failed`);
+}
 
-  // Phase 4 — Reflector
+async function backfillReflectors(
+  _db: Kysely<Database>,
+  mm: MemoryManager,
+  conversations: { id: string }[],
+) {
   console.log("\n=== Phase 4: Reflector ===");
   console.log(`Processing ${conversations.length} conversations`);
 
-  let p4Triggered = 0;
-  let p4Skipped = 0;
-  let p4Failed = 0;
+  let triggered = 0;
+  let skipped = 0;
+  let failed = 0;
 
   for (let i = 0; i < conversations.length; i++) {
     try {
       const ran = await mm.runReflector(conversations[i].id);
-      if (ran) p4Triggered++;
-      else p4Skipped++;
+      if (ran) triggered++;
+      else skipped++;
       process.stdout.write(
-        `\r  ${i + 1}/${conversations.length} (${p4Triggered} triggered, ${p4Skipped} skipped, ${p4Failed} failed)`,
+        `\r  ${i + 1}/${conversations.length} (${triggered} triggered, ${skipped} skipped, ${failed} failed)`,
       );
     } catch (err) {
-      p4Failed++;
+      failed++;
       process.stdout.write(
-        `\r  ${i + 1}/${conversations.length} (${p4Triggered} triggered, ${p4Skipped} skipped, ${p4Failed} failed)`,
+        `\r  ${i + 1}/${conversations.length} (${triggered} triggered, ${skipped} skipped, ${failed} failed)`,
       );
       console.error(
         `\n  Failed conversation ${conversations[i].id}: ${err instanceof Error ? err.message : err}`,
@@ -411,7 +409,34 @@ async function backfillAll(db: Kysely<Database>) {
   }
 
   if (conversations.length > 0) console.log();
-  console.log(`Done: ${p4Triggered} triggered, ${p4Skipped} below threshold, ${p4Failed} failed`);
+  console.log(`Done: ${triggered} triggered, ${skipped} below threshold, ${failed} failed`);
+}
+
+async function backfillAll(db: Kysely<Database>) {
+  if (!env.MEMORY_WORKER_MODEL) {
+    console.error("Error: MEMORY_WORKER_MODEL must be set for backfill");
+    process.exit(1);
+  }
+
+  const workerConfig = {
+    apiKey: env.OPENROUTER_API_KEY,
+    model: env.MEMORY_WORKER_MODEL,
+    baseUrl: env.OPENROUTER_BASE_URL,
+    extraBody: { reasoning: { max_tokens: 1 } },
+  };
+  const embeddingOpts = { apiKey: env.OPENROUTER_API_KEY, embeddingModel: env.EMBEDDING_MODEL };
+  const mm = new MemoryManager(db, {
+    workerConfig,
+    embeddingModel: env.EMBEDDING_MODEL,
+    apiKey: env.OPENROUTER_API_KEY,
+  });
+
+  await backfillGraphExtraction(db, workerConfig, embeddingOpts);
+  await backfillNodeEmbeddings(db);
+
+  const conversations = await db.selectFrom("conversations").select("id").execute();
+  await backfillObservers(db, mm, conversations);
+  await backfillReflectors(db, mm, conversations);
 
   console.log("\n=== Backfill complete ===");
 }

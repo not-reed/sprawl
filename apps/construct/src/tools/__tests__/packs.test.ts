@@ -25,10 +25,8 @@ function makeCtx(overrides?: Partial<ToolContext>): ToolContext {
     chatId: "test-chat",
     apiKey: "test-key",
     projectRoot: "/tmp/test-project",
-    dbPath: ":memory:",
     timezone: "UTC",
     tavilyApiKey: "tavily-key",
-    isDev: false,
     ...overrides,
   };
 }
@@ -54,6 +52,7 @@ describe("createAllTools", () => {
     expect(names).toContain("shell");
     expect(names).toContain("web");
     expect(names).toContain("telegram");
+    expect(names).toContain("skill");
   });
 
   it("excludes web tool when tavilyApiKey is missing", () => {

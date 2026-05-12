@@ -337,6 +337,7 @@ export function createTestToolResult(
   overrides: Partial<AgentResponse["toolCalls"][number]> = {},
 ): AgentResponse["toolCalls"][number] {
   return {
+    id: "tc-test",
     name: "test_tool",
     args: {},
     result: "Tool executed successfully",

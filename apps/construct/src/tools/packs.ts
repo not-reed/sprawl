@@ -28,11 +28,8 @@ export interface ToolContext {
   chatId: string;
   apiKey: string;
   projectRoot: string;
-  dbPath: string;
   timezone: string;
   tavilyApiKey?: string;
-  logFile?: string;
-  isDev: boolean;
   extensionsDir?: string;
   telegram?: TelegramContext;
   memoryManager?: MemoryManager;

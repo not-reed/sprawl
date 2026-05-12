@@ -13,6 +13,8 @@ import { MemoryManager, renderObservations } from "@repo/cairn";
 import type { Observation } from "@repo/cairn";
 import { setupDb, seedObservations, observationFixtures } from "./fixtures.js";
 
+const FIXED_NOW = new Date("2026-01-15T12:00:00Z");
+
 let db: Kysely<Database>;
 let mm: MemoryManager;
 let convId: string;
@@ -124,7 +126,7 @@ describe("renderObservations — priority markers", () => {
       },
     ];
 
-    const rendered = renderObservations(observations);
+    const rendered = renderObservations(observations, FIXED_NOW);
 
     expect(rendered).toContain("! [2024-01-15] High priority item");
     expect(rendered).toContain("- [2024-01-15] Medium priority item");
@@ -145,7 +147,7 @@ describe("renderObservations — priority markers", () => {
       created_at: `2024-01-15T10:0${i}:00Z`,
     }));
 
-    const rendered = renderObservations(observations);
+    const rendered = renderObservations(observations, FIXED_NOW);
     const lines = rendered.split("\n");
 
     // First observation (high priority dentist)

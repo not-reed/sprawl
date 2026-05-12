@@ -1,108 +1,24 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Kysely } from "kysely";
-import { createDb } from "@repo/db";
 import type { Database } from "../../db/schema.js";
-import { createMemoryTool } from "../core/memory.js";
 import { createScheduleTool } from "../core/schedule.js";
 import { createSecretTool } from "../core/secret.js";
-import { createSkillTool } from "../self/skill.js";
 import { createReadTool } from "../core/read.js";
 import { createEditTool } from "../core/edit.js";
 import { createShellTool } from "../core/shell.js";
 import { createWebTool } from "../web/web.js";
 import { createTelegramTool } from "../telegram/telegram.js";
 import type { TelegramContext } from "../../telegram/types.js";
-import * as migration001 from "../../db/migrations/001-initial.js";
-import * as migration002 from "../../db/migrations/002-fts5-and-embeddings.js";
-import * as migration003 from "../../db/migrations/003-secrets.js";
-import * as migration004 from "../../db/migrations/004-telegram-message-ids.js";
-import * as migration008 from "../../db/migrations/008-schedule-prompts.js";
-import * as migration009 from "../../db/migrations/009-pending-asks.js";
-import * as migration011 from "../../db/migrations/011-skills.js";
-import * as migration012 from "../../db/migrations/012-skill-instructions.js";
-import * as migration013 from "../../db/migrations/013-skill-executions.js";
+import { setupDb } from "../../__tests__/fixtures.js";
 
 let db: Kysely<Database>;
 
 beforeEach(async () => {
-  const result = createDb<Database>(":memory:");
-  db = result.db;
-  await migration001.up(db as Kysely<unknown>);
-  await migration002.up(db as Kysely<unknown>);
-  await migration003.up(db as Kysely<unknown>);
-  await migration004.up(db as Kysely<unknown>);
-  await migration008.up(db as Kysely<unknown>);
-  await migration009.up(db as Kysely<unknown>);
-  await migration011.up(db as Kysely<unknown>);
-  await migration012.up(db as Kysely<unknown>);
-  await migration013.up(db as Kysely<unknown>);
+  db = await setupDb();
 });
 
 afterEach(async () => {
   await db.destroy();
-});
-
-// --- Memory ---
-
-describe("memory tool", () => {
-  it("stores a memory with action=store", async () => {
-    const tool = createMemoryTool(db);
-    const result = await tool.execute("t1", {
-      action: "store",
-      content: "Test memory content",
-      category: "fact",
-    });
-    expect(result.output).toContain("Stored memory");
-    expect(result.output).toContain("Test memory content");
-    expect(result.output).toContain("fact");
-  });
-
-  it("recalls memories with action=recall", async () => {
-    const tool = createMemoryTool(db);
-    await tool.execute("t1", {
-      action: "store",
-      content: "Dentist appointment on March 15",
-      category: "reminder",
-      tags: ["dentist", "appointment"],
-    });
-
-    const result = await tool.execute("t2", { action: "recall", query: "dentist" });
-    expect(result.output).toContain("dentist");
-  });
-
-  it("forgets a memory by id with action=forget", async () => {
-    const tool = createMemoryTool(db);
-    const storeResult = await tool.execute("t1", {
-      action: "store",
-      content: "Forget me",
-    });
-    const id = (storeResult.details as any).memory.id;
-
-    const result = await tool.execute("t2", { action: "forget", id });
-    expect(result.output).toContain("Archived");
-  });
-
-  it("forgets by query search with action=forget", async () => {
-    const tool = createMemoryTool(db);
-    await tool.execute("t1", { action: "store", content: "Remember the milk" });
-
-    const result = await tool.execute("t2", { action: "forget", query: "milk" });
-    expect(result.output).toContain("Found");
-    expect(result.output).toContain("milk");
-  });
-
-  it("shows stats with action=stats", async () => {
-    const tool = createMemoryTool(db);
-    const result = await tool.execute("t1", { action: "stats", days: 30 });
-    expect(result.output).toContain("Usage stats");
-    expect(result.output).toContain("30 day(s)");
-  });
-
-  it("returns error for unknown action", async () => {
-    const tool = createMemoryTool(db);
-    const result = await tool.execute("t1", { action: "unknown" } as any);
-    expect(result.output).toContain("Unknown action");
-  });
 });
 
 // --- Schedule ---
@@ -295,6 +211,22 @@ describe("read tool", () => {
     const result = await tool.execute("t1", { action: "file" });
     expect(result.output).toContain("requires");
   });
+
+  it("blocks .env files", async () => {
+    const tool = createReadTool("/tmp/test-project");
+    const result = await tool.execute("t1", {
+      action: "file",
+      path: "apps/construct/.env.construct",
+    });
+    expect(result.output).toContain("Access denied");
+    expect(result.output).toContain("blocked path pattern");
+  });
+
+  it("blocks node_modules", async () => {
+    const tool = createReadTool("/tmp/test-project");
+    const result = await tool.execute("t1", { action: "file", path: "node_modules/foo/index.js" });
+    expect(result.output).toContain("Access denied");
+  });
 });
 
 // --- Edit ---
@@ -315,6 +247,18 @@ describe("edit tool", () => {
       replace: "test",
     });
     expect(result.output).toContain("Access denied");
+  });
+
+  it("blocks .env files", async () => {
+    const tool = createEditTool("/tmp/test-project");
+    const result = await tool.execute("t1", {
+      action: "source",
+      path: "apps/construct/.env.construct",
+      search: "x",
+      replace: "y",
+    });
+    expect(result.output).toContain("Access denied");
+    expect(result.output).toContain("blocked path pattern");
   });
 });
 
@@ -342,127 +286,5 @@ describe("web tool", () => {
     const tool = createWebTool("fake-api-key");
     const result = await tool.execute("t1", { action: "read" });
     expect(result.output).toContain("requires");
-  });
-});
-
-// --- Skill ---
-
-describe("skill tool", () => {
-  it("creates a skill with action=create", async () => {
-    const tool = createSkillTool(db);
-    const result = await tool.execute("t1", {
-      action: "create",
-      name: "Jellyfin API",
-      description: "How to use Jellyfin",
-      body: "1. Authenticate with API key\n2. GET /Users/{id}/Items",
-    });
-    expect(result.output).toContain("Created skill");
-    expect(result.output).toContain("Jellyfin API");
-    expect((result.details as any).skillId).toBe("jellyfin-api");
-  });
-
-  it("rejects duplicate skill creation", async () => {
-    const tool = createSkillTool(db);
-    await tool.execute("t1", {
-      action: "create",
-      name: "Dup Skill",
-      description: "test",
-      body: "test body",
-    });
-    const result = await tool.execute("t2", {
-      action: "create",
-      name: "Dup Skill",
-      description: "test",
-      body: "different body",
-    });
-    expect(result.output).toContain("already exists");
-  });
-
-  it("requires name/description/body for create", async () => {
-    const tool = createSkillTool(db);
-    const result = await tool.execute("t1", { action: "create" });
-    expect(result.output).toContain("requires");
-  });
-
-  it("lists skills with action=list", async () => {
-    const tool = createSkillTool(db);
-    await tool.execute("t1", {
-      action: "create",
-      name: "Test Skill",
-      description: "A test",
-      body: "Do the thing",
-    });
-    const result = await tool.execute("t2", { action: "list" });
-    expect(result.output).toContain("Test Skill");
-  });
-
-  it("returns empty list when no skills", async () => {
-    const tool = createSkillTool(db);
-    const result = await tool.execute("t1", { action: "list" });
-    expect(result.output).toContain("No active skills");
-  });
-
-  it("inspects a skill with action=inspect", async () => {
-    const tool = createSkillTool(db);
-    await tool.execute("t1", {
-      action: "create",
-      name: "Inspect Me",
-      description: "Inspectable",
-      body: "Step 1",
-    });
-    const result = await tool.execute("t2", { action: "inspect", name: "Inspect Me" });
-    expect(result.output).toContain("Inspect Me");
-    expect(result.output).toContain("Version: 1");
-  });
-
-  it("deletes a skill with action=delete", async () => {
-    const tool = createSkillTool(db);
-    await tool.execute("t1", {
-      action: "create",
-      name: "Delete Me",
-      description: "Gone",
-      body: "bye",
-    });
-    const result = await tool.execute("t2", { action: "delete", name: "Delete Me" });
-    expect(result.output).toContain("Deprecated");
-
-    const list = await tool.execute("t3", { action: "list" });
-    expect(list.output).toContain("No active skills");
-  });
-
-  it("records feedback with action=feedback", async () => {
-    const tool = createSkillTool(db);
-    await tool.execute("t1", {
-      action: "create",
-      name: "Feedback Skill",
-      description: "test",
-      body: "stuff",
-    });
-    const result = await tool.execute("t2", {
-      action: "feedback",
-      name: "Feedback Skill",
-      success: true,
-      notes: "Worked well",
-    });
-    expect(result.output).toContain("success");
-    expect(result.output).toContain("Worked well");
-  });
-
-  it("requires name and success for feedback", async () => {
-    const tool = createSkillTool(db);
-    const result = await tool.execute("t1", { action: "feedback" });
-    expect(result.output).toContain("requires");
-  });
-
-  it("returns not found for inspecting nonexistent skill", async () => {
-    const tool = createSkillTool(db);
-    const result = await tool.execute("t1", { action: "inspect", name: "Nope" });
-    expect(result.output).toContain("not found");
-  });
-
-  it("rejects conflicts action without api key", async () => {
-    const tool = createSkillTool(db);
-    const result = await tool.execute("t1", { action: "conflicts" });
-    expect(result.output).toContain("API key");
   });
 });

@@ -69,7 +69,7 @@ src/
 - `shell_tool` — OS access
 - `web_search`, `web_read` — network queries
 
-Tools are always available (core pack) or selected semantically. They don't execute themselves — they're called by the agent.
+Tools are always available (8 built-in primitives loaded unconditionally). They don't execute themselves — they're called by the agent.
 
 **Skills** (in `extensions/skills/`) = instructional knowledge about _how_ to orchestrate tools:
 

@@ -49,19 +49,19 @@ function makeMockBot() {
   } as any;
 }
 
-describe("scheduler", () => {
-  beforeEach(async () => {
-    db = await setupDb();
-    mockProcessMessage.mockReset();
-  });
+beforeEach(async () => {
+  db = await setupDb();
+  mockProcessMessage.mockReset();
+});
 
-  afterEach(async () => {
-    stopScheduler();
-    await db.destroy();
-  });
+afterEach(async () => {
+  stopScheduler();
+  await db.destroy();
+});
 
-  // ── registerJob: past-due one-shot ─────────────────────────────
+// ── registerJob: one-shot ──────────────────────────────────────
 
+describe("scheduler - one-shot", () => {
   it("fires immediately for past-due one-shot schedule", async () => {
     const bot = makeMockBot();
     mockProcessMessage.mockResolvedValueOnce({
@@ -136,9 +136,11 @@ describe("scheduler", () => {
     const schedules = await listSchedules(db, true);
     expect(schedules.find((s) => s.id === schedule.id)).toBeDefined();
   });
+});
 
-  // ── registerJob: cron ──────────────────────────────────────────
+// ── registerJob: cron ──────────────────────────────────────────
 
+describe("scheduler - cron", () => {
   it("registers cron job without immediate fire", async () => {
     const bot = makeMockBot();
     const schedule = await insertSchedule(db, {
@@ -197,9 +199,11 @@ describe("scheduler", () => {
     // After stop, registering the same ID should work again (map was cleared)
     registerJob(db, bot, asSchedule(s1), "UTC");
   });
+});
 
-  // ── DB query helpers ───────────────────────────────────────────
+// ── DB query helpers ───────────────────────────────────────────
 
+describe("scheduler - db helpers", () => {
   it("listSchedules returns only active schedules", async () => {
     await insertSchedule(db, { message: "active", chat_id: "1", run_at: "2099-01-01T00:00:00Z" });
     const s2 = await insertSchedule(db, {
@@ -250,9 +254,11 @@ describe("scheduler", () => {
 
     expect(updated.last_run_at).toBeTruthy();
   });
+});
 
-  // ── Agent-prompt schedules ──────────────────────────────────────
+// ── Agent-prompt schedules ──────────────────────────────────────
 
+describe("scheduler - agent prompts", () => {
   it("fires agent prompt for schedule with prompt column", async () => {
     const bot = makeMockBot();
     mockProcessMessage.mockResolvedValueOnce({
@@ -347,7 +353,9 @@ describe("scheduler", () => {
       }),
     );
   });
+});
 
+describe("scheduler - agent prompt edge cases", () => {
   it("does not crash scheduler when agent throws", async () => {
     const bot = makeMockBot();
     mockProcessMessage.mockRejectedValueOnce(new Error("LLM API down"));

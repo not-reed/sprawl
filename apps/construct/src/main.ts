@@ -14,6 +14,7 @@ import {
   CONSTRUCT_REFLECTOR_PROMPT,
 } from "./memory.js";
 import { PipelineQueue } from "@repo/cairn";
+import { runSkillExtraction } from "./agent-post-turn.js";
 
 async function main() {
   await setupLogging(env.LOG_LEVEL, env.LOG_FILE);
@@ -59,7 +60,23 @@ async function main() {
   });
 
   // Create and start pipeline queue for crash-recoverable post-turn processing
-  const pipelineQueue = new PipelineQueue(db, memoryManager);
+  const pipelineQueue = new PipelineQueue(db, memoryManager, {
+    postTurnExtras: async (conversationId: string) => {
+      const conv = await db
+        .selectFrom("conversations")
+        .select(["source", "external_id"])
+        .where("id", "=", conversationId)
+        .executeTakeFirst();
+      if (!conv) return;
+      await runSkillExtraction(
+        db,
+        memoryManager,
+        conversationId,
+        conv.source,
+        conv.external_id || undefined,
+      );
+    },
+  });
   await pipelineQueue.start();
   log.info`Pipeline queue started`;
 

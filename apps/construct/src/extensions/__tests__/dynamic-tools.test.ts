@@ -5,20 +5,20 @@ import { tmpdir } from "node:os";
 import { loadDynamicTools } from "../loader.js";
 import type { DynamicToolContext } from "../types.js";
 
-describe("loadDynamicTools", () => {
-  let tmpDir: string;
-  const toolCtx: DynamicToolContext = { secrets: new Map() };
-  const availableSecrets = new Set<string>();
+let tmpDir: string;
+const toolCtx: DynamicToolContext = { secrets: new Map() };
+const availableSecrets = new Set<string>();
 
-  beforeEach(async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), "ext-dyn-"));
-    await mkdir(join(tmpDir, "tools"), { recursive: true });
-  });
+beforeEach(async () => {
+  tmpDir = await mkdtemp(join(tmpdir(), "ext-dyn-"));
+  await mkdir(join(tmpDir, "tools"), { recursive: true });
+});
 
-  afterEach(async () => {
-    await rm(tmpDir, { recursive: true });
-  });
+afterEach(async () => {
+  await rm(tmpDir, { recursive: true });
+});
 
+describe("loadDynamicTools - basic loading", () => {
   it("returns empty when tools/ has no files", async () => {
     const packs = await loadDynamicTools(tmpDir, toolCtx, availableSecrets);
     expect(packs).toEqual([]);
@@ -54,7 +54,6 @@ export default function create(ctx) {
     expect(packs[0].name).toBe("ext:echo");
     expect(packs[0].factories).toHaveLength(1);
 
-    // Instantiate and test the tool
     const tool = packs[0].factories[0]({} as any);
     expect(tool).not.toBeNull();
     expect(tool!.name).toBe("echo");
@@ -78,7 +77,9 @@ export default {
     expect(packs).toHaveLength(1);
     expect(packs[0].name).toBe("ext:utils");
   });
+});
 
+describe("loadDynamicTools - packs and secrets", () => {
   it("uses pack.md for description when present", async () => {
     await mkdir(join(tmpDir, "tools", "mypack"), { recursive: true });
     await writeFile(join(tmpDir, "tools", "mypack", "pack.md"), "Custom pack description");
